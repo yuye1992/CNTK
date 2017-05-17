@@ -312,7 +312,7 @@ class DeepQAgent(object):
             return huber_loss(q_targets, q_acted, 1.0)
 
         # Adam based SGD
-        lr_schedule = learning_rate_schedule(learning_rate, UnitType.minibatch)
+        lr_schedule = learning_rate_schedule(learning_rate)
         m_schedule = momentum_schedule(momentum)
         vm_schedule = momentum_schedule(0.999)
         l_sgd = adam(self._action_value_net.parameters, lr_schedule,

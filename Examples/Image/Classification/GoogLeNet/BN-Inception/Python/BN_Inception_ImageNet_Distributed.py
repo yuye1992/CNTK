@@ -111,7 +111,7 @@ def create_trainer(network, epoch_size, num_epochs, minibatch_size, num_quantiza
         lr_per_mb.extend([learning_rate] * learn_rate_adjust_interval)
         learning_rate *= learn_rate_decrease_factor
 
-    lr_schedule       = cntk.learning_rate_schedule(lr_per_mb, unit=cntk.learner.UnitType.minibatch, epoch_size=epoch_size)
+    lr_schedule       = cntk.learning_rate_schedule(lr_per_mb,  epoch_size=epoch_size)
     mm_schedule       = cntk.learner.momentum_schedule(0.9)
     l2_reg_weight     = 0.0001 # CNTK L2 regularization is per sample, thus same as Caffe
     

@@ -50,7 +50,7 @@ def ffnet():
     ce = cross_entropy_with_softmax(netout, label)
     pe = classification_error(netout, label)
 
-    lr_per_minibatch = learning_rate_schedule(0.5, UnitType.minibatch)
+    lr_per_minibatch = learning_rate_schedule(0.5)
     # Instantiate the trainer object to drive the model training
     learner = sgd(netout.parameters, lr=lr_per_minibatch)
     progress_printer = ProgressPrinter(128)

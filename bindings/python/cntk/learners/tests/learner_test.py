@@ -37,7 +37,7 @@ def test_learning_rate_schedule(params, expectation):
 
 def sweep_based_schedule_fails():
     with pytest.raises(Exception):
-        learning_rate_schedule([1], unit=UnitType.sample, epoch_size=0)
+        learning_rate_schedule([1],  epoch_size=0)
 
 def test_momentum_schedule():
     m = 2500
@@ -63,10 +63,10 @@ def test_learner_init():
 
     res = i * w
 
-    learner = sgd(res.parameters, lr=learning_rate_schedule(0.1, UnitType.sample))
+    learner = sgd(res.parameters, lr=learning_rate_schedule(0.1))
     assert learner.learning_rate() == 0.1
     
-    learner.reset_learning_rate(learning_rate_schedule([1,2,3], UnitType.minibatch));
+    learner.reset_learning_rate(learning_rate_schedule([1,2,3]));
     assert learner.learning_rate() == 1.0
 
     learner_parameter = learner.parameters
@@ -78,7 +78,7 @@ def test_learner_init():
     assert unit_gain_value
 
     momentum_time_constant = C.momentum_as_time_constant_schedule(1100)
-    lr_per_sample = learning_rate_schedule(0.1, UnitType.sample)
+    lr_per_sample = learning_rate_schedule(0.1)
     C.momentum_sgd(res.parameters, lr_per_sample, momentum_time_constant)
     C.momentum_sgd(res.parameters, lr_per_sample, momentum_time_constant, unit_gain_value)
     C.momentum_sgd(res.parameters, lr_per_sample, momentum_time_constant, unit_gain=unit_gain_value)
@@ -87,25 +87,25 @@ def test_learner_init():
     unit_gain_value = C.default_unit_gain_value()
     assert not unit_gain_value
 
-    lr_per_sample = learning_rate_schedule([0.1, 0.2], UnitType.sample)
+    lr_per_sample = learning_rate_schedule([0.1, 0.2])
     C.nesterov(res.parameters, lr=lr_per_sample, momentum=momentum_time_constant)
     C.nesterov(res.parameters, lr_per_sample, momentum_time_constant, unit_gain_value)
     C.nesterov(res.parameters, lr=lr_per_sample, momentum=momentum_time_constant, unit_gain=unit_gain_value)
 
-    lr_per_sample = learning_rate_schedule([0.1]*3 +[0.2]*2 +[0.3], UnitType.sample)
+    lr_per_sample = learning_rate_schedule([0.1]*3 +[0.2]*2 +[0.3])
     C.adagrad(res.parameters, lr=lr_per_sample, need_ave_multiplier=True)
 
     C.set_default_unit_gain_value(True)
     unit_gain_value = C.default_unit_gain_value()
     assert unit_gain_value
 
-    lr_per_sample = learning_rate_schedule([(3,0.1), (2, 0.2), (1, 0.3)], UnitType.sample)
+    lr_per_sample = learning_rate_schedule([(3,0.1), (2, 0.2), (1, 0.3)])
     C.fsadagrad(res.parameters, lr=lr_per_sample, momentum=momentum_time_constant)
     C.fsadagrad(res.parameters, lr_per_sample, momentum_time_constant, unit_gain_value)
     C.fsadagrad(res.parameters, lr=lr_per_sample, momentum=momentum_time_constant, unit_gain=unit_gain_value)
 
     gamma, inc, dec, max, min = [0.1]*5
-    lr_per_sample = learning_rate_schedule([0.1, 0.2], UnitType.sample, 100)
+    lr_per_sample = learning_rate_schedule([0.1, 0.2], epoch_size= 100)
     C.rmsprop(res.parameters, lr_per_sample, gamma, inc, dec, max, min, True)
 
     C.set_default_use_mean_gradient_value(False)
@@ -126,13 +126,13 @@ def test_learner_update():
     w = parameter(shape=(1,), init=w_init)
     res = i * w
 
-    learner = sgd(res.parameters, lr=learning_rate_schedule([0.1]*50 + [0.2]*50, UnitType.sample, 1))
+    learner = sgd(res.parameters, lr=learning_rate_schedule([0.1]*50 + [0.2]*50, epoch_size=1))
     assert learner.learning_rate() == 0.1
     x = learner.update({w: np.asarray([[2.]], dtype=np.float32)}, 100)
     assert learner.learning_rate() == 0.2
     assert w.value < w_init
 
-    learner.reset_learning_rate(learning_rate_schedule([0.3]*50 + [0.4]*50, UnitType.sample, 1));
+    learner.reset_learning_rate(learning_rate_schedule([0.3]*50 + [0.4]*50, epoch_size= 1));
     assert learner.learning_rate() == 0.3
     x = learner.update({w: np.asarray([[2.]], dtype=np.float32)}, 100)
     assert learner.learning_rate() == 0.4
@@ -146,7 +146,7 @@ def test_noise_injection_with_checkpointing():
     w2 = parameter(shape=shape, init=initializer.glorot_uniform(seed=123))
     w3 = parameter(shape=shape, init=initializer.glorot_uniform(seed=123))
     
-    lr=learning_rate_schedule(0.5, UnitType.sample)
+    lr=learning_rate_schedule(0.5)
     m=C.momentum_schedule(0.99)
 
     learner1 = C.momentum_sgd([w1], lr, m, gaussian_noise_injection_std_dev=0.5)
@@ -195,7 +195,7 @@ def test_learner_logging():
     lr_values = [0.3, 0.2, 0.1, 0]
     m_values = [0.6, 0.7, 0.8]
     learner = C.momentum_sgd(z.parameters,
-                  learning_rate_schedule(lr_values, UnitType.sample, 1),
+                  learning_rate_schedule(lr_values, epoch_size= 1),
                   C.momentum_schedule(m_values, 1))
     trainer = Trainer(z, (ce, errs), [learner], writer)
 
@@ -210,7 +210,6 @@ def test_learner_logging():
         assert (values[i] == writer.log_output[i])
 
 def test_training_parameter_schedule():
-    C.training_parameter_schedule(0.01, unit='minibatch')
     C.training_parameter_schedule(0.01, unit='sample')
 
     with pytest.raises(ValueError):
@@ -252,7 +251,7 @@ def test_sweep_based_schedule(tmpdir, device_id):
     ce = cross_entropy_with_softmax(z, labels)
     errs = classification_error(z, labels)
 
-    lr_per_sample = learning_rate_schedule([0.3, 0.2, 0.1, 0.0], UnitType.sample)
+    lr_per_sample = learning_rate_schedule([0.3, 0.2, 0.1, 0.0])
     learner = sgd(z.parameters, lr_per_sample)
     trainer = Trainer(z, (ce, errs), [learner])
 
@@ -297,7 +296,7 @@ def generate_random_data(sample_size, feature_dim, num_classes):
 
 
 def test_learner_empy_parameters_list():
-    lr_per_sample = learning_rate_schedule(0.1, UnitType.sample)
+    lr_per_sample = learning_rate_schedule(0.1)
     with pytest.raises(ValueError):
         learner = C.sgd([], lr_per_sample)
 
@@ -349,14 +348,14 @@ def test_sgd_with_noise():
     # in some layers. This tests that cuRand library will not
     # complain about generating an odd number of random values
     np.random.seed(98052)
-    learner = lambda params: sgd(params, lr=learning_rate_schedule(0.125, UnitType.minibatch), gaussian_noise_injection_std_dev=0.01)
+    learner = lambda params: sgd(params, lr=learning_rate_schedule(0.125), gaussian_noise_injection_std_dev=0.01)
     ffnet(learner)
     # We just verify that we did not crash
     assert(True)
 
 def test_universal():
     np.random.seed(98052)
-    builtin_sgd = lambda params: sgd(params, lr=learning_rate_schedule(0.125, UnitType.minibatch))
+    builtin_sgd = lambda params: sgd(params, lr=learning_rate_schedule(0.125))
     builtin_last_avg_error, builtin_avg_error = ffnet(builtin_sgd)
     np.random.seed(98052)
     my_sgd = lambda p, g: C.assign(p, p - 0.125/25 * g)

@@ -163,7 +163,7 @@ def Evaluator(model, criterion):
     if metric:
         parameters |= set(metric.parameters)
     dummy_learner = momentum_sgd(tuple(parameters), 
-                                 lr = learning_rate_schedule(1, UnitType.minibatch),
+                                 lr = learning_rate_schedule(1),
                                  momentum = momentum_as_time_constant_schedule(0))
     return Trainer(model, (loss, metric), dummy_learner)
 

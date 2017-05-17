@@ -38,9 +38,9 @@ def ffnet():
     pe = C.classification_error(z, label)
 
     # Instantiate the trainer object to drive the model training
-    lr_per_minibatch = learning_rate_schedule(0.125, UnitType.minibatch)
+    lr = learning_rate_schedule(0.125)
     progress_printer = ProgressPrinter(0)
-    trainer = C.Trainer(z, (ce, pe), [sgd(z.parameters, lr=lr_per_minibatch)], [progress_printer])
+    trainer = C.Trainer(z, (ce, pe), [sgd(z.parameters, lr=lr)], [progress_printer])
 
     # Get minibatches of training data and perform model training
     minibatch_size = 25

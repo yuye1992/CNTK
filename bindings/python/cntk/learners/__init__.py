@@ -333,7 +333,7 @@ def learning_rate_schedule(lr, unit, epoch_size=None):
 def momentum_schedule(momentum, epoch_size=None):
     '''
     Create a per-minibatch momentum schedule (using the same semantics as
-    :func:`training_parameter_schedule` with the `unit=UnitType.minibatch`).
+    :func:`training_parameter_schedule`).
 
     Args:
         momentum (float or list): see parameter ``schedule`` in
@@ -364,7 +364,7 @@ def momentum_schedule(momentum, epoch_size=None):
     Returns:
         momentum schedule
     '''
-    return training_parameter_schedule(momentum, UnitType.minibatch, epoch_size)
+    return training_parameter_schedule(momentum, epoch_size)
 
 
 @typemap
@@ -455,7 +455,7 @@ def sgd(parameters, lr,
     _verify_learning_rate_type(lr)
     gaussian_noise_injection_std_dev = \
         training_parameter_schedule(
-            gaussian_noise_injection_std_dev, UnitType.minibatch)
+            gaussian_noise_injection_std_dev)
 
     additional_options = cntk_py.AdditionalLearningOptions()
     additional_options.l1_regularization_weight = l1_regularization_weight
@@ -505,7 +505,7 @@ def momentum_sgd(parameters, lr, momentum, unit_gain=default_unit_gain_value(),
     _verify_momentum_type(momentum)
     gaussian_noise_injection_std_dev = \
         training_parameter_schedule(
-            gaussian_noise_injection_std_dev, UnitType.minibatch)
+            gaussian_noise_injection_std_dev)
 
     additional_options = cntk_py.AdditionalLearningOptions()
     additional_options.l1_regularization_weight = l1_regularization_weight
@@ -567,7 +567,7 @@ def nesterov(parameters, lr, momentum, unit_gain=default_unit_gain_value(),
     _verify_momentum_type(momentum)
     gaussian_noise_injection_std_dev = \
         training_parameter_schedule(
-            gaussian_noise_injection_std_dev, UnitType.minibatch)
+            gaussian_noise_injection_std_dev)
 
     additional_options = cntk_py.AdditionalLearningOptions()
     additional_options.l1_regularization_weight = l1_regularization_weight
@@ -617,7 +617,7 @@ def adadelta(parameters, lr=learning_rate_schedule(1, UnitType.sample), rho=0.95
     '''
     gaussian_noise_injection_std_dev = \
         training_parameter_schedule(
-            gaussian_noise_injection_std_dev, UnitType.minibatch)
+            gaussian_noise_injection_std_dev)
 
     additional_options = cntk_py.AdditionalLearningOptions()
     additional_options.l1_regularization_weight = l1_regularization_weight
@@ -670,7 +670,7 @@ def adagrad(parameters, lr, need_ave_multiplier=True,
     _verify_learning_rate_type(lr)
     gaussian_noise_injection_std_dev = \
         training_parameter_schedule(
-            gaussian_noise_injection_std_dev, UnitType.minibatch)
+            gaussian_noise_injection_std_dev)
 
     additional_options = cntk_py.AdditionalLearningOptions()
     additional_options.l1_regularization_weight = l1_regularization_weight
@@ -725,7 +725,7 @@ def fsadagrad(parameters, lr, momentum, unit_gain=default_unit_gain_value(),
     _verify_momentum_type(variance_momentum)
     gaussian_noise_injection_std_dev = \
         training_parameter_schedule(
-            gaussian_noise_injection_std_dev, UnitType.minibatch)
+            gaussian_noise_injection_std_dev)
 
     additional_options = cntk_py.AdditionalLearningOptions()
     additional_options.l1_regularization_weight = l1_regularization_weight
@@ -789,7 +789,7 @@ def adam(parameters, lr, momentum, unit_gain=default_unit_gain_value(),
     _verify_momentum_type(variance_momentum)
     gaussian_noise_injection_std_dev = \
         training_parameter_schedule(
-            gaussian_noise_injection_std_dev, UnitType.minibatch)
+            gaussian_noise_injection_std_dev)
 
     additional_options = cntk_py.AdditionalLearningOptions()
     additional_options.l1_regularization_weight = l1_regularization_weight
@@ -842,7 +842,7 @@ def rmsprop(parameters, lr,
     _verify_learning_rate_type(lr)
     gaussian_noise_injection_std_dev = \
         training_parameter_schedule(
-            gaussian_noise_injection_std_dev, UnitType.minibatch)
+            gaussian_noise_injection_std_dev)
 
     additional_options = cntk_py.AdditionalLearningOptions()
     additional_options.l1_regularization_weight = l1_regularization_weight

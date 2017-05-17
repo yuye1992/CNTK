@@ -114,7 +114,7 @@ def train_model(base_model_file, feature_node_name, last_hidden_node_name,
     pe = classification_error(tl_model, label_input)
 
     # Instantiate the trainer object
-    lr_schedule = learning_rate_schedule(lr_per_mb, unit=UnitType.minibatch)
+    lr_schedule = learning_rate_schedule(lr_per_mb )
     mm_schedule = momentum_schedule(momentum_per_mb)
     learner = momentum_sgd(tl_model.parameters, lr_schedule, mm_schedule, l2_regularization_weight=l2_reg_weight)
     progress_printer = ProgressPrinter(tag='Training', num_epochs=num_epochs)

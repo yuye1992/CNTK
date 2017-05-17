@@ -143,7 +143,7 @@ def create_alexnet():
 def create_trainer(network, epoch_size, num_quantization_bits, printer, block_size, warm_up):
     # Set learning parameters
     lr_per_mb         = [0.01]*25 + [0.001]*25 + [0.0001]*25 + [0.00001]*25 + [0.000001]
-    lr_schedule       = C.learning_rate_schedule(lr_per_mb, unit=C.learners.UnitType.minibatch, epoch_size=epoch_size)
+    lr_schedule       = C.learning_rate_schedule(lr_per_mb,  epoch_size=epoch_size)
     mm_schedule       = C.learners.momentum_schedule(0.9)
     l2_reg_weight     = 0.0005 # CNTK L2 regularization is per sample, thus same as Caffe
 
