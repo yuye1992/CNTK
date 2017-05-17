@@ -40,7 +40,6 @@ namespace CNTK
     {
         m_learningRateSchedule.m_schedule.clear();
         m_learningRateSchedule.m_epochSize = learningRateSchedule.m_epochSize;
-        m_learningRateSchedule.m_unit = learningRateSchedule.m_unit;
 
         // copy the new schedule over, adjusting for the current varlue of the corresponding unit
         // (samples or sweeps) count.
@@ -219,11 +218,6 @@ namespace CNTK
                 NDArrayViewPtr view = AllocateNDArrayView(parameter, parameter.Shape());
                 m_smoothedGradientValues.emplace(parameter, view);
             }
-        }
-
-        if (m_additionalOptions.useMeanGradient && learningRateSchedule.Unit() == LearningRateSchedule::UnitType::Minibatch)
-        {
-            LogicError("useMeanGradient should not be used with per-minibatch learning rate setting");
         }
     }
 
@@ -437,10 +431,6 @@ namespace CNTK
 
             wstringstream stream;
             stream << name;
-            if (schedule.Unit() == TrainingParameterSchedule<double>::UnitType::Minibatch)
-                stream << L" per minibatch";
-            else
-                stream << L" per sample";
             wstring prefix = stream.str();
 
             for (auto& writer : m_progressWriters)
@@ -483,18 +473,10 @@ namespace CNTK
         parameterMatrix->SGDUpdate(*gradientMatrix, learningRate);
     }
 
-    double LearnerMomentumSGD::MomentumValueForMB(const MomentumSchedule& schedule, size_t minibatchSize) const
+    double LearnerMomentumSGD::MomentumValueForMB(const MomentumSchedule& schedule, size_t /*minibatchSize*/) const
     {
         double currentMomentum = GetCurrentTrainingParameterValue(schedule);
-        if (schedule.Unit() == MomentumSchedule::UnitType::Minibatch)
-        {
-            return currentMomentum;
-        }
-
-        if (m_additionalOptions.useMeanGradient)
-            LogicError("useMeanGradient should not be used with per-sample momentum setting");
-
-        return std::pow(currentMomentum, minibatchSize);
+        return currentMomentum;
     }
 
     /*virtual*/ void LearnerMomentumSGD::Update(const Parameter& parameter, const NDArrayViewPtr& gradientValue, 
@@ -834,7 +816,7 @@ namespace CNTK
 
 
     LearnerUniversal::LearnerUniversal(const std::vector<Parameter>& parameters, const ParameterUpdateFunctor& func)
-        : LearnerBase(parameters, LearningRateSchedule(1.0, CNTK::LearningRateSchedule::UnitType::Sample), AdditionalLearningOptions(), /*allocateSmoothGradients*/ false)
+        : LearnerBase(parameters, LearningRateSchedule(1.0), AdditionalLearningOptions(), /*allocateSmoothGradients*/ false)
     {
         for (const auto& p : parameters)
         {
@@ -847,7 +829,7 @@ namespace CNTK
     }
 
     LearnerUniversal::LearnerUniversal(const std::vector<Parameter>& parameters, const std::vector<std::pair<Variable, FunctionPtr>>& updateFunctions)
-        : LearnerBase(parameters, LearningRateSchedule(1.0, CNTK::LearningRateSchedule::UnitType::Sample), AdditionalLearningOptions(), /*allocateSmoothGradients*/ false)
+        : LearnerBase(parameters, LearningRateSchedule(1.0), AdditionalLearningOptions(), /*allocateSmoothGradients*/ false)
     {
         if (parameters.size() != updateFunctions.size())
             LogicError("Number of parameters (%zd) does not match number of updateFunctions (%zd)", parameters.size(), updateFunctions.size());

@@ -4166,16 +4166,6 @@ namespace CNTK
     {
     public:
         ///
-        /// Indicates whether the values in the schedule are specified on the per-sample or 
-        /// per-minibatch basis.
-        ///
-        enum class UnitType : unsigned int
-        {
-            Sample = 0,
-            Minibatch = 1,
-        };
-
-        ///
         /// A special value that can be used for the epochSize to indicate that the schedule is sweep-based.
         ///
         static const size_t FullDataSweep = 0;
@@ -4183,14 +4173,14 @@ namespace CNTK
         ///
         /// Create a schedule with a constant parameter value.
         ///
-        CNTK_API TrainingParameterSchedule(T value, UnitType unit);
+        CNTK_API TrainingParameterSchedule(T value);
 
         ///
         /// Create a schedule where the parameter changes its value every 'epochSize' samples:
         /// schedule[0] is used for the first 'epochSize' samples, schedule[1] -- for the second,
         /// and so on. The last value is then used repeatedly until the end of training.
         ///
-        CNTK_API TrainingParameterSchedule(const std::vector<T>& schedule, UnitType unit, size_t epochSize = FullDataSweep);
+        CNTK_API TrainingParameterSchedule(const std::vector<T>& schedule, size_t epochSize = FullDataSweep);
 
         ///
         /// Create a schedule using the list of key-value pairs, where the key specifies 
@@ -4201,20 +4191,13 @@ namespace CNTK
         /// the first 100 samples, then '0.1' is used for the second 200 samples, 
         /// after which the values is switched to '0.005'.
         ///
-        CNTK_API TrainingParameterSchedule(const std::vector<std::pair<size_t, T>>& schedule, UnitType unit, size_t epochSize = FullDataSweep);
+        CNTK_API TrainingParameterSchedule(const std::vector<std::pair<size_t, T>>& schedule, size_t epochSize = FullDataSweep);
 
         ///
         /// Returns a value corresponding to the absolute sample (or sweep) 
         /// count from the beginning of training.
         ///
         CNTK_API const T& operator[](size_t count) const;
-
-        ///
-        /// Returns the unit type for 'this' training parameter schedule. 
-        /// In case when the values are specified on the per-Minibatch basis, they are
-        /// re-scaled by the learner using the actual minibatch size in samples.
-        ///
-        UnitType Unit() const { return m_unit; }
 
         bool IsSweepBased() const { return m_epochSize == FullDataSweep; }
 
@@ -4243,27 +4226,26 @@ namespace CNTK
 
     protected:           
         std::map<size_t, T> m_schedule;
-        UnitType m_unit;
         size_t m_epochSize;
     };
 
-    template <typename T, typename TrainingParameterSchedule<T>::UnitType U>
+    template <typename T>
     class TrainingParameterPerUnitSchedule : public TrainingParameterSchedule<T>
     {
     public:
         TrainingParameterPerUnitSchedule(T value)
-            : TrainingParameterSchedule<T>::TrainingParameterSchedule(value, U)
+            : TrainingParameterSchedule<T>::TrainingParameterSchedule(value)
         { }
 
         TrainingParameterPerUnitSchedule(const std::vector<T>& schedule, 
                                          size_t epochSize = TrainingParameterSchedule<T>::FullDataSweep)
-            : TrainingParameterSchedule<T>::TrainingParameterSchedule(schedule, U, epochSize)
+            : TrainingParameterSchedule<T>::TrainingParameterSchedule(schedule,   epochSize)
         { }
 
 
         TrainingParameterPerUnitSchedule(const std::vector<std::pair<size_t, T>>& schedule, 
                                          size_t epochSize = TrainingParameterSchedule<T>::FullDataSweep)
-            : TrainingParameterSchedule<T>::TrainingParameterSchedule(schedule, U, epochSize)
+            : TrainingParameterSchedule<T>::TrainingParameterSchedule(schedule, epochSize)
         { }
 
 #ifdef SWIG // for Python interop (adds indexer)
@@ -4280,22 +4262,14 @@ namespace CNTK
     /// Training parameter schedule with per-sample values.
     ///
     template <typename T>
-    using TrainingParameterPerSampleSchedule = TrainingParameterPerUnitSchedule<T, TrainingParameterSchedule<T>::UnitType::Sample>;
-
-    ///
-    /// Training parameter schedule with per-minibatch values.
-    ///
-    template <typename T>
-    using TrainingParameterPerMinibatchSchedule = TrainingParameterPerUnitSchedule<T, TrainingParameterSchedule<T>::UnitType::Minibatch>;
+    using TrainingParameterPerSampleSchedule = TrainingParameterPerUnitSchedule<T>;
 
     typedef TrainingParameterPerSampleSchedule<double> LearningRatePerSampleSchedule;
-    typedef TrainingParameterPerMinibatchSchedule<double> LearningRatePerMinibatchSchedule;
 
     typedef TrainingParameterPerSampleSchedule<double> MomentumPerSampleSchedule;
-    typedef TrainingParameterPerMinibatchSchedule<double> MomentumPerMinibatchSchedule;
 #endif
 
-    typedef TrainingParameterPerUnitSchedule<size_t, TrainingParameterSchedule<size_t>::UnitType::Sample> MinibatchSizeSchedule;
+    typedef TrainingParameterSchedule<size_t> MinibatchSizeSchedule;
     typedef TrainingParameterSchedule<double> LearningRateSchedule;
     typedef TrainingParameterSchedule<double> MomentumSchedule;
 
@@ -4308,19 +4282,19 @@ namespace CNTK
     {
     public:
         MomentumAsTimeConstantSchedule(double value) 
-            : TrainingParameterSchedule<double>::TrainingParameterSchedule(value, UnitType::Sample)
+            : TrainingParameterSchedule<double>::TrainingParameterSchedule(value)
         { 
             ConvertToPerSampleValues();
         }
         
         MomentumAsTimeConstantSchedule(const std::vector<double>& schedule, size_t epochSize = FullDataSweep) 
-            : TrainingParameterSchedule<double>::TrainingParameterSchedule(schedule, UnitType::Sample, epochSize) 
+            : TrainingParameterSchedule<double>::TrainingParameterSchedule(schedule, epochSize) 
         { 
             ConvertToPerSampleValues();
         }
         
         MomentumAsTimeConstantSchedule(const std::vector<std::pair<size_t, double>>& schedule, size_t epochSize = FullDataSweep) 
-            : TrainingParameterSchedule<double>::TrainingParameterSchedule(schedule, UnitType::Sample, epochSize)
+            : TrainingParameterSchedule<double>::TrainingParameterSchedule(schedule, epochSize)
         { 
             ConvertToPerSampleValues();
         }
@@ -4345,9 +4319,9 @@ namespace CNTK
         double l1RegularizationWeight = 0.0;
         double l2RegularizationWeight = 0.0;
 #ifdef SWIG //for python interop (swig does not fully support "using")
-        TrainingParameterPerUnitSchedule<double, TrainingParameterSchedule<double>::UnitType::Minibatch> gaussianNoiseInjectionStdDev = 0.0;
+        TrainingParameterPerUnitSchedule<double> gaussianNoiseInjectionStdDev = 0.0;
 #else
-        TrainingParameterPerMinibatchSchedule<double> gaussianNoiseInjectionStdDev = 0.0;
+        TrainingParameterPerSampleSchedule<double> gaussianNoiseInjectionStdDev = 0.0;
 #endif
         double gradientClippingThresholdPerSample = std::numeric_limits<double>::infinity();
         bool gradientClippingWithTruncation = true;
@@ -4621,7 +4595,7 @@ namespace CNTK
     protected:
         DistributedLearner(DistributedCommunicatorPtr communicator, LearnerPtr learner, size_t distributeAfterSamples)
             : Learner(learner? learner->Parameters() : std::vector<Parameter>(),
-                      LearningRateSchedule(0, LearningRateSchedule::UnitType::Sample)),
+                      LearningRateSchedule(0)),
               m_learner(learner),
               m_communicator(communicator),
               m_distributeAfterSamples(distributeAfterSamples)

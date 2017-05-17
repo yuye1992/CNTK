@@ -1808,11 +1808,10 @@ namespace CNTK
 %template(DictionaryValueFromDict) CNTK::DictionaryValue::DictionaryValue<CNTK::Dictionary>;
 %template(DictionaryValueFromNDArrayView) CNTK::DictionaryValue::DictionaryValue<CNTK::NDArrayView>;
 
-%template(training_parameter_per_sample_schedule) CNTK::TrainingParameterPerUnitSchedule<double, CNTK::TrainingParameterSchedule<double>::UnitType::Sample>;
-%template(training_parameter_per_minibatch_schedule) CNTK::TrainingParameterPerUnitSchedule<double, CNTK::TrainingParameterSchedule<double>::UnitType::Minibatch>;
+%template(training_parameter_per_sample_schedule) CNTK::TrainingParameterPerUnitSchedule<double>;
 
-typedef CNTK::TrainingParameterPerUnitSchedule<size_t, CNTK::TrainingParameterSchedule<size_t>::UnitType::Sample> MinibatchSizeSchedule;
-%template(minibatch_size_schedule) CNTK::TrainingParameterPerUnitSchedule<size_t, CNTK::TrainingParameterSchedule<size_t>::UnitType::Sample>;
+
+
 
 //
 // The following callback code is only for testing. Will have to be merged with

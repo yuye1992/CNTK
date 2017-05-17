@@ -239,14 +239,14 @@ namespace CNTK
     }
 
     template <typename T>
-    TrainingParameterSchedule<T>::TrainingParameterSchedule(T value, UnitType unit) 
-        : m_schedule({ make_pair(0, value) }), m_unit(unit), m_epochSize(FullDataSweep)
+    TrainingParameterSchedule<T>::TrainingParameterSchedule(T value) 
+        : m_schedule({ make_pair(0, value) }), m_epochSize(FullDataSweep)
     {
     }
 
     template <typename T>
-    TrainingParameterSchedule<T>::TrainingParameterSchedule(const vector<T>& schedule, UnitType unit, size_t epochSize) 
-        : m_unit(unit), m_epochSize(epochSize)
+    TrainingParameterSchedule<T>::TrainingParameterSchedule(const vector<T>& schedule, size_t epochSize) 
+        : m_epochSize(epochSize)
     {
         std::vector<std::pair<size_t, T>> s(schedule.size());
         for (auto i = 0; i < schedule.size(); ++i)
@@ -258,8 +258,8 @@ namespace CNTK
     }
 
     template <typename T>
-    TrainingParameterSchedule<T>::TrainingParameterSchedule(const vector<std::pair<size_t, T>>& schedule, UnitType unit, size_t epochSize)
-        : m_unit(unit), m_epochSize(epochSize)
+    TrainingParameterSchedule<T>::TrainingParameterSchedule(const vector<std::pair<size_t, T> >& schedule,   size_t epochSize)
+        :   m_epochSize(epochSize)
     {
         ConstructSchedule(schedule);
     }
@@ -312,7 +312,7 @@ namespace CNTK
     // cannot be defaulted due to a bug in VS2013 (https://connect.microsoft.com/VisualStudio/feedback/details/1255564)
     template <typename T>
     TrainingParameterSchedule<T>::TrainingParameterSchedule(TrainingParameterSchedule<T>&& that)
-        :m_schedule(move(that.m_schedule)), m_unit(that.m_unit), m_epochSize(that.m_epochSize)
+        :m_schedule(move(that.m_schedule)),  m_epochSize(that.m_epochSize)
     {
     }
 
@@ -325,7 +325,6 @@ namespace CNTK
     {
         m_schedule = move(that.m_schedule);
         m_epochSize = that.m_epochSize;
-        m_unit = that.m_unit;
         return *this;
     }
 
@@ -343,7 +342,6 @@ namespace CNTK
         dict[versionKey] = CurrentVersion();
         dict[typeKey] = s_trainingParameterScheduleTypeValue;
         dict[epochSizeKey] = m_epochSize;
-        dict[unitKey] = static_cast<size_t>(m_unit);
         dict[scheduleKey] = schedule;
         return dict;
     }
@@ -361,7 +359,6 @@ namespace CNTK
     template <typename T>
     TrainingParameterSchedule<T>::TrainingParameterSchedule(const Dictionary& dictionary)
     {
-        m_unit = UnitType(dictionary[unitKey].Value<size_t>());
         m_epochSize = dictionary[epochSizeKey].Value<size_t>();
         Dictionary schedule = dictionary[scheduleKey].Value<Dictionary>();
         for (const auto& kv : schedule)
