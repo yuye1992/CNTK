@@ -1809,6 +1809,8 @@ namespace CNTK
 %template(DictionaryValueFromNDArrayView) CNTK::DictionaryValue::DictionaryValue<CNTK::NDArrayView>;
 
 %template(training_parameter_per_sample_schedule) CNTK::TrainingParameterPerUnitSchedule<double>;
+// monentum schedule now is also using TrainingParameterPerUnitSchedule:
+%template(training_parameter_momentum_schedule) CNTK::TrainingParameterPerUnitSchedule<double>;
 
 
 

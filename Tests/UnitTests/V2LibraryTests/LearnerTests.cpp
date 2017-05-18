@@ -165,6 +165,10 @@ void TestTrainingParametersSchedule()
     assert(schedule5[20] == 0.2);
     assert(schedule5[100] == 0.2);
 
+    MomentumPerMinibatchSchedule schedule6 = { { make_pair(1, 0.5) } }; // without make_pair this is interpreted as a vector of doubles
+    assert(schedule6[0] == 0.5);
+    assert(schedule6[10] == 0.5);
+    assert(schedule6[100] == 0.5);
  
     LearningRatePerSampleSchedule schedule9 = { { { 3, 0.5 }, { 2, 0.3 }, { 1, 0.2 } } };
     assert(schedule9[0] == 0.5);
@@ -174,7 +178,13 @@ void TestTrainingParametersSchedule()
     assert(schedule9[5] == 0.2);
     assert(schedule9[100] == 0.2);
 
-
+    MomentumPerMinibatchSchedule schedule10 = { { { 3, 0.5 },{ 2, 0.3 },{ 1, 0.2 } }, 10 };
+    assert(schedule10[0] == 0.5);
+    assert(schedule10[29] == 0.5);
+    assert(schedule10[30] == 0.3);
+    assert(schedule10[49] == 0.3);
+    assert(schedule10[50] == 0.2);
+    assert(schedule10[100] == 0.2);
 
     MomentumAsTimeConstantSchedule schedule11 = { { 0.0, 1.0, 2.0 }, 10 };
     assert(schedule11[0] == 0.0);

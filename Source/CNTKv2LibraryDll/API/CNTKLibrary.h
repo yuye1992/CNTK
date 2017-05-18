@@ -4267,6 +4267,7 @@ namespace CNTK
     typedef TrainingParameterPerSampleSchedule<double> LearningRatePerSampleSchedule;
 
     typedef TrainingParameterPerSampleSchedule<double> MomentumPerSampleSchedule;
+    typedef TrainingParameterPerUnitSchedule<double> MomentumPerMinibatchSchedule;
 #endif
 
     typedef TrainingParameterSchedule<size_t> MinibatchSizeSchedule;

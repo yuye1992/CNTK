@@ -210,7 +210,7 @@ def test_learner_logging():
         assert (values[i] == writer.log_output[i])
 
 def test_training_parameter_schedule():
-    C.training_parameter_schedule(0.01, unit='sample')
+    C.training_parameter_schedule(0.01)
 
     with pytest.raises(ValueError):
         C.training_parameter_schedule(0.01, unit='not_supported')

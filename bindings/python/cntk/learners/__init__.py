@@ -93,8 +93,7 @@ def set_default_use_mean_gradient_value(value):
 
 def _verify_learning_rate_type(learning_rate):
     if not isinstance(learning_rate,
-                      (cntk_py.training_parameter_per_sample_schedule,
-                       cntk_py.training_parameter_per_minibatch_schedule)):
+                      cntk_py.training_parameter_per_sample_schedule):
 
         raise ValueError('learning_rate type (%s) not supported. '
                          'learning_rate must be a training schedule '
@@ -108,8 +107,8 @@ def _verify_learning_rate_type(learning_rate):
 
 def _verify_momentum_type(momentum):
     if not isinstance(momentum,
-                      (cntk_py.training_parameter_per_minibatch_schedule,
-                       cntk_py.momentum_as_time_constant_schedule)):
+                      (cntk_py.momentum_as_time_constant_schedule,
+                       cntk_py.training_parameter_momentum_schedule)):
 
         raise ValueError('momentum type (%s) not supported. '
                          'momentum must be a training schedule '
@@ -235,25 +234,25 @@ class UserLearner(cntk_py.Learner):
 
 
 @typemap
-def training_parameter_schedule(schedule, unit, epoch_size=None):
+def training_parameter_schedule(schedule, unit = None, epoch_size=None):
     '''
     Create a training parameter schedule containing either per-sample (default)
     or per-minibatch values.
 
     Examples:
         >>> # Use a fixed value 0.01 for all samples
-        >>> s = training_parameter_schedule(0.01, UnitType.sample)
+        >>> s = training_parameter_schedule(0.01)
         >>> s[0], s[1]
         (0.01, 0.01)
 
         >>> # Use 0.01 for the first 1000 samples, then 0.001 for the remaining ones
-        >>> s = training_parameter_schedule([0.01, 0.001], UnitType.sample, 1000)
+        >>> s = training_parameter_schedule([0.01, 0.001],  epoch_size=1000)
         >>> s[0], s[1], s[1000], s[1001]
         (0.01, 0.01, 0.001, 0.001)
 
         >>> # Use 0.1 for the first 12 epochs, then 0.01 for the next 15,
         >>> # followed by 0.001 for the remaining ones, with a 100 samples in an epoch
-        >>> s = training_parameter_schedule([(12, 0.1), (15, 0.01), (1, 0.001)], UnitType.sample, 100)
+        >>> s = training_parameter_schedule([(12, 0.1), (15, 0.01), (1, 0.001)], epoch_size= 100)
         >>> s[0], s[1199], s[1200], s[2699], s[2700], s[5000]
         (0.1, 0.1, 0.01, 0.01, 0.001, 0.001)
 
@@ -262,9 +261,9 @@ def training_parameter_schedule(schedule, unit, epoch_size=None):
          for all samples. In case of list, the elements are used as the
          values for ``epoch_size`` samples. If list contains pair, the second element is
          used as a value for (``epoch_size`` x first element) samples
-        unit (:class:`UnitType`): one of two
+        unit (:class:`UnitType`):   
           * ``sample``: the returned schedule contains per-sample values
-          * ``minibatch``: the returned schedule contains per-minibatch values.
+
         epoch_size (optional, int): number of samples as a scheduling unit.
          Parameters in the schedule change their values every ``epoch_size``
          samples. If no ``epoch_size`` is provided, this parameter is substituted
@@ -279,35 +278,94 @@ def training_parameter_schedule(schedule, unit, epoch_size=None):
     See also:
         :func:`learning_rate_schedule`
     '''
-    if unit == UnitType.sample:
-        if isinstance(schedule, cntk_py.training_parameter_per_sample_schedule):
-            return schedule
-    else:
-        if isinstance(schedule, cntk_py.training_parameter_per_minibatch_schedule):
-            return schedule
+    if unit is not None:
+        warnings.warn('the unit argument is deprecated; will be removed by Sep 1st 2017', RuntimeWarning)
+        if unit != UnitType.sample:
+          if unit == UnitType.minibatch:
+              raise ValueError(
+                  'schedule with UnitType.minibatch is not supported anymore.')
+          else:
+              raise ValueError(
+                   'Unit type: %s is not supported' % unit)
+
+    if isinstance(schedule, cntk_py.training_parameter_per_sample_schedule):
+        return schedule
 
     if isinstance(schedule, (int, float)):
         if epoch_size is not None:
             warnings.warn('When providing the schedule as a number, epoch_size is ignored', RuntimeWarning)
-        if UnitType(unit) is UnitType.sample:
-            return cntk_py.training_parameter_per_sample_schedule(schedule)
-        else:
-            return cntk_py.training_parameter_per_minibatch_schedule(schedule)
+        return cntk_py.training_parameter_per_sample_schedule(schedule)
 
     args = [schedule] if epoch_size is None else [schedule, epoch_size]
 
     if isinstance(schedule, list):
-        if UnitType(unit) is UnitType.sample:
-            return cntk_py.training_parameter_per_sample_schedule(*args)
-        else:
-            return cntk_py.training_parameter_per_minibatch_schedule(*args)
+        return cntk_py.training_parameter_per_sample_schedule(*args)
 
     raise ValueError(
         'schedule must be either a float or a list, not %s' % type(schedule))
 
 
 @typemap
-def learning_rate_schedule(lr, unit, epoch_size=None):
+def training_parameter_momentum_schedule(schedule, epoch_size=None):
+    '''
+    Create a momentum training parameter schedule containing either   per-minibatch values.
+
+    Examples:
+        >>> # Use a fixed value 0.01 for all samples
+        >>> s = training_parameter_momentum_schedule(0.01)
+        >>> s[0], s[1]
+        (0.01, 0.01)
+
+        >>> # Use 0.01 for the first 1000 samples, then 0.001 for the remaining ones
+        >>> s = training_parameter_momentum_schedule([0.01, 0.001],  epoch_size=1000)
+        >>> s[0], s[1], s[1000], s[1001]
+        (0.01, 0.01, 0.001, 0.001)
+
+        >>> # Use 0.1 for the first 12 epochs, then 0.01 for the next 15,
+        >>> # followed by 0.001 for the remaining ones, with a 100 samples in an epoch
+        >>> s = training_parameter_momentum_schedule([(12, 0.1), (15, 0.01), (1, 0.001)], epoch_size= 100)
+        >>> s[0], s[1199], s[1200], s[2699], s[2700], s[5000]
+        (0.1, 0.1, 0.01, 0.01, 0.001, 0.001)
+
+    Args:
+        schedule (float or list): if float, is the parameter schedule to be used
+         for all samples. In case of list, the elements are used as the
+         values for ``epoch_size`` samples. If list contains pair, the second element is
+         used as a value for (``epoch_size`` x first element) samples
+
+        epoch_size (optional, int): number of samples as a scheduling unit.
+         Parameters in the schedule change their values every ``epoch_size``
+         samples. If no ``epoch_size`` is provided, this parameter is substituted
+         by the size of the full data sweep, in which case the scheduling unit is
+         the entire data sweep (as indicated by the MinibatchSource) and parameters
+         change their values on the sweep-by-sweep basis specified by the
+         ``schedule``.
+
+    Returns:
+        training parameter schedule
+
+    See also:
+        :func:`learning_rate_schedule`
+    '''
+
+    if isinstance(schedule, cntk_py.training_parameter_per_sample_schedule):
+        return schedule
+
+    if isinstance(schedule, (int, float)):
+        if epoch_size is not None:
+            warnings.warn('When providing the schedule as a number, epoch_size is ignored', RuntimeWarning)
+        return cntk_py.training_parameter_momentum_schedule(schedule)
+
+    args = [schedule] if epoch_size is None else [schedule, epoch_size]
+
+    if isinstance(schedule, list):
+        return cntk_py.training_parameter_momentum_schedule(*args)
+
+    raise ValueError(
+        'schedule must be either a float or a list, not %s' % type(schedule))
+
+@typemap
+def learning_rate_schedule(lr, unit = None, epoch_size=None):
     '''
     Create a learning rate schedule (using the same semantics as
     :func:`training_parameter_schedule`).
@@ -364,7 +422,7 @@ def momentum_schedule(momentum, epoch_size=None):
     Returns:
         momentum schedule
     '''
-    return training_parameter_schedule(momentum, epoch_size)
+    return training_parameter_momentum_schedule(momentum, epoch_size= epoch_size)
 
 
 @typemap
