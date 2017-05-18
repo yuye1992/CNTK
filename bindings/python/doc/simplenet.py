@@ -40,7 +40,7 @@ def ffnet():
     # Instantiate the trainer object to drive the model training
     lr = learning_rate_schedule(0.125)
     progress_printer = ProgressPrinter(0)
-    trainer = C.Trainer(z, (ce, pe), [sgd(z.parameters, lr=lr)], [progress_printer])
+    trainer = C.Trainer(z, (ce, pe), [sgd(z.parameters, lr=lr, use_mean_gradient=True)], [progress_printer])
 
     # Get minibatches of training data and perform model training
     minibatch_size = 25

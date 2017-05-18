@@ -597,7 +597,7 @@ def test_udf_checkpointing(tmpdir):
     eval_error = C.classification_error(op, label)
 
     lr_schedule = C.learning_rate_schedule(0.5)
-    learner = C.sgd(op.parameters, lr_schedule)
+    learner = C.sgd(op.parameters, lr_schedule, use_mean_gradient=True)
     trainer = C.Trainer(op, (loss, eval_error), [learner])
 
     trainer.train_minibatch({op.arguments[0]: np.random.random((2, 2)).astype(np.float32)}, device=dev)

@@ -323,7 +323,8 @@ def Evaluator(model, criterion):
         parameters |= set(metric.parameters)
     dummy_learner = momentum_sgd(tuple(parameters),
                                  lr = learning_rate_schedule(1),
-                                 momentum = momentum_as_time_constant_schedule(0))
+                                 momentum = momentum_as_time_constant_schedule(0),
+                                 use_mean_gradient=True)
     return Trainer(model, (loss, metric), dummy_learner)
 
 # This computes the metric on the test set.

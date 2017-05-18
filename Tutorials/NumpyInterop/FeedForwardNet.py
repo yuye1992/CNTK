@@ -52,7 +52,7 @@ def ffnet():
 
     lr_per_minibatch = learning_rate_schedule(0.5)
     # Instantiate the trainer object to drive the model training
-    learner = sgd(netout.parameters, lr=lr_per_minibatch)
+    learner = sgd(netout.parameters, lr=lr_per_minibatch, use_mean_gradient=True)
     progress_printer = ProgressPrinter(128)
     trainer = Trainer(netout, (ce, pe), learner, progress_printer)
 

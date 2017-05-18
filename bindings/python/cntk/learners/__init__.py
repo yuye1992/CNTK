@@ -105,6 +105,7 @@ def _verify_learning_rate_type(learning_rate):
 # an exception otherwise
 
 
+
 def _verify_momentum_type(momentum):
     if not isinstance(momentum,
                       (cntk_py.momentum_as_time_constant_schedule,
@@ -261,8 +262,9 @@ def training_parameter_schedule(schedule, unit = None, epoch_size=None):
          for all samples. In case of list, the elements are used as the
          values for ``epoch_size`` samples. If list contains pair, the second element is
          used as a value for (``epoch_size`` x first element) samples
-        unit (:class:`UnitType`):   
-          * ``sample``: the returned schedule contains per-sample values
+        @deprecated(unit) 
+        unit (:class:`UnitType`): this parameter is deprecated    
+
 
         epoch_size (optional, int): number of samples as a scheduling unit.
          Parameters in the schedule change their values every ``epoch_size``
@@ -279,11 +281,10 @@ def training_parameter_schedule(schedule, unit = None, epoch_size=None):
         :func:`learning_rate_schedule`
     '''
     if unit is not None:
-        warnings.warn('the unit argument is deprecated; will be removed by Sep 1st 2017', RuntimeWarning)
         if unit != UnitType.sample:
           if unit == UnitType.minibatch:
-              raise ValueError(
-                  'schedule with UnitType.minibatch is not supported anymore.')
+              raise  warnings.warn(
+                  'schedule with UnitType.minibatch is deprecated. ')
           else:
               raise ValueError(
                    'Unit type: %s is not supported' % unit)

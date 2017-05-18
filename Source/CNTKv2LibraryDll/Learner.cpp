@@ -181,7 +181,7 @@ namespace CNTK
         // L1 regularizer with proximal gradient descent method
         if (m_additionalOptions.l1RegularizationWeight > 0)
         {
-            const auto learningRate = LearningRate(actualMBSize);
+            const auto learningRate = LearningRate();
             // multiply by actualMBSize so that it's invariant to minibatch size since learning rate is per sample
             // don't need to scale to actualMBSize if we are already taking averaged gradient
             const auto weight = learningRate * m_additionalOptions.l1RegularizationWeight * (m_additionalOptions.useMeanGradient ? 1 : actualMBSize);
@@ -251,7 +251,7 @@ namespace CNTK
     {
         ReportTrainingParameterValue(m_learningRateSchedule, L"Learning rate");
 
-        if (LearningRate(trainingSampleCount) == 0.0)
+        if (LearningRate() == 0.0)
         {
             return false;
         }
@@ -275,7 +275,7 @@ namespace CNTK
 #endif
 
 #if DUMPOUTPUT
-            const auto learningRate = LearningRate(trainingSampleCount);
+            const auto learningRate = LearningRate();
             const auto momentum = MomentumValueForMB(trainingSampleCount);
             LOGPRINTF(stderr, "learnRatePerSample=%0.8f, momentum=%0.8f, actualMBSize=%ld\n",
                       learningRate, momentum, trainingSampleCount);
@@ -468,7 +468,7 @@ namespace CNTK
         UNUSED(smoothedGradientValue);
         const auto& gradientMatrix = GetWritableMatrix<ElementType>(gradientValue);
         const auto& parameterMatrix = GetWritableMatrix<ElementType>(parameter.Value());
-        const auto learningRate = ElementType(LearningRate(trainingSampleCount));
+        const auto learningRate = ElementType(LearningRate());
 
         parameterMatrix->SGDUpdate(*gradientMatrix, learningRate);
     }
@@ -493,7 +493,7 @@ namespace CNTK
     {
         GET_WRITABLE_MATRICES;
 
-        const auto learningRate = ElementType(LearningRate(trainingSampleCount));
+        const auto learningRate = ElementType(LearningRate());
         const auto momentum = ElementType(MomentumValueForMB(trainingSampleCount));
 
         parameterMatrix->MomentumSGDUpdate(*gradientMatrix, *smoothedGradientMatrix,
@@ -512,7 +512,7 @@ namespace CNTK
     {
         GET_WRITABLE_MATRICES;
 
-        const auto learningRate = ElementType(LearningRate(trainingSampleCount));
+        const auto learningRate = ElementType(LearningRate());
         const auto momentum = ElementType(MomentumValueForMB(trainingSampleCount));
 
         parameterMatrix->NesterovAcceleratedMomentumSGDUpdate(*gradientMatrix, *smoothedGradientMatrix,
@@ -554,7 +554,7 @@ namespace CNTK
     {
         GET_WRITABLE_MATRICES
 
-        const auto learningRate = LearningRate(trainingSampleCount);
+        const auto learningRate = LearningRate();
 
         const auto aveMultiplier = smoothedGradientMatrix->Adagrad(*gradientMatrix, m_needAveMultiplier);
         Matrix<ElementType>::ScaleAndAdd(ElementType(-learningRate / aveMultiplier), *gradientMatrix, *parameterMatrix);
@@ -588,7 +588,7 @@ namespace CNTK
     {
         GET_WRITABLE_MATRICES
 
-        const auto learningRate = LearningRate(trainingSampleCount);
+        const auto learningRate = LearningRate();
 
         smoothedGradientMatrix->AdaDeltaUpdate(*gradientMatrix, *parameterMatrix, (ElementType)learningRate, (ElementType)m_rho, (ElementType)m_epsilon);
     }
@@ -626,7 +626,7 @@ namespace CNTK
     {
         GET_WRITABLE_MATRICES;
 
-        const auto learningRate = LearningRate(trainingSampleCount);
+        const auto learningRate = LearningRate();
         const auto momentum = MomentumValueForMB(trainingSampleCount);
 
         const auto varMomentum = VarianceMomentumValueForMB(trainingSampleCount);
@@ -677,7 +677,7 @@ namespace CNTK
     {
         GET_WRITABLE_MATRICES;
 
-        const auto learningRate = LearningRate(trainingSampleCount);
+        const auto learningRate = LearningRate();
         const auto momentum = MomentumValueForMB(trainingSampleCount);
 
         const auto varMomentum = VarianceMomentumValueForMB(trainingSampleCount);
@@ -724,7 +724,7 @@ namespace CNTK
     {
         GET_WRITABLE_MATRICES;
 
-        const auto learningRate = LearningRate(trainingSampleCount);
+        const auto learningRate = LearningRate();
 
         const auto aveMultiplier = smoothedGradientMatrix->RmsProp(*gradientMatrix,
                                                                    ElementType(m_gamma),

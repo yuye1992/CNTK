@@ -348,14 +348,14 @@ def test_sgd_with_noise():
     # in some layers. This tests that cuRand library will not
     # complain about generating an odd number of random values
     np.random.seed(98052)
-    learner = lambda params: sgd(params, lr=learning_rate_schedule(0.125), gaussian_noise_injection_std_dev=0.01)
+    learner = lambda params: sgd(params, lr=learning_rate_schedule(0.125), gaussian_noise_injection_std_dev=0.01, use_mean_gradient=True)
     ffnet(learner)
     # We just verify that we did not crash
     assert(True)
 
 def test_universal():
     np.random.seed(98052)
-    builtin_sgd = lambda params: sgd(params, lr=learning_rate_schedule(0.125))
+    builtin_sgd = lambda params: sgd(params, lr=learning_rate_schedule(0.125), use_mean_gradient=True)
     builtin_last_avg_error, builtin_avg_error = ffnet(builtin_sgd)
     np.random.seed(98052)
     my_sgd = lambda p, g: C.assign(p, p - 0.125/25 * g)

@@ -43,7 +43,7 @@ namespace CNTK
         std::string LearnerType() const;
 
         // Returns current (per-sample) learning rate.
-        double LearningRate(size_t /*minibatchSize*/) const
+        double LearningRate() const
         {
             auto learningRate = Learner::LearningRate();
 

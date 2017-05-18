@@ -100,7 +100,7 @@ def ffnet(optimizer, num_minibatches_to_train):
     lr = learning_rate_schedule(0.125)
     progress_printer = ProgressPrinter(0)
     trainer = C.Trainer(z, (ce, pe), [optimizer(
-        z.parameters, lr)], progress_printer)
+        z.parameters, lr, use_mean_gradient=True)], progress_printer)
 
     # Get minibatches of training data and perform model training
     minibatch_size = 25

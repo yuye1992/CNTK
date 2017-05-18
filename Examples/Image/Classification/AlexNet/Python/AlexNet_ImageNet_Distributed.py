@@ -151,7 +151,12 @@ def create_trainer(network, epoch_size, num_quantization_bits, printer, block_si
         raise RuntimeError("Block momentum cannot be used with quantization, please remove quantized_bits option.")
 
     # Create learner
-    local_learner = C.learners.momentum_sgd(network['output'].parameters, lr_schedule, mm_schedule, unit_gain=False, l2_regularization_weight=l2_reg_weight)
+    local_learner = C.learners.momentum_sgd(network['output'].parameters,
+                                            lr_schedule,
+                                            mm_schedule,
+                                            unit_gain=False,
+                                            l2_regularization_weight=l2_reg_weight,
+                                            use_mean_gradient = True)
     # Since we reuse parameter settings (learning rate, momentum) from Caffe, we set unit_gain to False to ensure consistency
 
     # Create trainer

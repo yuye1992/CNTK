@@ -113,7 +113,7 @@ def create_trainer(network, epoch_size, num_epochs, minibatch_size):
     
     # Create learner
     learner = cntk.learner.momentum_sgd(network['output'].parameters, lr_schedule, mm_schedule, 
-                                            l2_regularization_weight=l2_reg_weight)
+                                            l2_regularization_weight=l2_reg_weight, use_mean_gradient=True)
 
     # Create trainer
     return cntk.Trainer(network['output'], (network['ce'], network['pe']), learner)

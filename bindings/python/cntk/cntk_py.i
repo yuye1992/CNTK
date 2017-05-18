@@ -1812,8 +1812,8 @@ namespace CNTK
 // monentum schedule now is also using TrainingParameterPerUnitSchedule:
 %template(training_parameter_momentum_schedule) CNTK::TrainingParameterPerUnitSchedule<double>;
 
-
-
+typedef CNTK::TrainingParameterPerUnitSchedule<size_t> MinibatchSizeSchedule;
+%template(minibatch_size_schedule) CNTK::TrainingParameterPerUnitSchedule<size_t>;
 
 //
 // The following callback code is only for testing. Will have to be merged with
