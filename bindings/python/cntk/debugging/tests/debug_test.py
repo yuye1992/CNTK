@@ -33,7 +33,7 @@ def _train(z, loss, eval_error,
 
     lr_schedule = learning_rate_schedule(0.5)
 
-    learner = sgd(z.parameters, lr_schedule)
+    learner = sgd(z.parameters, lr_schedule, use_mean_gradient=True)
     trainer = Trainer(z, (loss, eval_error), [learner])
 
     minibatch_size = 10
