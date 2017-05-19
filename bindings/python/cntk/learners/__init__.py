@@ -280,7 +280,7 @@ def training_parameter_schedule(schedule, unit = None, epoch_size=None):
     See also:
         :func:`learning_rate_schedule`
     '''
-    if unit != None and unit != UnitType.sample and unit != UnitType.minibatch:
+    if unit not in [None, UnitType.sample, UnitType.minibatch]:
         raise ValueError('Invalid unit')
 
     if isinstance(schedule, cntk_py.training_parameter_per_sample_schedule):

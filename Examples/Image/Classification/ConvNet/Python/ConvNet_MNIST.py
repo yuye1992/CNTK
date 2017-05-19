@@ -60,7 +60,7 @@ def convnet_mnist(debug_output=False, epoch_size=60000, minibatch_size=64, max_e
     mm_schedule      = C.learners.momentum_as_time_constant_schedule(mm_time_constant, epoch_size)
 
     # Instantiate the trainer object to drive the model training
-    learner = C.learners.momentum_sgd(z.parameters, lr_schedule, mm_schedule)
+    learner = C.learners.momentum_sgd(z.parameters, lr_schedule, mm_schedule, use_mean_gradient= True)
     progress_printer = C.logging.ProgressPrinter(tag='Training', num_epochs=max_epochs)
     trainer = C.Trainer(z, (ce, pe), learner, progress_printer)
 
