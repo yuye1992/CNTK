@@ -39,18 +39,6 @@ def sweep_based_schedule_fails():
     with pytest.raises(Exception):
         learning_rate_schedule([1],  epoch_size=0)
 
-def test_momentum_schedule():
-    m = 2500
-    ms = C.momentum_as_time_constant_schedule([m])
-    assert ms[0] ==  np.exp(-1.0 / np.asarray(m))
-
-    ms = C.momentum_as_time_constant_schedule(m)
-    assert ms[0] ==  np.exp(-1.0 / np.asarray(m))
-
-    mlist = [980, 520]
-    msl = C.momentum_as_time_constant_schedule(mlist)
-    expected = np.exp(-1.0 / np.asarray(mlist))
-    assert all(mi == ei for mi,ei in zip(msl,expected))
 
 @pytest.mark.parametrize("params, expectation", MOMENTUM_SCHEDULE_PARAMS)
 def test_momentum_schedule_per_sample(params, expectation):
@@ -77,7 +65,7 @@ def test_learner_init():
     unit_gain_value = C.default_unit_gain_value()
     assert unit_gain_value
 
-    momentum_time_constant = C.momentum_as_time_constant_schedule(1100)
+    momentum_time_constant = C.momentum_schedule(0.9999)
     lr_per_sample = learning_rate_schedule(0.1)
     C.momentum_sgd(res.parameters, lr_per_sample, momentum_time_constant)
     C.momentum_sgd(res.parameters, lr_per_sample, momentum_time_constant, unit_gain_value)

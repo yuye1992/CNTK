@@ -26,7 +26,7 @@ def test_trainer(tmpdir, no_eval_function):
     else:
         errs = classification_error(z, labels)
 
-    momentum_time_constant = C.momentum_as_time_constant_schedule(1100)
+    momentum_time_constant = C.momentum_schedule(0.99818)
     lr_per_sample = C.learning_rate_schedule(0.007, C.UnitType.sample)
     trainer = C.Trainer(z, (ce, errs),
             [C.momentum_sgd(z.parameters, lr_per_sample, momentum_time_constant, True)])
@@ -54,7 +54,7 @@ def test_output_to_retain():
     z = plus(in1, reduce_sum(p), name='z')
     ce = cross_entropy_with_softmax(z, labels)
     errs = classification_error(z, labels)
-    momentum_time_constant = C.momentum_as_time_constant_schedule(1100)
+    momentum_time_constant = C.momentum_schedule(0.99818)
     lr_per_sample = C.learning_rate_schedule(0.007, C.UnitType.sample)
     trainer = C.Trainer(z, (ce, errs),
             [C.momentum_sgd(z.parameters, lr_per_sample, momentum_time_constant, True)])
@@ -69,7 +69,7 @@ def test_epochsize_wrn_for_momentum_time_constant():
     with warnings.catch_warnings(record=True) as w:
         warnings.simplefilter("always")
 
-        C.momentum_as_time_constant_schedule(1100, epoch_size=1000)
+        C.momentum_schedule(0.9999, epoch_size=1000)
 
         assert len(w) == 1
         assert issubclass(w[-1].category, RuntimeWarning)

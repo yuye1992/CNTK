@@ -40,7 +40,7 @@ def run_distributed_training(tmpdir, create_func):
     ce = cross_entropy_with_softmax(z, labels)
     errs = classification_error(z, labels)
 
-    momentum_time_constant = C.momentum_as_time_constant_schedule(1100)
+    momentum_time_constant = C.momentum_schedule(0.99818)
     lr_per_sample = C.learning_rate_schedule(0.007, C.UnitType.sample)
     dist_learner = create_func(C.momentum_sgd(z.parameters, lr_per_sample, momentum_time_constant, True))
 

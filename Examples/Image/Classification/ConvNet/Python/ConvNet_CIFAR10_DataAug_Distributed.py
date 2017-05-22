@@ -97,8 +97,8 @@ def create_trainer(network, epoch_size, num_quantization_bits, block_size, warm_
     # Set learning parameters
     lr_per_sample     = [0.0015625]*20 + [0.00046875]*20 + [0.00015625]*20 + [0.000046875]*10 + [0.000015625]
     lr_schedule       = C.learning_rate_schedule(lr_per_sample, unit=C.learners.UnitType.sample, epoch_size=epoch_size)
-    mm_time_constant  = [0]*20 + [600]*20 + [1200]
-    mm_schedule       = C.learners.momentum_as_time_constant_schedule(mm_time_constant, epoch_size=epoch_size)
+    mm_time_constant  = [0]*20 + [0.8988]*20 + [0.94806]
+    mm_schedule       = C.learners.momentum_schedule(mm_time_constant, epoch_size=epoch_size)
     l2_reg_weight     = 0.002
 
     # Create learner

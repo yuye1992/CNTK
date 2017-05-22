@@ -21,7 +21,9 @@ from cntk.ops import splice
 abs_path = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.join(abs_path, "..", "..", "..", "..", "Examples", "LanguageUnderstanding", "ATIS", "Python"))
 sys.path.append("../LanguageUnderstanding/ATIS/Python")
-from LanguageUnderstanding import data_dir, create_reader, create_model_function, train, evaluate, emb_dim, hidden_dim, num_labels
+from LanguageUnderstanding import data_dir, create_reader, create_model_function, train, evaluate, emb_dim, hidden_dim, \
+    num_labels
+
 
 def run_model_test(what, model, expected_train):
     print("--- {} ---".format(what))
@@ -31,31 +33,36 @@ def run_model_test(what, model, expected_train):
     print("-->", metric, loss)
     assert np.allclose([metric, loss], expected_train, atol=TOLERANCE_ABSOLUTE)
 
+
 def create_test_model():
     # this selects additional nodes and alternative paths
     with default_options(enable_self_stabilization=True, use_peepholes=True):
         return Sequential([
             Embedding(emb_dim),
             BatchNormalization(),
-            Recurrence(LSTM(hidden_dim, cell_shape=hidden_dim+50), go_backwards=True),
+            Recurrence(LSTM(hidden_dim, cell_shape=hidden_dim + 50), go_backwards=True),
             BatchNormalization(map_rank=1),
             Dense(num_labels)
         ])
 
+
 def with_lookahead():
     x = placeholder()
     future_x = sequence.future_value(x)
-    apply_x = splice (x, future_x)
+    apply_x = splice(x, future_x)
     return apply_x
+
 
 def BiRecurrence(fwd, bwd):
     F = Recurrence(fwd)
     G = Recurrence(fwd, go_backwards=True)
     x = placeholder()
-    apply_x = splice (F(x), G(x))
+    apply_x = splice(F(x), G(x))
     return apply_x
 
-def BNBiRecurrence(fwd, bwd, test_dual=True): # special version that calls one shared BN instance at two places, for testing BN param tying
+
+def BNBiRecurrence(fwd, bwd,
+                   test_dual=True):  # special version that calls one shared BN instance at two places, for testing BN param tying
     F = Recurrence(fwd)
     G = Recurrence(fwd, go_backwards=True)
     BN = BatchNormalization(normalization_time_constant=-1)
@@ -67,8 +74,9 @@ def BNBiRecurrence(fwd, bwd, test_dual=True): # special version that calls one s
     x1 = BN(x)
     x2 = BN(x) if test_dual else x1
     # In double precision with corpus aggregation, these lead to the same result.
-    apply_x = splice (F(x1), G(x2))
+    apply_x = splice(F(x1), G(x2))
     return apply_x
+
 
 # TODO: the name is wrong
 def test_language_understanding(device_id):
@@ -76,14 +84,14 @@ def test_language_understanding(device_id):
     DeviceDescriptor.try_set_default_device(cntk_device(device_id))
 
     from _cntk_py import set_computation_network_trace_level, set_fixed_random_seed
-    #set_computation_network_trace_level(1)
-    set_fixed_random_seed(1) # to become invariant to initialization order, which is a valid change
+    # set_computation_network_trace_level(1)
+    set_fixed_random_seed(1)  # to become invariant to initialization order, which is a valid change
     # BUGBUG: This ^^ currently seems to have no impact; the two BN models below should be identical in training
 
-    if device_id >= 0: # BatchNormalization currently does not run on CPU
+    if device_id >= 0:  # BatchNormalization currently does not run on CPU
         # change to intent classifier   --moved up here since this fails, as repro
         # BUGBUG: Broken, need to pass new criterion to train().
-        #with default_options(initial_state=0.1):  # inject an option to mimic the BS version identically; remove some day
+        # with default_options(initial_state=0.1):  # inject an option to mimic the BS version identically; remove some day
         #    select_last = slice(placeholder(), Axis.default_dynamic_axis(), -1, 0)
         #    # BUGBUG: Fails with "RuntimeError: The specified dynamic axis named defaultDynamicAxis does not match any of the dynamic axes of the operand"
         #    run_model_test('change to intent classifier', Sequential([
@@ -109,13 +117,14 @@ def test_language_understanding(device_id):
             ]), [0.0579573500457558, 0.3214986774820327])
 
         # replace lookahead by bidirectional model
-        with default_options(initial_state=0.1):  # inject an option to mimic the BS version identically; remove some day
-          #with default_options(dtype=np.float64):  # test this with double precision since single precision is too little for reproducable aggregation
-          # ^^ This test requires to change the #if 1 in Functions.cpp PopulateNetworkInputs() to be changed to #if 0.
+        with default_options(
+                initial_state=0.1):  # inject an option to mimic the BS version identically; remove some day
+            # with default_options(dtype=np.float64):  # test this with double precision since single precision is too little for reproducable aggregation
+            # ^^ This test requires to change the #if 1 in Functions.cpp PopulateNetworkInputs() to be changed to #if 0.
             run_model_test('replace lookahead by bidirectional model, with shared BN', Sequential([
                 Embedding(emb_dim),
                 BNBiRecurrence(LSTM(hidden_dim), LSTM(hidden_dim), test_dual=True),
-                #BNBiRecurrence(LSTM(hidden_dim), LSTM(hidden_dim), test_dual=False),
+                # BNBiRecurrence(LSTM(hidden_dim), LSTM(hidden_dim), test_dual=False),
                 BatchNormalization(normalization_time_constant=-1),
                 Dense(num_labels)
             ]), [0.0579573500457558, 0.3214986774820327])
@@ -154,7 +163,8 @@ def test_language_understanding(device_id):
             """
 
         # BatchNorm test case for global-corpus aggregation
-        with default_options(initial_state=0.1):  # inject an option to mimic the BS version identically; remove some day
+        with default_options(
+                initial_state=0.1):  # inject an option to mimic the BS version identically; remove some day
             run_model_test('BatchNorm global-corpus aggregation', Sequential([
                 Embedding(emb_dim),
                 BatchNormalization(normalization_time_constant=-1),
@@ -194,9 +204,9 @@ def test_language_understanding(device_id):
             --> 0.035050983248361256 0.0
             """
 
-
         # plus BatchNorm
-        with default_options(initial_state=0.1):  # inject an option to mimic the BS version identically; remove some day
+        with default_options(
+                initial_state=0.1):  # inject an option to mimic the BS version identically; remove some day
             run_model_test('plus BatchNorm', Sequential([
                 Embedding(emb_dim),
                 BatchNormalization(),
@@ -206,7 +216,8 @@ def test_language_understanding(device_id):
             ]), [0.05662627214996811, 0.2968516879905391])
 
         # plus lookahead
-        with default_options(initial_state=0.1):  # inject an option to mimic the BS version identically; remove some day
+        with default_options(
+                initial_state=0.1):  # inject an option to mimic the BS version identically; remove some day
             run_model_test('plus lookahead', Sequential([
                 Embedding(emb_dim),
                 with_lookahead(),
@@ -217,7 +228,8 @@ def test_language_understanding(device_id):
             ]), [0.057901888466764646, 0.3044637752807047])
 
         # replace lookahead by bidirectional model
-        with default_options(initial_state=0.1):  # inject an option to mimic the BS version identically; remove some day
+        with default_options(
+                initial_state=0.1):  # inject an option to mimic the BS version identically; remove some day
             run_model_test('replace lookahead by bidirectional model', Sequential([
                 Embedding(emb_dim),
                 BatchNormalization(),
@@ -228,17 +240,17 @@ def test_language_understanding(device_id):
 
         # test of a config like in the example but with additions to test many code paths
         with default_options(enable_self_stabilization=True, use_peepholes=True):
-                run_model_test('alternate paths', Sequential([
+            run_model_test('alternate paths', Sequential([
                 Embedding(emb_dim),
                 BatchNormalization(),
-                Recurrence(LSTM(hidden_dim, cell_shape=hidden_dim+50), go_backwards=True),
+                Recurrence(LSTM(hidden_dim, cell_shape=hidden_dim + 50), go_backwards=True),
                 BatchNormalization(map_rank=1),
-                    Dense(num_labels)
-                ]), [0.08574360112032389, 0.41847621578367716])
+                Dense(num_labels)
+            ]), [0.08574360112032389, 0.41847621578367716])
 
     # test of the example itself
     # this emulates the main code in the PY file
-    if device_id >= 0: # sparse FSAdagrad currently does not run on CPU  --TODO: fix this test once it does
+    if device_id >= 0:  # sparse FSAdagrad currently does not run on CPU  --TODO: fix this test once it does
         reader = create_reader(data_dir + "/atis.train.ctf", is_training=True)
         model = create_model_function()
         loss_avg, evaluation_avg = train(reader, model, max_epochs=1)
@@ -250,7 +262,7 @@ def test_language_understanding(device_id):
         evaluate(reader, model)
 
     # test of a config like in the example but with additions to test many code paths
-    if device_id >= 0: # BatchNormalization currently does not run on CPU
+    if device_id >= 0:  # BatchNormalization currently does not run on CPU
         # Create a path to TensorBoard log directory and make sure it does not exist.
         abs_path = os.path.dirname(os.path.abspath(__file__))
         tb_logdir = os.path.join(abs_path, 'language_understanding_test_log')
@@ -260,20 +272,22 @@ def test_language_understanding(device_id):
         reader = create_reader(data_dir + "/atis.train.ctf", is_training=True)
         model = create_test_model()
         # TODO: update example to support tensorboard, or decide to not show it in all examples (in upcoming update of examples)
-        loss_avg, evaluation_avg = train(reader, model, max_epochs=1) #, tensorboard_logdir=tb_logdir)
-        log_number_of_parameters(model, trace_level=1) ; print()
+        loss_avg, evaluation_avg = train(reader, model, max_epochs=1)  # , tensorboard_logdir=tb_logdir)
+        log_number_of_parameters(model, trace_level=1);
+        print()
         expected_avg = [0.084, 0.407364]
         assert np.allclose([evaluation_avg, loss_avg], expected_avg, atol=TOLERANCE_ABSOLUTE)
 
         # Ensure that the TensorBoard log directory was created and contains exactly one file with the expected name.
-        #tb_files = 0
-        #for tb_file in os.listdir(tb_logdir):
+        # tb_files = 0
+        # for tb_file in os.listdir(tb_logdir):
         #    assert tb_file.startswith("events.out.tfevents")
         #    tb_files += 1
-        #assert tb_files == 1
+        # assert tb_files == 1
 
         # example also saves and loads; we skip it here, so that we get a test case of no save/load
         # (we save/load in all cases above)
 
-if __name__=='__main__':
+
+if __name__ == '__main__':
     test_language_understanding(0)

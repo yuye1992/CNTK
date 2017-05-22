@@ -16,7 +16,7 @@ from cntk.layers import Convolution2D, MaxPooling, AveragePooling, Dropout, Batc
 from cntk.layers.typing import *
 from cntk.io import MinibatchSource, ImageDeserializer, StreamDef, StreamDefs, INFINITELY_REPEAT
 from cntk import Trainer
-from cntk.learners import momentum_sgd, learning_rate_schedule, UnitType, momentum_as_time_constant_schedule
+from cntk.learners import momentum_sgd, learning_rate_schedule, UnitType, momentum_schedule
 from cntk import cross_entropy_with_softmax, classification_error, relu
 from cntk.ops import Function
 from cntk.debugging import set_computation_network_trace_level
@@ -125,7 +125,7 @@ def train_model(reader, reader_test, model, epoch_size=50000, max_epochs=80):
     # learning parameters
     learner = momentum_sgd(model.parameters, 
                            lr       = learning_rate_schedule([0.0015625]*20+[0.00046875]*20+[0.00015625]*20+[0.000046875]*10+[0.000015625], unit=UnitType.sample, epoch_size=epoch_size),
-                           momentum = momentum_as_time_constant_schedule([0]*20+[600]*20+[1200], epoch_size=epoch_size),
+                           momentum = momentum_schedule([0]*20+[0.8988]*20+[0.9481], epoch_size=epoch_size),
                            l2_regularization_weight = 0.002)
     
     # trainer object
@@ -164,7 +164,7 @@ def Evaluator(model, criterion):
         parameters |= set(metric.parameters)
     dummy_learner = momentum_sgd(tuple(parameters), 
                                  lr = learning_rate_schedule(1),
-                                 momentum = momentum_as_time_constant_schedule(0),
+                                 momentum = momentum_schedule(0),
                                  use_mean_gradient=True)
     return Trainer(model, (loss, metric), dummy_learner)
 

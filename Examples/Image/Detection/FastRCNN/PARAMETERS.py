@@ -1,4 +1,5 @@
 from __future__ import print_function
+import cntk as C
 from cntk_helpers import *
 from imdb_data import imdb_data
 import fastRCNN, time, datetime
@@ -75,7 +76,7 @@ if datasetName.startswith("Grocery"):
     cntk_num_test_images = 5
     cntk_mb_size = 5
     cntk_max_epochs = 20
-    cntk_momentum_time_constant = 10
+    cntk_momentum_time_constant = C.learners.momentum_from_legacy_constant(10, cntk_mb_size)
 
     # postprocessing
     nmsThreshold = 0.01
@@ -104,7 +105,7 @@ elif datasetName.startswith("pascalVoc"):
     cntk_num_test_images = 4952
     cntk_mb_size = 2
     cntk_max_epochs = 17
-    cntk_momentum_time_constant = 20
+    cntk_momentum_time_constant =  C.learners.momentum_from_legacy_constant(20, cntk_mb_size)
 
     # database
     imdbs = dict()

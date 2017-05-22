@@ -108,13 +108,11 @@ def _verify_learning_rate_type(learning_rate):
 
 def _verify_momentum_type(momentum):
     if not isinstance(momentum,
-                      (cntk_py.momentum_as_time_constant_schedule,
-                       cntk_py.training_parameter_per_sample_schedule)):
+                      cntk_py.training_parameter_per_sample_schedule):
 
         raise ValueError('momentum type (%s) not supported. '
                          'momentum must be a training schedule '
-                         '(output of momentum_schedule() or '
-                         'momentum_as_time_constant_schedule() function)'
+                         '(output of momentum_schedule() function)'
                          % type(momentum))
 
 
@@ -337,9 +335,7 @@ def momentum_schedule(momentum, epoch_size=None):
         epoch_size (int): see parameter ``epoch_size`` in
          :func:`training_parameter_schedule`.
 
-    If you want to provide momentum values in a minibatch-size
-    agnostic way, use :func:`momentum_as_time_constant_schedule`.
-
+ 
     Examples:
         >>> # Use a fixed momentum of 0.99 for all samples
         >>> m = momentum_schedule(0.99)
@@ -363,54 +359,16 @@ def momentum_schedule(momentum, epoch_size=None):
     return training_parameter_schedule(momentum, epoch_size= epoch_size)
 
 
-@typemap
-def momentum_as_time_constant_schedule(momentum, epoch_size=None):
+def momentum_from_legacy_constant(legacy_constant, batch_size, epoch_size=None):
     '''
-    Create a momentum schedule in a minibatch-size agnostic way
-    (using the same semantics as :func:`training_parameter_schedule`
-    with `unit=UnitType.sample`).
-
-    Args:
-        momentum (float or list): see parameter ``schedule`` in
-         :func:`training_parameter_schedule`.
-        epoch_size (int): see parameter ``epoch_size`` in
-         :func:`training_parameter_schedule`.
-
-    CNTK specifies momentum in a minibatch-size agnostic way as the time
-    constant (in samples) of a unit-gain 1st-order IIR filter. The value
-    specifies the number of samples after which a gradient has an effect of
-    1/e=37%.
-
-    If you want to specify the momentum per sample (or per minibatch),
-    use :func:`momentum_schedule`.
-
-    Examples:
-        >>> # Use a fixed momentum of 1100 for all samples
-        >>> m = momentum_as_time_constant_schedule(1100)
-
-        >>> # Use the time constant 1100 for the first 1000 samples,
-        >>> # then 1500 for the remaining ones
-        >>> m = momentum_as_time_constant_schedule([1100, 1500], 1000)
-
-    Returns:
-        momentum as time constant schedule
+    :param legacy_constant: A constant as defined by parameter ``momentum`` in the deprecated function :func:`momentum_as_time_constant_schedule`. 
+    :param batch_size: the batch size
+    :return: momentum_schedule
     '''
-    if isinstance(momentum, (cntk_py.momentum_as_time_constant_schedule)):
-        return momentum
+    momentum = np.exp(-1.0 / legacy_constant) ** batch_size
+    return momentum_schedule(momentum=momentum, epoch_size=epoch_size)
 
-    if isinstance(momentum, (int, float)):
-        if epoch_size is not None:
-            warnings.warn('When providing the schedule as a number, epoch_size is ignored', RuntimeWarning)
-        return cntk_py.momentum_as_time_constant_schedule(momentum)
 
-    if isinstance(momentum, list):
-        args = [momentum] if epoch_size is None else [momentum, epoch_size]
-        return cntk_py.momentum_as_time_constant_schedule(*args)
-
-    raise ValueError(
-        'momentum must be either a float or a list, not %s' % type(momentum))
-
-# TODO figure out how to pass infty to C++ in a portable way
 
 
 @typemap
@@ -476,7 +434,7 @@ def momentum_sgd(parameters, lr, momentum, unit_gain=default_unit_gain_value(),
         parameters (list of parameters): list of network parameters to tune.
          These can be obtained by the root operator's ``parameters``.
         lr (output of :func:`learning_rate_schedule`): learning rate schedule.
-        momentum (output of :func:`momentum_schedule` or :func:`momentum_as_time_constant_schedule`): momentum schedule.
+        momentum (output of :func:`momentum_schedule`): momentum schedule.
          For additional information, please refer to the :cntkwiki:`this CNTK Wiki article <BrainScript-SGD-Block#converting-learning-rate-and-momentum-parameters-from-other-toolkits>`.
         unit_gain: when ``True``, momentum is interpreted as a unit-gain filter. Defaults
          to the value returned by :func:`default_unit_gain_value`.
@@ -529,7 +487,7 @@ def nesterov(parameters, lr, momentum, unit_gain=default_unit_gain_value(),
         parameters (list of parameters): list of network parameters to tune.
          These can be obtained by the root operator's ``parameters``.
         lr (output of :func:`learning_rate_schedule`): learning rate schedule.
-        momentum (output of :func:`momentum_schedule` or :func:`momentum_as_time_constant_schedule`): momentum schedule.
+        momentum (output of :func:`momentum_schedule`): momentum schedule.
          For additional information, please refer to the :cntkwiki:`this CNTK Wiki article <BrainScript-SGD-Block#converting-learning-rate-and-momentum-parameters-from-other-toolkits>`.
         unit_gain: when ``True``, momentum is interpreted as a unit-gain filter. Defaults
          to the value returned by :func:`default_unit_gain_value`.
@@ -686,19 +644,19 @@ def fsadagrad(parameters, lr, momentum, unit_gain=default_unit_gain_value(),
               l1_regularization_weight=0.0, l2_regularization_weight=0.0,
               gaussian_noise_injection_std_dev=0.0, gradient_clipping_threshold_per_sample=np.inf,
               gradient_clipping_with_truncation=True, use_mean_gradient=default_use_mean_gradient_value()):
-    '''fsadagrad(parameters, lr, momentum, unit_gain=default_unit_gain_value(), variance_momentum=momentum_as_time_constant_schedule(720000), l1_regularization_weight=0, l2_regularization_weight=0, gaussian_noise_injection_std_dev=0, gradient_clipping_threshold_per_sample=np.inf, gradient_clipping_with_truncation=True)
+    '''fsadagrad(parameters, lr, momentum, unit_gain=default_unit_gain_value(), variance_momentum=momentum_schedule(0.999), l1_regularization_weight=0, l2_regularization_weight=0, gaussian_noise_injection_std_dev=0, gradient_clipping_threshold_per_sample=np.inf, gradient_clipping_with_truncation=True)
     Creates an FSAdaGrad learner instance to learn the parameters.
 
     Args:
         parameters (list of parameters): list of network parameters to tune.
          These can be obtained by the root operator's ``parameters``.
         lr (output of :func:`learning_rate_schedule`): learning rate schedule.
-        momentum (output of :func:`momentum_schedule` or :func:`momentum_as_time_constant_schedule`): momentum schedule.
+        momentum (output of :func:`momentum_schedule`): momentum schedule.
          For additional information, please refer to the :cntkwiki:`this CNTK Wiki article <BrainScript-SGD-Block#converting-learning-rate-and-momentum-parameters-from-other-toolkits>`.
         unit_gain: when ``True``, momentum is interpreted as a unit-gain filter. Defaults
          to the value returned by :func:`default_unit_gain_value`.
-        variance_momentum (output of :func:`momentum_schedule` or :func:`momentum_as_time_constant_schedule`): variance momentum schedule. Defaults
-         to ``momentum_as_time_constant_schedule(720000)``.
+        variance_momentum (output of :func:`momentum_schedule`): variance momentum schedule. Defaults
+         to ``momentum_schedule(0.999)``.
         l1_regularization_weight (float, optional): the L1 regularization weight per sample,
          defaults to 0.0
         l2_regularization_weight (float, optional): the L2 regularization weight per sample,
@@ -741,7 +699,7 @@ def adam(parameters, lr, momentum, unit_gain=default_unit_gain_value(),
          l1_regularization_weight=0.0, l2_regularization_weight=0.0,
          gaussian_noise_injection_std_dev=0.0, gradient_clipping_threshold_per_sample=np.inf,
          gradient_clipping_with_truncation=True, use_mean_gradient=default_use_mean_gradient_value(), epsilon=1e-8, adamax=False):
-    '''adam(parameters, lr, momentum, unit_gain=default_unit_gain_value(), variance_momentum=momentum_as_time_constant_schedule(720000), l1_regularization_weight=0, l2_regularization_weight=0, gaussian_noise_injection_std_dev=0, gradient_clipping_threshold_per_sample=np.inf, gradient_clipping_with_truncation=True, epsilon=1e-8, adamax=False)
+    '''adam(parameters, lr, momentum, unit_gain=default_unit_gain_value(), variance_momentum=momentum_schedule(0.999), l1_regularization_weight=0, l2_regularization_weight=0, gaussian_noise_injection_std_dev=0, gradient_clipping_threshold_per_sample=np.inf, gradient_clipping_with_truncation=True, epsilon=1e-8, adamax=False)
     Creates an Adam learner instance to learn the parameters. See [1] for more
     information.
 
@@ -749,12 +707,12 @@ def adam(parameters, lr, momentum, unit_gain=default_unit_gain_value(),
         parameters (list of parameters): list of network parameters to tune.
          These can be obtained by the root operator's ``parameters``.
         lr (output of :func:`learning_rate_schedule`): learning rate schedule.
-        momentum (output of :func:`momentum_schedule` or :func:`momentum_as_time_constant_schedule`): momentum schedule.
+        momentum (output of :func:`momentum_schedule`): momentum schedule.
          For additional information, please refer to the :cntkwiki:`this CNTK Wiki article <BrainScript-SGD-Block#converting-learning-rate-and-momentum-parameters-from-other-toolkits>`.
         unit_gain: when ``True``, momentum is interpreted as a unit-gain filter. Defaults
          to the value returned by :func:`default_unit_gain_value`.
-        variance_momentum (output of :func:`momentum_schedule` or :func:`momentum_as_time_constant_schedule`): variance momentum schedule. Defaults
-         to ``momentum_as_time_constant_schedule(720000)``.
+        variance_momentum (output of :func:`momentum_schedule`): variance momentum schedule. Defaults
+         to ``momentum_schedule(0.999)``.
         l1_regularization_weight (float, optional): the L1 regularization weight per sample,
          defaults to 0.0
         l2_regularization_weight (float, optional): the L2 regularization weight per sample,

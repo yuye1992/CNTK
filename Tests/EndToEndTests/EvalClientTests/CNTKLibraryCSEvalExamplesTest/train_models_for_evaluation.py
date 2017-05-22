@@ -77,7 +77,7 @@ def LanguageUnderstanding_train(reader, model, max_epochs):
 
     learner = fsadagrad(criterion.parameters,
                         lr         = learning_rate_schedule([0.003]*2+[0.0015]*12+[0.0003], UnitType.sample, epoch_size),
-                        momentum   = momentum_as_time_constant_schedule(minibatch_size / -math.log(0.9)),
+                        momentum   = momentum_schedule(0.9),
                         gradient_clipping_threshold_per_sample = 15,
                         gradient_clipping_with_truncation = True)
 

@@ -11,7 +11,7 @@ from cntk.initializer import glorot_uniform
 from cntk.io import MinibatchSource, ImageDeserializer, CTFDeserializer, StreamDefs, StreamDef
 from cntk.io.transforms import scale
 from cntk.layers import placeholder, constant
-from cntk.learners import momentum_sgd, learning_rate_schedule, momentum_as_time_constant_schedule
+from cntk.learners import momentum_sgd, learning_rate_schedule, momentum_schedule
 from cntk.logging import log_number_of_parameters, ProgressPrinter
 from cntk.logging.graph import find_by_name, plot
 from PARAMETERS import *
@@ -155,7 +155,7 @@ def train_fast_rcnn(debug_output=False):
     l2_reg_weight = 0.0005
     lr_per_sample = [0.00001] * 10 + [0.000001] * 5 + [0.0000001]
     lr_schedule = learning_rate_schedule(lr_per_sample, unit=UnitType.sample)
-    mm_schedule = momentum_as_time_constant_schedule(momentum_time_constant)
+    mm_schedule = momentum_schedule(momentum_time_constant)
 
     # Instantiate the trainer object
     learner = momentum_sgd(frcn_output.parameters, lr_schedule, mm_schedule, l2_regularization_weight=l2_reg_weight)

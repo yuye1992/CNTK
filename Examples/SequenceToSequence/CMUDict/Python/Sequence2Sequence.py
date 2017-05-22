@@ -9,7 +9,7 @@ import numpy as np
 import os
 from cntk import Trainer, Axis
 from cntk.io import MinibatchSource, CTFDeserializer, StreamDef, StreamDefs, INFINITELY_REPEAT
-from cntk.learners import momentum_sgd, fsadagrad, momentum_as_time_constant_schedule, learning_rate_schedule, UnitType
+from cntk.learners import momentum_sgd, fsadagrad, momentum_schedule, learning_rate_schedule, UnitType
 from cntk import input, cross_entropy_with_softmax, classification_error, sequence, \
                  element_select, alias, hardmax, placeholder, combine, parameter, times, plus
 from cntk.ops.functions import CloneMethod, load_model, Function
@@ -219,7 +219,7 @@ def train(train_reader, valid_reader, vocab, i2w, s2smodel, max_epochs, epoch_si
     lr = 0.001 if use_attention else 0.005   # TODO: can we use the same value for both?
     learner = fsadagrad(model_train.parameters,
                         lr       = learning_rate_schedule([lr]*2+[lr/2]*3+[lr/4], UnitType.sample, epoch_size),
-                        momentum = momentum_as_time_constant_schedule(1100),
+                        momentum = momentum_schedule(0.93664),
                         gradient_clipping_threshold_per_sample=2.3,
                         gradient_clipping_with_truncation=True)
     trainer = Trainer(None, criterion, learner)
@@ -314,7 +314,7 @@ def evaluate_decoding(reader, s2smodel, i2w):
 # TODO: replace by a proper such class once available
 def Evaluator(model, criterion):
     from cntk import Trainer
-    from cntk.learners import momentum_sgd, learning_rate_schedule, UnitType, momentum_as_time_constant_schedule
+    from cntk.learners import momentum_sgd, learning_rate_schedule, UnitType, momentum_schedule
     loss, metric = Trainer._get_loss_metric(criterion)
     parameters = set(loss.parameters)
     if model:
@@ -323,7 +323,7 @@ def Evaluator(model, criterion):
         parameters |= set(metric.parameters)
     dummy_learner = momentum_sgd(tuple(parameters),
                                  lr = learning_rate_schedule(1, UnitType.minibatch),
-                                 momentum = momentum_as_time_constant_schedule(0))
+                                 momentum = momentum_schedule(0))
     return Trainer(model, (loss, metric), dummy_learner)
 
 # This computes the metric on the test set.

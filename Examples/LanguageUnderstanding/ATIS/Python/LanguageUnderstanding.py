@@ -12,7 +12,7 @@ from cntk.layers import *  # Layers library
 from cntk.layers.typing import *
 from cntk.io import MinibatchSource, CTFDeserializer, StreamDef, StreamDefs, INFINITELY_REPEAT
 from cntk import Trainer, Value
-from cntk.learners import fsadagrad, learning_rate_schedule, momentum_as_time_constant_schedule, UnitType
+from cntk.learners import fsadagrad, learning_rate_schedule, momentum_schedule, UnitType
 from cntk import splice, relu
 from cntk.losses import cross_entropy_with_softmax
 from cntk.metrics import classification_error
@@ -148,7 +148,7 @@ def train(reader, model, max_epochs):
     # SGD parameters
     learner = fsadagrad(criterion.parameters,
                         lr         = learning_rate_schedule([0.003]*2+[0.0015]*12+[0.0003], UnitType.sample, epoch_size),
-                        momentum   = momentum_as_time_constant_schedule(minibatch_size / -math.log(0.9)),
+                        momentum   = momentum_schedule(0.9),
                         gradient_clipping_threshold_per_sample = 15,
                         gradient_clipping_with_truncation = True)
 
@@ -185,7 +185,7 @@ def train(reader, model, max_epochs):
 # TODO: replace by a proper such class once available
 def Evaluator(model, criterion):
     from cntk import Trainer
-    from cntk.learners import momentum_sgd, learning_rate_schedule,  momentum_as_time_constant_schedule
+    from cntk.learners import momentum_sgd, learning_rate_schedule,  momentum_schedule
     loss, metric = Trainer._get_loss_metric(criterion)
     parameters = set(loss.parameters)
     if model:
@@ -194,7 +194,7 @@ def Evaluator(model, criterion):
         parameters |= set(metric.parameters)
     dummy_learner = momentum_sgd(tuple(parameters), 
                                  lr = learning_rate_schedule(1 ),
-                                 momentum = momentum_as_time_constant_schedule(0),
+                                 momentum = momentum_schedule(0),
                                  use_mean_gradient=True)
     return Trainer(model, (loss, metric), dummy_learner)
 

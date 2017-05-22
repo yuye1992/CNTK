@@ -198,7 +198,7 @@ def test_ext_train(tmpdir):
     # keeping m unwrapped since we need to access its member variables
     z = C.user_function(m) + p
 
-    momentum_time_constant = C.momentum_as_time_constant_schedule(1100)
+    momentum_time_constant = C.momentum_schedule(0.99637)
     lr_per_sample = C.learning_rate_schedule(0.007)
     trainer = C.Trainer(z, (z + 0, z + 0),
                         [C.momentum_sgd(z.parameters, lr_per_sample, momentum_time_constant,
@@ -341,7 +341,7 @@ def test_ext_lambdafunc(tmpdir):
 
     z = Function.load(filepath)
 
-    momentum_time_constant = C.momentum_as_time_constant_schedule(1100)
+    momentum_time_constant = C.momentum_schedule(0.99637)
     lr_per_sample = C.learning_rate_schedule(0.007)
     trainer = C.Trainer(z, (z + 0, z + 0), [C.momentum_sgd(z.parameters,
                                                            lr_per_sample,
