@@ -4166,6 +4166,16 @@ namespace CNTK
     {
     public:
         ///
+        /// Indicates whether the values in the schedule are specified on the per-sample or 
+        /// per-minibatch basis.
+        ///
+        enum class UnitType : unsigned int
+        {
+            Sample = 0,
+            Minibatch = 1,
+        };
+
+        ///
         /// A special value that can be used for the epochSize to indicate that the schedule is sweep-based.
         ///
         static const size_t FullDataSweep = 0;
@@ -4226,6 +4236,7 @@ namespace CNTK
 
     protected:           
         std::map<size_t, T> m_schedule;
+        UnitType m_unit = UnitType::Sample;
         size_t m_epochSize;
     };
 
