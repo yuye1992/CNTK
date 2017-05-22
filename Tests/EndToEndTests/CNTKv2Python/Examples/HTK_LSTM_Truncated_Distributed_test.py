@@ -32,7 +32,8 @@ def test_htk_lstm_truncated_distributed_1bitsgd(device_id):
                "-m", "640",
                "-e", "1000",
                "-device", str(device_id) ]
-    mpiexec_test(device_id, script_under_test, mpiexec_params, params, 0.76, True)
+    mpiexec_test(device_id, script_under_test,
+                 mpiexec_params, params, 0.76, True)
 
 def test_htk_lstm_truncated_distributed_block_momentum(device_id):
 
@@ -42,4 +43,5 @@ def test_htk_lstm_truncated_distributed_block_momentum(device_id):
                "-datadir", an4_dataset_directory(),
                "-b", "1600",
                "-device", str(device_id) ]
-    mpiexec_test(device_id, script_under_test, mpiexec_params, params, 0.76, False, 4)
+    mpiexec_test(device_id, script_under_test,
+                 mpiexec_params, params, 0.76, False, 4)

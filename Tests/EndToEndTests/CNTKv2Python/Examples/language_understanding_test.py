@@ -98,7 +98,8 @@ def test_language_understanding(device_id):
 
 
         # replace lookahead by bidirectional model
-        with default_options(initial_state=0.1):  # inject an option to mimic the BS version identically; remove some day
+        with default_options(initial_state=0.1):
+            # inject an option to mimic the BS version identically; remove some day
             run_model_test('replace lookahead by bidirectional model', Sequential([
                 Embedding(emb_dim),
                 BatchNormalization(),

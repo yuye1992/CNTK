@@ -682,7 +682,7 @@ def adagrad(parameters, lr, need_ave_multiplier=True,
 
 @typemap
 def fsadagrad(parameters, lr, momentum, unit_gain=default_unit_gain_value(),
-              variance_momentum=momentum_as_time_constant_schedule(720000),
+              variance_momentum=momentum_schedule(0.999),
               l1_regularization_weight=0.0, l2_regularization_weight=0.0,
               gaussian_noise_injection_std_dev=0.0, gradient_clipping_threshold_per_sample=np.inf,
               gradient_clipping_with_truncation=True, use_mean_gradient=default_use_mean_gradient_value()):
@@ -737,7 +737,7 @@ def fsadagrad(parameters, lr, momentum, unit_gain=default_unit_gain_value(),
 
 @typemap
 def adam(parameters, lr, momentum, unit_gain=default_unit_gain_value(),
-         variance_momentum=momentum_as_time_constant_schedule(720000),
+         variance_momentum=momentum_schedule(0.999),
          l1_regularization_weight=0.0, l2_regularization_weight=0.0,
          gaussian_noise_injection_std_dev=0.0, gradient_clipping_threshold_per_sample=np.inf,
          gradient_clipping_with_truncation=True, use_mean_gradient=default_use_mean_gradient_value(), epsilon=1e-8, adamax=False):

@@ -26,4 +26,6 @@ def test_convnet_mnist_error(device_id):
     error = convnet_mnist(epoch_size=5000, minibatch_size=32, max_epochs=10)
 
     expected_error = 0.0226
-    assert np.allclose(error, expected_error, atol=TOLERANCE_ABSOLUTE)
+    assert np.allclose(error,
+                       expected_error,
+                       atol=TOLERANCE_ABSOLUTE)
