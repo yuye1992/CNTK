@@ -359,15 +359,16 @@ def momentum_schedule(momentum, epoch_size=None):
     return training_parameter_schedule(momentum, epoch_size= epoch_size)
 
 
-def momentum_from_legacy_constant(legacy_constant, batch_size, epoch_size=None):
+def momentum_schedule_from_time_constant(time_constant, minibatch_size, epoch_size=None):
     '''
-    :param legacy_constant: A constant as defined by parameter ``momentum`` in the deprecated function :func:`momentum_as_time_constant_schedule`. 
-    :param batch_size: the batch size
+    :param time_constant: A constant as defined by parameter ``momentum`` in the deprecated function :func:`momentum_as_time_constant_schedule`. 
+    :param minibatch_size: the batch size
+    :param epoch_size(int): see parameter ``epoch_size`` in
+         :func:`training_parameter_schedule`. 
     :return: momentum_schedule
     '''
-    momentum = np.exp(-1.0 / legacy_constant) ** batch_size
+    momentum = np.exp(- float(minibatch_size) / float(time_constant))
     return momentum_schedule(momentum=momentum, epoch_size=epoch_size)
-
 
 
 
