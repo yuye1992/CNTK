@@ -4,6 +4,7 @@
 //
 #include "Include/Basics.h"
 #include "Include/MPIWrapper.h"
+#include <unordered_set>
 
 #if HAS_MPI
 #pragma comment(lib, "msmpi.lib")
@@ -29,6 +30,7 @@ class MPIWrapperMpi : public MPIWrapper
     int m_numMPINodes;
     size_t m_numNodesInUse;
     bool m_multiHost;
+    size_t m_numHostsInUse;
 
     // MPI communicator that reflects the current subset selection
     MPI_Comm m_currentComm;
@@ -63,6 +65,7 @@ private:
 public:
 
     size_t NumNodesInUse() const;
+    size_t NumHostsInUse() const;
     size_t CurrentNodeRank() const;
     bool IsMainNode() const;
     std::wstring CurrentNodeName() const;
@@ -70,6 +73,7 @@ public:
     bool UsingAllNodes() const;
     size_t MainNodeRank() const;
     bool IsMultiHost() const;
+    size_t LocalRankId() const;
 
     // Use GPUDirect RDMA support
     virtual bool UseGpuGdr() override;
@@ -83,6 +87,7 @@ public:
     virtual int Waitany(int count, MPI_Request array_of_requests[], int* index, MPI_Status* status);
     virtual int Waitall(int count, MPI_Request array_of_requests[], MPI_Status array_of_statuses[]);
     virtual int Isend(const void* buf, int count, MPI_Datatype datatype, int dest, int tag, /*MPI_Comm comm,*/ MPI_Request* request);
+    virtual int Send(void* buf, int count, MPI_Datatype datatype, int dest, int tag/*MPI_Comm comm,*/);
     virtual int Recv(void* buf, int count, MPI_Datatype datatype, int source, int tag, /*MPI_Comm comm,*/ MPI_Status* status);
     virtual int Irecv(void* buf, int count, MPI_Datatype datatype, int source, int tag, /*MPI_Comm comm,*/ MPI_Request* request);
     virtual int Iallreduce(const void* sendbuf, void* recvbuf, int count, MPI_Datatype datatype, MPI_Op op, /*MPI_Comm comm,*/ MPI_Request* request);
@@ -161,6 +166,7 @@ public:
     ~MPIWrapperEmpty();
 
     size_t NumNodesInUse() const;
+    size_t NumHostsInUse() const;
     size_t CurrentNodeRank() const;
     bool IsMainNode() const;
     std::wstring CurrentNodeName() const;
@@ -168,6 +174,7 @@ public:
     bool UsingAllNodes() const;
     size_t MainNodeRank() const;
     bool IsMultiHost() const;
+    size_t LocalRankId() const;
     // Use GPUDirect RDMA
     virtual bool UseGpuGdr() override;
 
@@ -180,6 +187,7 @@ public:
     virtual int Waitany(int count, MPI_Request array_of_requests[], int* index, MPI_Status* status);
     virtual int Waitall(int count, MPI_Request array_of_requests[], MPI_Status array_of_statuses[]);
     virtual int Isend(const void* buf, int count, MPI_Datatype datatype, int dest, int tag, /*MPI_Comm comm,*/ MPI_Request* request);
+    virtual int Send(void* buf, int count, MPI_Datatype datatype, int dest, int tag/*MPI_Comm comm,*/);
     virtual int Recv(void* buf, int count, MPI_Datatype datatype, int source, int tag, /*MPI_Comm comm,*/ MPI_Status* status);
     virtual int Irecv(void* buf, int count, MPI_Datatype datatype, int source, int tag, /*MPI_Comm comm,*/ MPI_Request* request);
     virtual int Iallreduce(const void* sendbuf, void* recvbuf, int count, MPI_Datatype datatype, MPI_Op op, /*MPI_Comm comm,*/ MPI_Request* request);
@@ -413,6 +421,7 @@ MPIWrapperMpi::MPIWrapperMpi()
     MPI_Comm_size(MPI_COMM_WORLD, &m_numMPINodes);
     m_numNodesInUse = m_numMPINodes;
     m_multiHost = true;
+    m_numHostsInUse = 1;
 
     // Verify that the environment variable used by GetTotalNumberOfMPINodes()  
     // matches what the MPI API says. There're actually two possible cases:
@@ -595,18 +604,23 @@ void MPIWrapperMpi::RequestNodes(const char *msg, size_t requestednodes /*defaul
         || MpiFail("requestnodes: MPI_Allgather");
 
     m_multiHost = false;
-    for (size_t i = 1; i<m_numNodesInUse; i++)
+    m_numHostsInUse = 1;
+    std::unordered_set<std::string> hostNames;
+    hostNames.insert(allNames);
+    for (size_t i = 1; i < m_numNodesInUse; i++)
     {
-        if (strcmp(allNames, allNames + i*nameMax) != 0)
+        if (hostNames.find(allNames + i*nameMax) == hostNames.end())
         {
             m_multiHost = true;
-            break;
+            m_numHostsInUse++;
+            hostNames.insert(allNames + i*nameMax);
         }
     }
+    assert(m_numHostsInUse > 0);
 
-    fprintf(stderr, "requestnodes [%s]: using %d out of %d MPI nodes on %s (%d requested); we (%d) are %s\n",
+    fprintf(stderr, "requestnodes [%s]: using %d out of %d MPI nodes on %s (%d requested on %d hosts); we (%d) are %s\n",
         msg, (int)m_numNodesInUse, (int)m_numMPINodes, m_multiHost ? "multiple hosts" : "a single host",
-        (int)requestednodes, (int)CurrentNodeRank(), IsIdle() ? "out (idle)" : "in (participating)");
+        (int)requestednodes, (int)m_numHostsInUse, (int)CurrentNodeRank(), IsIdle() ? "out (idle)" : "in (participating)");
     fflush(stderr);
 }
 
@@ -656,6 +670,11 @@ int MPIWrapperMpi::Isend(const void* buf, int count, MPI_Datatype datatype, int 
     return MPI_Isend(buf, count, datatype, dest, tag, m_currentComm, request);
 }
 
+int MPIWrapperMpi::Send(void* buf, int count, MPI_Datatype datatype, int dest, int tag)
+{
+    return MPI_Send(buf, count, datatype, dest, tag, m_currentComm);
+}
+
 int MPIWrapperMpi::Recv(void* buf, int count, MPI_Datatype datatype, int source, int tag, MPI_Status* status)
 {
     return MPI_Recv(buf, count, datatype, source, tag, m_currentComm, status);
@@ -697,6 +716,11 @@ size_t MPIWrapperMpi::NumNodesInUse() const
     return m_numNodesInUse;
 }
 
+size_t MPIWrapperMpi::NumHostsInUse() const
+{
+    return m_numHostsInUse;
+}
+
 size_t MPIWrapperMpi::CurrentNodeRank() const
 {
     return m_myRank;
@@ -725,6 +749,11 @@ bool MPIWrapperMpi::UsingAllNodes() const
 size_t MPIWrapperMpi::MainNodeRank() const
 {
     return 0;
+}
+
+size_t MPIWrapperMpi::LocalRankId() const
+{
+    return m_myRank % m_numNodesInUse;
 }
 
 // allreduce of a vector
@@ -1039,6 +1068,11 @@ int MPIWrapperEmpty::Isend(const void* buf, int count, MPI_Datatype datatype, in
     return MPI_UNDEFINED;
 }
 
+int MPIWrapperEmpty::Send(void* buf, int count, MPI_Datatype datatype, int dest, int tag)
+{
+    return MPI_UNDEFINED;
+}
+
 int MPIWrapperEmpty::Recv(void* buf, int count, MPI_Datatype datatype, int source, int tag, MPI_Status* status)
 {
     return MPI_UNDEFINED;
@@ -1075,6 +1109,11 @@ size_t MPIWrapperEmpty::NumNodesInUse() const
     return 1;
 }
 
+size_t MPIWrapperEmpty::NumHostsInUse() const
+{
+    return 1;
+}
+
 size_t MPIWrapperEmpty::CurrentNodeRank() const
 {
     return 0;
@@ -1088,6 +1127,11 @@ std::wstring MPIWrapperEmpty::CurrentNodeName() const
 bool MPIWrapperEmpty::IsMainNode() const
 {
     return true;
+}
+
+size_t MPIWrapperEmpty::LocalRankId() const
+{
+    return 0;
 }
 
 bool MPIWrapperEmpty::IsIdle() const

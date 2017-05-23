@@ -25,8 +25,13 @@ class SimpleDistGradAggregator : public IDistGradAggregator<ElemType>
 public:
     SimpleDistGradAggregator(const MPIWrapperPtr& mpi, bool useAsyncAggregation, int deviceId, int syncStatsTrace, size_t packThresholdSizeInBytes = DEFAULT_PACK_THRESHOLD_SIZE_IN_BYTES)
         : IDistGradAggregator<ElemType>(mpi), m_useAsyncAggregation(useAsyncAggregation), m_initialized(false), m_bufferedGradHeader(nullptr), m_syncStatsTrace(syncStatsTrace),
-        m_iterationCount(0), m_nccl(deviceId, mpi), m_packThresholdSizeInBytes(packThresholdSizeInBytes)
-    {}
+        m_iterationCount(0), m_nccl(mpi->CurrentNodeRank() % (m_mpi->NumNodesInUse() / mpi->NumHostsInUse()), mpi), m_packThresholdSizeInBytes(packThresholdSizeInBytes)
+    {
+        if (m_mpi->CurrentNodeRank() % (m_mpi->NumNodesInUse() / m_mpi->NumHostsInUse()) == 0)
+        {
+            m_localMpi = MPIWrapper::GetInstance();
+        }
+    }
 
     ~SimpleDistGradAggregator()
     {
@@ -327,6 +332,7 @@ private:
             m_mpi->Isend(headerCPU, headerCPU->Size(), MPI_CHAR, m_mpi->MainNodeRank(), numGradMatrices, &sendHeaderRequest) || MpiFail("MPI_Isend");
 
         // Perform async allreduce on the gradient data
+        fprintf(stderr, "Starting to do allreduce\n");
         std::vector<MPI_Request> allReduceRequests;
         if (!m_nccl.IsSupported())
         {
@@ -357,12 +363,46 @@ private:
         } 
         else
         {
+            fprintf(stderr, "About to do work\n");
             std::vector<Matrix<ElemType>*> ncclReduceGradients;
             for (size_t i : m_gradientIndexToAggregate)
             {
                 ncclReduceGradients.push_back((i == -1) ? m_aggregationBuffer.get() : gradients[i]);
             }
             m_nccl.AllReduce(ncclReduceGradients);
+            fprintf(stderr, "Done with local NCCL allreduce\n");
+            // Reduce between nodes, rank 0 on each node does allreduce between nodes then broadcast within node
+            ElemType* reductionBuffer;
+            if (m_mpi->CurrentNodeRank() % (m_mpi->NumNodesInUse() / m_mpi->NumHostsInUse()) == 0)
+            {
+                fprintf(stderr, "TODO between node allreduce and broadcast\n");
+                for (size_t i : m_gradientIndexToAggregate)
+                {
+                    fprintf(stderr, "Starting to do work for %d\n", (int)i);
+                    m_allocator.reset(new CUDAPageLockedMemAllocator(deviceId));
+                    fprintf(stderr, "cudapagelock allocated\n");
+                    GPUDataTransferer gpuDataTransferer(deviceId, m_useAsyncAggregation);
+                    fprintf(stderr, "gpudatatransferer prepared\n");
+                    std::shared_ptr<ElemType> intermediateCPUBuffer = AllocateIntermediateBuffer(deviceId, (i == -1) ? m_aggregationBuffer->GetNumElements() : gradients[i]->GetNumElements());
+                    fprintf(stderr, "intermediatebuffer prepared");
+                    gpuDataTransferer.CopyGPUToCPUAsync((i == -1) ? m_aggregationBuffer->Data() : gradients[i]->Data(), (i == -1) ? m_aggregationBuffer->GetNumElements() : gradients[i]->GetNumElements(), intermediateCPUBuffer.get());
+                    fprintf(stderr, "starting the copying from gpu to cpu\n");
+                    gpuDataTransferer.WaitForCopyGPUToCPUAsync();
+                    fprintf(stderr, "finished copying from gpu to cpu\n");
+                    reductionBuffer = intermediateCPUBuffer.get();
+                    m_localMpi->AllReduce(reductionBuffer, (i == -1) ? m_aggregationBuffer->GetNumElements() : gradients[i]->GetNumElements());
+                    fprintf(stderr, "finished local allreduce\n");
+                    gpuDataTransferer.CopyCPUToGPUAsync(intermediateCPUBuffer.get(), (i == -1) ? m_aggregationBuffer->GetNumElements() : gradients[i]->GetNumElements(), (i == -1) ? m_aggregationBuffer->Data() : gradients[i]->Data());
+                    fprintf(stderr, "copying data from cpu to gpu\n");
+                    gpuDataTransferer.WaitForCopyCPUToGPUAsync();
+                }
+            }
+            m_mpi->WaitAll(); // Barrier to make sure all arrive here.
+            for (size_t i : m_gradientIndexToAggregate)
+            {
+                m_mpi->Bcast((i == -1)? m_aggregationBuffer->Data() : gradients[i]->Data(), (i == -1) ? m_aggregationBuffer->GetNumElements() : gradients[i]->GetNumElements(), MPI_DOUBLE, 0);
+            }
+            fprintf(stderr, "Done with global NCCL allreduce\n");
         }
 
         // On the main node wait for the headers to arrive and aggregate
@@ -470,6 +510,7 @@ private:
 
     bool m_initialized;
 
+    MPIWrapperPtr m_localMpi;
     NcclComm m_nccl;
 };
 } } }
