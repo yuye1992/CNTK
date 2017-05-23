@@ -352,7 +352,7 @@ namespace CNTK
      template <typename T>
     /*static*/ TrainingParameterSchedule<T>  TrainingParameterSchedule<T>::Deserialize(const Dictionary& dict)
     {
-        static const vector<std::wstring> s_requiredDictionaryKeys = { typeKey,  epochSizeKey, scheduleKey };
+        static const vector<std::wstring> s_requiredDictionaryKeys = { typeKey, unitKey,  epochSizeKey, scheduleKey };
 
         ValidateDictionary<TrainingParameterSchedule<T>>(dict, s_requiredDictionaryKeys, s_trainingParameterScheduleTypeValue, s_serializationVersion);
 

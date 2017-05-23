@@ -473,10 +473,18 @@ namespace CNTK
         parameterMatrix->SGDUpdate(*gradientMatrix, learningRate);
     }
 
-    double LearnerMomentumSGD::MomentumValueForMB(const MomentumSchedule& schedule, size_t /*minibatchSize*/) const
+    double LearnerMomentumSGD::MomentumValueForMB(const MomentumSchedule& schedule, size_t minibatchSize) const
     {
         double currentMomentum = GetCurrentTrainingParameterValue(schedule);
-        return currentMomentum;
+        if (schedule.Unit() == MomentumSchedule::UnitType::Minibatch)
+        {
+            return currentMomentum;
+        }
+
+        if (m_additionalOptions.useMeanGradient)
+            LogicError("useMeanGradient should not be used with per-sample momentum setting");
+
+        return std::pow(currentMomentum, minibatchSize);
     }
 
     /*virtual*/ void LearnerMomentumSGD::Update(const Parameter& parameter, const NDArrayViewPtr& gradientValue, 

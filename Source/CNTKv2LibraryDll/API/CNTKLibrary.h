@@ -4208,6 +4208,12 @@ namespace CNTK
         /// count from the beginning of training.
         ///
         CNTK_API const T& operator[](size_t count) const;
+        ///
+        /// Returns the unit type for 'this' training parameter schedule. 
+        /// In case when the values are specified on the per-Minibatch basis, they are
+        /// re-scaled by the learner using the actual minibatch size in samples.
+        ///
+        UnitType Unit() const { return m_unit; }
 
         bool IsSweepBased() const { return m_epochSize == FullDataSweep; }
 
@@ -4283,30 +4289,30 @@ namespace CNTK
 
     typedef TrainingParameterSchedule<size_t> MinibatchSizeSchedule;
     typedef TrainingParameterSchedule<double> LearningRateSchedule;
-    typedef TrainingParameterSchedule<double> MomentumSchedule;
+    typedef TrainingParameterPerUnitSchedule<double> MomentumSchedule;
 
     ///
     /// This class allows to specify momentum as time constant in place of momentum per sample in 
     /// all of Learners factory methods. The specified values are then automatically converted into 
     /// per sample values.
     ///
-    class MomentumAsTimeConstantSchedule: public TrainingParameterSchedule<double>
+    class MomentumAsTimeConstantSchedule: public MomentumSchedule
     {
     public:
         MomentumAsTimeConstantSchedule(double value) 
-            : TrainingParameterSchedule<double>::TrainingParameterSchedule(value)
+            : TrainingParameterPerUnitSchedule<double>::TrainingParameterPerUnitSchedule(value)
         { 
             ConvertToPerSampleValues();
         }
         
         MomentumAsTimeConstantSchedule(const std::vector<double>& schedule, size_t epochSize = FullDataSweep) 
-            : TrainingParameterSchedule<double>::TrainingParameterSchedule(schedule, epochSize) 
+            : TrainingParameterPerUnitSchedule<double>::TrainingParameterPerUnitSchedule(schedule, epochSize)
         { 
             ConvertToPerSampleValues();
         }
         
         MomentumAsTimeConstantSchedule(const std::vector<std::pair<size_t, double>>& schedule, size_t epochSize = FullDataSweep) 
-            : TrainingParameterSchedule<double>::TrainingParameterSchedule(schedule, epochSize)
+            : TrainingParameterPerUnitSchedule<double>::TrainingParameterPerUnitSchedule(schedule, epochSize)
         { 
             ConvertToPerSampleValues();
         }
