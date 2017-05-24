@@ -4251,13 +4251,7 @@ namespace CNTK
         /// Will be deprecated in the future version.
         ///
         bool m_isPerSample;
-    protected:
-        CNTK_API MomentumSchedule(const TrainingParameterSchedule<double>& that, bool isPerSample)
-            : TrainingParameterSchedule<double>(that),
-            m_isPerSample(isPerSample)
-        {
-        }
-
+ 
     public:
  
         CNTK_API MomentumSchedule(const MomentumSchedule& that)
@@ -4266,9 +4260,9 @@ namespace CNTK
         {
         }
 
-        CNTK_API MomentumSchedule(double value) 
+        CNTK_API MomentumSchedule(double value, bool isPerSample=false) 
             : TrainingParameterSchedule<double>(value),
-            m_isPerSample(false) 
+            m_isPerSample(isPerSample) 
         {
         }
 
@@ -4277,9 +4271,11 @@ namespace CNTK
         /// schedule[0] is used for the first 'epochSize' samples, schedule[1] -- for the second,
         /// and so on. The last value is then used repeatedly until the end of training.
         ///
-        CNTK_API MomentumSchedule(const std::vector<double>& schedule, size_t epochSize = FullDataSweep)
+        CNTK_API MomentumSchedule(const std::vector<double>& schedule,
+            size_t epochSize = FullDataSweep, 
+            bool isPerSample = false)
             : TrainingParameterSchedule<double>(schedule, epochSize),
-            m_isPerSample(false)
+            m_isPerSample(isPerSample)
         {
         }
         ///
@@ -4291,9 +4287,11 @@ namespace CNTK
         /// the first 100 samples, then '0.1' is used for the second 200 samples,
         /// after which the values is switched to '0.005'.
         ///
-        CNTK_API MomentumSchedule(const std::vector<std::pair<size_t, double>>& schedule, size_t epochSize = FullDataSweep)
+        CNTK_API MomentumSchedule(const std::vector<std::pair<size_t, double>>& schedule,
+            size_t epochSize = FullDataSweep, 
+            bool isPerSample = false)
             : TrainingParameterSchedule<double>(schedule, epochSize),
-            m_isPerSample(false)
+            m_isPerSample(isPerSample)
         {
         }
 
@@ -4317,19 +4315,19 @@ namespace CNTK
     {
     public:
           MomentumAsTimeConstantSchedule(double value)
-            : MomentumSchedule(TrainingParameterSchedule<double>(value), true)
+            : MomentumSchedule(value, true)
         {
             ConvertToPerSampleValues();
         }
 
           MomentumAsTimeConstantSchedule(const std::vector<double>& schedule, size_t epochSize = FullDataSweep)
-            : MomentumSchedule(TrainingParameterSchedule<double>::TrainingParameterSchedule(schedule, epochSize), true)
+            : MomentumSchedule(schedule, epochSize, true)
         {
             ConvertToPerSampleValues();
         }
 
           MomentumAsTimeConstantSchedule(const std::vector<std::pair<size_t, double>>& schedule, size_t epochSize = FullDataSweep)
-            : MomentumSchedule(TrainingParameterSchedule<double>::TrainingParameterSchedule(schedule, epochSize), true)
+            : MomentumSchedule(schedule, epochSize, true)
         {
             ConvertToPerSampleValues();
         }
