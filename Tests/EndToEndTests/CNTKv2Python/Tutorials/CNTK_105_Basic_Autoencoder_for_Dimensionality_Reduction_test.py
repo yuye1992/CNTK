@@ -25,4 +25,6 @@ expectedError = 3.1
 def test_cntk_105_basic_autoencoder_for_dimensionality_reduction_simple_trainerror(nb):
     testCell = [cell for cell in nb.cells
                 if cell.cell_type == 'code' and re.search('# Simple autoencoder test error', cell.source)]
-    assert np.isclose(float((testCell[0].outputs[0])['text']), expectedError, atol = TOLERANCE_ABSOLUTE)
+    assert np.isclose(float((testCell[0].outputs[0])['text']), expectedError, atol = TOLERANCE_ABSOLUTE) | \
+        np.less(float((testCell[0].outputs[0])['text']), expectedError)
+

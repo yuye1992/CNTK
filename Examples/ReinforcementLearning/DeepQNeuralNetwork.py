@@ -316,8 +316,7 @@ class DeepQAgent(object):
         m_schedule = momentum_schedule(momentum)
         vm_schedule = momentum_schedule(0.999)
         l_sgd = adam(self._action_value_net.parameters, lr_schedule,
-                     momentum=m_schedule, variance_momentum=vm_schedule,
-                     use_mean_gradient=True)
+                     momentum=m_schedule, variance_momentum=vm_schedule)
 
         self._metrics_writer = TensorBoardProgressWriter(freq=1, log_dir='metrics', model=criterion) if monitor else None
         self._learner = l_sgd
