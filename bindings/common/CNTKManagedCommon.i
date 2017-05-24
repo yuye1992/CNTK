@@ -239,16 +239,9 @@ SWIG_STD_VECTOR_ENHANCED(CNTK::DeviceDescriptor)
 %ignore_namespace CNTK::Sequence;
 
 %ignore_class CNTK::TrainingParameterSchedule;
-%ignore_class CNTK::TrainingParameterPerUnitSchedule;
-%ignore_class CNTK::TrainingParameterPerSampleSchedule;
-%ignore_class CNTK::TrainingParameterPerMinibatchSchedule;
-%ignore_class CNTK::LearningRatePerSampleSchedule;
-%ignore_class CNTK::LearningRatePerMinibatchSchedule;
 %ignore_class CNTK::MinibatchSizeSchedule;
 %ignore_class CNTK::LearningRateSchedule;
 %ignore_class CNTK::MomentumSchedule;
-%ignore_class CNTK::MomentumPerSampleSchedule;
-%ignore_class CNTK::MomentumPerMinibatchSchedule;
 %ignore_class CNTK::MomentumAsTimeConstantSchedule;
 %ignore_struct CNTK::AdditionalLearningOptions;
 %ignore_class CNTK::Learner;

@@ -53,7 +53,7 @@ void TestSGDLearner(size_t numParameters, size_t numMinibatches, const DeviceDes
 {
     NDShape shape = CreateShape(rng() % maxNumAxes + 1, maxDimSize);
     auto parameters = CreateParameters<ElementType>(shape, numParameters, device);
-    auto learner = SGDLearner(parameters, LearningRatePerSampleSchedule(0.4));
+    auto learner = SGDLearner(parameters, LearningRateSchedule(0.4));
     TestUpdate<ElementType>(learner, shape, numMinibatches, device);
 }
 
@@ -62,8 +62,8 @@ void TestMomentumSGDLearner(size_t numParameters, size_t numMinibatches, bool un
 {
     NDShape shape = CreateShape(rng() % maxNumAxes + 1, maxDimSize);
     auto parameters = CreateParameters<ElementType>(shape, numParameters, device);
-    LearningRatePerSampleSchedule learnigRateSchedule = { { 3.0, 2.0, 1.0 }, numMinibatches };
-    MomentumPerSampleSchedule momentumValues = { { { 1, 1.0 }, { 3, 0.1 }, { 10, 0.01 } }, 2 };
+    LearningRateSchedule learnigRateSchedule = { { 3.0, 2.0, 1.0 }, numMinibatches };
+    MomentumSchedule momentumValues = { { { 1, 1.0 }, { 3, 0.1 }, { 10, 0.01 } }, 2 };
     auto learner = MomentumSGDLearner(parameters, learnigRateSchedule, momentumValues, unitGainMomentum);
     TestUpdate<ElementType>(learner, shape, numMinibatches, device);
     FloatingPointCompare(learner->LearningRate(), 2.0, "Learner::LearningRate does not match expectation");
@@ -75,7 +75,7 @@ void TestNesterovLearner(size_t numParameters, size_t numMinibatches, bool unitG
     NDShape shape = CreateShape(rng() % maxNumAxes + 1, maxDimSize);
     auto parameters = CreateParameters<ElementType>(shape, numParameters, device);
     MomentumAsTimeConstantSchedule momentumValues = { { { 1, 1 }, { 3, 5 }, { 10, 25 } }, 100 };
-    auto learner = NesterovLearner(parameters, LearningRatePerSampleSchedule( { { 1, 0.5 }, { 10, 0.25 }, { 20, 0.125 } }, 3 ), momentumValues, unitGainMomentum);
+    auto learner = NesterovLearner(parameters, LearningRateSchedule( { { 1, 0.5 }, { 10, 0.25 }, { 20, 0.125 } }, 3 ), momentumValues, unitGainMomentum);
     TestUpdate<ElementType>(learner, shape, numMinibatches, device);
 }
 
@@ -84,7 +84,7 @@ void TestAdaGradLearner(size_t numParameters, size_t numMinibatches, const Devic
 {
     NDShape shape = CreateShape(rng() % maxNumAxes + 1, maxDimSize);
     auto parameters = CreateParameters<ElementType>(shape, numParameters, device);
-    auto learner = AdaGradLearner(parameters, LearningRatePerSampleSchedule( { 0.5, 0.4, 0.3, 0.2, 0.1 }, 2), true);
+    auto learner = AdaGradLearner(parameters, LearningRateSchedule( { 0.5, 0.4, 0.3, 0.2, 0.1 }, 2), true);
     TestUpdate<ElementType>(learner, shape, numMinibatches, device);
 }
 
@@ -93,7 +93,7 @@ void TestFSAdaGradLearner(size_t numParameters, size_t numMinibatches, bool unit
 {
     NDShape shape = CreateShape(rng() % maxNumAxes + 1, maxDimSize);
     auto parameters = CreateParameters<ElementType>(shape, numParameters, device);
-    auto learner = FSAdaGradLearner(parameters, LearningRatePerSampleSchedule({ 0.5 }), MomentumAsTimeConstantSchedule({ 10.0, 100.0, 1000.0 }), unitGainMomentum);
+    auto learner = FSAdaGradLearner(parameters, LearningRateSchedule({ 0.5 }), MomentumAsTimeConstantSchedule({ 10.0, 100.0, 1000.0 }), unitGainMomentum);
     TestUpdate<ElementType>(learner, shape, numMinibatches, device);
 }
 
@@ -102,7 +102,7 @@ void TestAdamLearner(size_t numParameters, size_t numMinibatches, bool unitGainM
 {
     NDShape shape = CreateShape(rng() % maxNumAxes + 1, maxDimSize);
     auto parameters = CreateParameters<ElementType>(shape, numParameters, device);
-    auto learner = AdamLearner(parameters, LearningRatePerSampleSchedule({ 0.5 }), MomentumAsTimeConstantSchedule({ 10.0, 100.0, 1000.0 }), unitGainMomentum, MomentumPerSampleSchedule(0.99));
+    auto learner = AdamLearner(parameters, LearningRateSchedule({ 0.5 }), MomentumAsTimeConstantSchedule({ 10.0, 100.0, 1000.0 }), unitGainMomentum, MomentumSchedule(0.99));
     TestUpdate<ElementType>(learner, shape, numMinibatches, device);
 }
 
@@ -111,7 +111,7 @@ void TestAdamaxLearner(size_t numParameters, size_t numMinibatches, bool unitGai
 {
     NDShape shape = CreateShape(rng() % maxNumAxes + 1, maxDimSize);
     auto parameters = CreateParameters<ElementType>(shape, numParameters, device);
-    auto learner = AdamLearner(parameters, LearningRatePerSampleSchedule({ 0.5 }), MomentumAsTimeConstantSchedule({ 10.0, 100.0, 1000.0 }), unitGainMomentum, MomentumPerSampleSchedule(0.99), 1e-8, true);
+    auto learner = AdamLearner(parameters, LearningRateSchedule({ 0.5 }), MomentumAsTimeConstantSchedule({ 10.0, 100.0, 1000.0 }), unitGainMomentum, MomentumSchedule(0.99), 1e-8, true);
     TestUpdate<ElementType>(learner, shape, numMinibatches, device);
 }
 
@@ -120,7 +120,7 @@ void TestRMSPropLearner(size_t numParameters, size_t numMinibatches, const Devic
 {
     NDShape shape = CreateShape(rng() % maxNumAxes + 1, maxDimSize);
     auto parameters = CreateParameters<ElementType>(shape, numParameters, device);
-    auto learner = RMSPropLearner(parameters, LearningRatePerSampleSchedule({ { 3, 0.7 }, { 1, 0.2 } }), 0.01, 0.02, 0.03, 0.1, 0.001);
+    auto learner = RMSPropLearner(parameters, LearningRateSchedule({ { 3, 0.7 }, { 1, 0.2 } }), 0.01, 0.02, 0.03, 0.1, 0.001);
     TestUpdate<ElementType>(learner, shape, numMinibatches, device);
 }
 
@@ -141,23 +141,23 @@ void TestUniversalLearner(size_t numParameters, size_t numMinibatches, const Dev
 
 void TestTrainingParametersSchedule()
 {
-    LearningRatePerSampleSchedule schedule1 = 0.5;
+    LearningRateSchedule schedule1 = 0.5;
     assert(schedule1[0] == 0.5);
     assert(schedule1[1] == 0.5);
     assert(schedule1[100] == 0.5);
 
-    LearningRatePerSampleSchedule schedule2 = { 0.5 };
+    LearningRateSchedule schedule2 = { 0.5 };
     assert(schedule2[0] == 0.5);
     assert(schedule2[10] == 0.5);
     assert(schedule2[100] == 0.5);
 
-    LearningRatePerSampleSchedule schedule3({ 0.5, 0.3, 0.3 });
+    LearningRateSchedule schedule3({ 0.5, 0.3, 0.3 });
     assert(schedule3[0] == 0.5);
     assert(schedule3[1] == 0.3);
     assert(schedule3[100] == 0.3);
 
 
-    LearningRatePerSampleSchedule schedule5 = { { 0.5, 0.3, 0.2 }, 10 };
+    LearningRateSchedule schedule5 = { { 0.5, 0.3, 0.2 }, 10 };
     assert(schedule5[0] == 0.5);
     assert(schedule5[9] == 0.5);
     assert(schedule5[10] == 0.3);
@@ -165,12 +165,12 @@ void TestTrainingParametersSchedule()
     assert(schedule5[20] == 0.2);
     assert(schedule5[100] == 0.2);
 
-    MomentumPerMinibatchSchedule schedule6 = { { make_pair(1, 0.5) } }; // without make_pair this is interpreted as a vector of doubles
+    MomentumSchedule schedule6 = { { make_pair(1, 0.5) } }; // without make_pair this is interpreted as a vector of doubles
     assert(schedule6[0] == 0.5);
     assert(schedule6[10] == 0.5);
     assert(schedule6[100] == 0.5);
  
-    LearningRatePerSampleSchedule schedule9 = { { { 3, 0.5 }, { 2, 0.3 }, { 1, 0.2 } } };
+    LearningRateSchedule schedule9 = { { { 3, 0.5 }, { 2, 0.3 }, { 1, 0.2 } } };
     assert(schedule9[0] == 0.5);
     assert(schedule9[2] == 0.5);
     assert(schedule9[3] == 0.3);
@@ -178,7 +178,7 @@ void TestTrainingParametersSchedule()
     assert(schedule9[5] == 0.2);
     assert(schedule9[100] == 0.2);
 
-    MomentumPerMinibatchSchedule schedule10 = { { { 3, 0.5 },{ 2, 0.3 },{ 1, 0.2 } }, 10 };
+    MomentumSchedule schedule10 = { { { 3, 0.5 },{ 2, 0.3 },{ 1, 0.2 } }, 10 };
     assert(schedule10[0] == 0.5);
     assert(schedule10[29] == 0.5);
     assert(schedule10[30] == 0.3);
@@ -240,7 +240,7 @@ void TestDefaultUnitGainGetterAndSetter()
 void TestSweepBasedSchedule()
 {
     DeviceDescriptor device = DeviceDescriptor::CPUDevice();
-    auto schedule = LearningRatePerSampleSchedule({ 1, 2, 3, 4, 5 }, LearningRateSchedule::FullDataSweep);
+    auto schedule = LearningRateSchedule({ 1, 2, 3, 4, 5 }, LearningRateSchedule::FullDataSweep);
 
     auto weights = Parameter({ 2 }, DataType::Float, 0, device);
     auto learner1 = SGDLearner({ weights }, schedule);
@@ -435,7 +435,7 @@ BOOST_AUTO_TEST_CASE(TestResettingLearningRate)
     auto numSamples = 1; numParameters = 1, numMinibatches = 1;
     DeviceDescriptor device = DeviceDescriptor::CPUDevice();
     auto parameters = CreateParameters<float>(shape, numParameters, device);
-    auto learner = SGDLearner(parameters, LearningRatePerSampleSchedule({ 0.1, 1, 2, 3, 4, 5 }, numSamples));
+    auto learner = SGDLearner(parameters, LearningRateSchedule({ 0.1, 1, 2, 3, 4, 5 }, numSamples));
     BOOST_TEST(learner->LearningRate() == 0.1);
     for (int i = 1; i < 4; i++)
     {
@@ -443,7 +443,7 @@ BOOST_AUTO_TEST_CASE(TestResettingLearningRate)
         BOOST_TEST(learner->LearningRate() == float(i));
     }
 
-    learner->ResetLearningRate(LearningRatePerSampleSchedule({ 9, 10, 20, 30, 40, 50 }, numSamples));
+    learner->ResetLearningRate(LearningRateSchedule({ 9, 10, 20, 30, 40, 50 }, numSamples));
     BOOST_TEST(learner->LearningRate() == 9.0);
     for (int i = 1; i < 4; i++)
     {

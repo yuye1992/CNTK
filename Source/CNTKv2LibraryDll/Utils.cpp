@@ -312,7 +312,7 @@ namespace CNTK
     // cannot be defaulted due to a bug in VS2013 (https://connect.microsoft.com/VisualStudio/feedback/details/1255564)
     template <typename T>
     TrainingParameterSchedule<T>::TrainingParameterSchedule(TrainingParameterSchedule<T>&& that)
-        :m_schedule(move(that.m_schedule)), m_unit(that.m_unit), m_epochSize(that.m_epochSize)
+        :m_schedule(move(that.m_schedule)),   m_epochSize(that.m_epochSize)
     {
     }
 
@@ -325,7 +325,6 @@ namespace CNTK
     {
         m_schedule = move(that.m_schedule);
         m_epochSize = that.m_epochSize;
-        m_unit = that.m_unit;
 
         return *this;
     }
@@ -344,7 +343,6 @@ namespace CNTK
         dict[versionKey] = CurrentVersion();
         dict[typeKey] = s_trainingParameterScheduleTypeValue;
         dict[epochSizeKey] = m_epochSize;
-        dict[unitKey] = static_cast<size_t>(m_unit);
         dict[scheduleKey] = schedule;
         return dict;
     }
@@ -352,7 +350,7 @@ namespace CNTK
      template <typename T>
     /*static*/ TrainingParameterSchedule<T>  TrainingParameterSchedule<T>::Deserialize(const Dictionary& dict)
     {
-        static const vector<std::wstring> s_requiredDictionaryKeys = { typeKey, unitKey,  epochSizeKey, scheduleKey };
+        static const vector<std::wstring> s_requiredDictionaryKeys = { typeKey,  epochSizeKey, scheduleKey };
 
         ValidateDictionary<TrainingParameterSchedule<T>>(dict, s_requiredDictionaryKeys, s_trainingParameterScheduleTypeValue, s_serializationVersion);
 
@@ -362,7 +360,6 @@ namespace CNTK
     template <typename T>
     TrainingParameterSchedule<T>::TrainingParameterSchedule(const Dictionary& dictionary)
     {
-        m_unit = UnitType(dictionary[unitKey].Value<size_t>());
         m_epochSize = dictionary[epochSizeKey].Value<size_t>();
         Dictionary schedule = dictionary[scheduleKey].Value<Dictionary>();
         for (const auto& kv : schedule)

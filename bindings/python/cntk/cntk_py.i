@@ -35,6 +35,7 @@
 %rename(sequence_reduce_sum) CNTK::Sequence::ReduceSum;
 %rename(sequence_reduce_max) CNTK::Sequence::ReduceMax;
 %rename(sequence_softmax) CNTK::Sequence::Softmax;
+%rename(momentum_schedule) CNTK::MomentumSchedule;
 %rename(momentum_as_time_constant_schedule) CNTK::MomentumAsTimeConstantSchedule;
 %rename(ctf_deserializer) CNTK::CTFDeserializer;
 %rename(htk_feature_deserializer) CNTK::HTKFeatureDeserializer;
@@ -48,11 +49,12 @@
 %rename(_none) CNTK::DictionaryValue::Type::None;
 
 // Disabling warning about constructor shadowing, learner tests check this.
-%warnfilter(401, 509) CNTK::TrainingParameterPerUnitSchedule;
-%warnfilter(509) CNTK::MomentumAsTimeConstantSchedule;
+%warnfilter(401, 509) CNTK::TrainingParameterSchedule;
+%warnfilter(401, 509) CNTK::MomentumSchedule;
+%warnfilter(401, 509) CNTK::MomentumAsTimeConstantSchedule;
+
 %warnfilter(509) CNTK::NDArrayView::NDArrayView;
 
-%warnfilter(315) CNTK::TrainingParameterPerSampleSchedule;
 
 // Disabling warning about movable constructor shadowing, io tests check this.
 %warnfilter(509) CNTK::DictionaryValue::DictionaryValue;
@@ -85,7 +87,6 @@
 %warnfilter(401) CNTK::BackPropState;
 %warnfilter(401) CNTK::MinibatchSource;
 
-%warnfilter(401, 509) CNTK::MomentumAsTimeConstantSchedule;
 
 %warnfilter(340) CNTK::NoOp;
 
@@ -1425,6 +1426,10 @@ std::unordered_map<CNTK::StreamInformation, std::pair<CNTK::NDArrayViewPtr, CNTK
 %shared_ptr(CNTK::Internal::TensorBoardFileWriter)
 %shared_ptr(CNTK::ProgressWriter)
 %shared_ptr(CNTK::Internal::UDFDeserializeCallbackWrapper)
+%shared_ptr(CNTK::TrainingParameterSchedule<double>)
+%shared_ptr(CNTK::TrainingParameterSchedule<size_t>)
+%shared_ptr(CNTK::MomentumSchedule)
+%shared_ptr(CNTK::MomentumAsTimeConstantSchedule)
 
 %include "CNTKLibraryInternals.h"
 %include "CNTKLibrary.h"
@@ -1808,12 +1813,12 @@ namespace CNTK
 %template(DictionaryValueFromDict) CNTK::DictionaryValue::DictionaryValue<CNTK::Dictionary>;
 %template(DictionaryValueFromNDArrayView) CNTK::DictionaryValue::DictionaryValue<CNTK::NDArrayView>;
 
-%template(training_parameter_per_sample_schedule) CNTK::TrainingParameterPerUnitSchedule<double>;
-// monentum schedule now is also using TrainingParameterPerUnitSchedule:
-%template(training_parameter_momentum_schedule) CNTK::TrainingParameterPerUnitSchedule<double>;
 
-typedef CNTK::TrainingParameterPerUnitSchedule<size_t> MinibatchSizeSchedule;
-%template(minibatch_size_schedule) CNTK::TrainingParameterPerUnitSchedule<size_t>;
+typedef CNTK::TrainingParameterSchedule<double> LearningRateSchedule;
+%template(learning_rate_schedule) CNTK::TrainingParameterSchedule<double>;
+typedef CNTK::TrainingParameterSchedule<size_t> MinibatchSizeSchedule;
+%template(minibatch_size_schedule) CNTK::TrainingParameterSchedule<size_t>;
+%template(training_parameter_schedule) CNTK::TrainingParameterSchedule<double>;
 
 //
 // The following callback code is only for testing. Will have to be merged with

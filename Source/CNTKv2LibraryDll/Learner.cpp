@@ -476,7 +476,7 @@ namespace CNTK
     double LearnerMomentumSGD::MomentumValueForMB(const MomentumSchedule& schedule, size_t minibatchSize) const
     {
         double currentMomentum = GetCurrentTrainingParameterValue(schedule);
-        if (schedule.Unit() == MomentumSchedule::UnitType::Minibatch)
+        if (!schedule.IsPerSample())
         {
             return currentMomentum;
         }

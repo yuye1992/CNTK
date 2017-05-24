@@ -79,7 +79,7 @@ def test_epochsize_wrn_for_parameter_schedule():
     with warnings.catch_warnings(record=True) as w:
         warnings.simplefilter("always")
 
-        C.training_parameter_schedule(0.01, C.UnitType.sample, epoch_size=1000)
+        C.training_parameter_schedule(0.01,  epoch_size=1000)
 
         assert len(w) == 1
         assert issubclass(w[-1].category, RuntimeWarning)

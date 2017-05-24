@@ -4166,16 +4166,6 @@ namespace CNTK
     {
     public:
         ///
-        /// Indicates whether the values in the schedule are specified on the per-sample or 
-        /// per-minibatch basis.
-        ///
-        enum class UnitType : unsigned int
-        {
-            Sample = 0,
-            Minibatch = 1,
-        };
-
-        ///
         /// A special value that can be used for the epochSize to indicate that the schedule is sweep-based.
         ///
         static const size_t FullDataSweep = 0;
@@ -4208,12 +4198,7 @@ namespace CNTK
         /// count from the beginning of training.
         ///
         CNTK_API const T& operator[](size_t count) const;
-        ///
-        /// Returns the unit type for 'this' training parameter schedule. 
-        /// In case when the values are specified on the per-Minibatch basis, they are
-        /// re-scaled by the learner using the actual minibatch size in samples.
-        ///
-        UnitType Unit() const { return m_unit; }
+ 
 
         bool IsSweepBased() const { return m_epochSize == FullDataSweep; }
 
@@ -4230,6 +4215,13 @@ namespace CNTK
 
         CNTK_API static TrainingParameterSchedule<T> Deserialize(const Dictionary& dictionary);
 
+#ifdef SWIG // for Python interop (adds indexer)
+        const T __getitem__(size_t count) const
+        {
+            return TrainingParameterSchedule<T>::operator[](count);
+        }
+#endif
+
     private:
 
         friend class Learner;
@@ -4242,91 +4234,123 @@ namespace CNTK
 
     protected:           
         std::map<size_t, T> m_schedule;
-        UnitType m_unit = UnitType::Sample;
         size_t m_epochSize;
     };
 
-    template <typename T>
-    class TrainingParameterPerUnitSchedule : public TrainingParameterSchedule<T>
-    {
-    public:
-        TrainingParameterPerUnitSchedule(T value)
-            : TrainingParameterSchedule<T>::TrainingParameterSchedule(value)
-        { }
-
-        TrainingParameterPerUnitSchedule(const std::vector<T>& schedule, 
-                                         size_t epochSize = TrainingParameterSchedule<T>::FullDataSweep)
-            : TrainingParameterSchedule<T>::TrainingParameterSchedule(schedule,   epochSize)
-        { }
-
-
-        TrainingParameterPerUnitSchedule(const std::vector<std::pair<size_t, T>>& schedule, 
-                                         size_t epochSize = TrainingParameterSchedule<T>::FullDataSweep)
-            : TrainingParameterSchedule<T>::TrainingParameterSchedule(schedule, epochSize)
-        { }
-
-#ifdef SWIG // for Python interop (adds indexer)
-        const T __getitem__(size_t count) const
-        {
-            return TrainingParameterSchedule<T>::operator[](count);
-        }
-#endif
-    };
-
-// Swig does not understand type aliasing.
-#ifndef SWIG
-    ///
-    /// Training parameter schedule with per-sample values.
-    ///
-    template <typename T>
-    using TrainingParameterPerSampleSchedule = TrainingParameterPerUnitSchedule<T>;
-
-    typedef TrainingParameterPerSampleSchedule<double> LearningRatePerSampleSchedule;
-
-    typedef TrainingParameterPerSampleSchedule<double> MomentumPerSampleSchedule;
-    typedef TrainingParameterPerUnitSchedule<double> MomentumPerMinibatchSchedule;
-#endif
-
     typedef TrainingParameterSchedule<size_t> MinibatchSizeSchedule;
     typedef TrainingParameterSchedule<double> LearningRateSchedule;
-    typedef TrainingParameterPerUnitSchedule<double> MomentumSchedule;
+
+    ///
+    /// A class for momentum schedule.
+    ///
+    class MomentumSchedule : public TrainingParameterSchedule<double>
+    {
+    private:
+        ///
+        /// A temporary solution to enable MomentumSchedule to define MomentumAsTimeConstantSchedule. 
+        /// Will be deprecated in the future version.
+        ///
+        bool m_isPerSample;
+    protected:
+        CNTK_API MomentumSchedule(const TrainingParameterSchedule<double>& that, bool isPerSample)
+            : TrainingParameterSchedule<double>(that),
+            m_isPerSample(isPerSample)
+        {
+        }
+
+    public:
+ 
+        CNTK_API MomentumSchedule(const MomentumSchedule& that)
+            : TrainingParameterSchedule<double>(that), 
+            m_isPerSample(that.m_isPerSample)
+        {
+        }
+
+        CNTK_API MomentumSchedule(double value) 
+            : TrainingParameterSchedule<double>(value),
+            m_isPerSample(false) 
+        {
+        }
+
+        ///
+        /// Create a schedule where the parameter changes its value every 'epochSize' samples:
+        /// schedule[0] is used for the first 'epochSize' samples, schedule[1] -- for the second,
+        /// and so on. The last value is then used repeatedly until the end of training.
+        ///
+        CNTK_API MomentumSchedule(const std::vector<double>& schedule, size_t epochSize = FullDataSweep)
+            : TrainingParameterSchedule<double>(schedule, epochSize),
+            m_isPerSample(false)
+        {
+        }
+        ///
+        /// Create a schedule using the list of key-value pairs, where the key specifies
+        /// the number of epochs the parameter should maintain the corresponding value,
+        /// (which 'epochSize' samples in each epoch). The value from the last pair is used
+        /// repeatedly until the end of training. For example, {{1, 0.05}, {2, 0.1}, {1, 0.005}}
+        /// and epochSize = 100, corresponds to a schedule where the value of '0.05' is used for
+        /// the first 100 samples, then '0.1' is used for the second 200 samples,
+        /// after which the values is switched to '0.005'.
+        ///
+        CNTK_API MomentumSchedule(const std::vector<std::pair<size_t, double>>& schedule, size_t epochSize = FullDataSweep)
+            : TrainingParameterSchedule<double>(schedule, epochSize),
+            m_isPerSample(false)
+        {
+        }
+
+        bool IsPerSample() const { return m_isPerSample; }
+
+#ifdef SWIG // for Python interop (adds indexer)
+        const double __getitem__(size_t count) const
+        {
+            return TrainingParameterSchedule<double>::operator[](count);
+        }
+#endif
+
+    };
 
     ///
     /// This class allows to specify momentum as time constant in place of momentum per sample in 
     /// all of Learners factory methods. The specified values are then automatically converted into 
     /// per sample values.
     ///
-    class MomentumAsTimeConstantSchedule: public MomentumSchedule
+    class MomentumAsTimeConstantSchedule : public MomentumSchedule
     {
     public:
-        MomentumAsTimeConstantSchedule(double value) 
-            : TrainingParameterPerUnitSchedule<double>::TrainingParameterPerUnitSchedule(value)
-        { 
-            ConvertToPerSampleValues();
-        }
-        
-        MomentumAsTimeConstantSchedule(const std::vector<double>& schedule, size_t epochSize = FullDataSweep) 
-            : TrainingParameterPerUnitSchedule<double>::TrainingParameterPerUnitSchedule(schedule, epochSize)
-        { 
-            ConvertToPerSampleValues();
-        }
-        
-        MomentumAsTimeConstantSchedule(const std::vector<std::pair<size_t, double>>& schedule, size_t epochSize = FullDataSweep) 
-            : TrainingParameterPerUnitSchedule<double>::TrainingParameterPerUnitSchedule(schedule, epochSize)
-        { 
+          MomentumAsTimeConstantSchedule(double value)
+            : MomentumSchedule(TrainingParameterSchedule<double>(value), true)
+        {
             ConvertToPerSampleValues();
         }
 
-#ifdef SWIG // for Python interop (adds indexer)
-        const double __getitem__(size_t count) const
+          MomentumAsTimeConstantSchedule(const std::vector<double>& schedule, size_t epochSize = FullDataSweep)
+            : MomentumSchedule(TrainingParameterSchedule<double>::TrainingParameterSchedule(schedule, epochSize), true)
         {
-            return operator[](count);
+            ConvertToPerSampleValues();
         }
+
+          MomentumAsTimeConstantSchedule(const std::vector<std::pair<size_t, double>>& schedule, size_t epochSize = FullDataSweep)
+            : MomentumSchedule(TrainingParameterSchedule<double>::TrainingParameterSchedule(schedule, epochSize), true)
+        {
+            ConvertToPerSampleValues();
+        }
+         MomentumAsTimeConstantSchedule(const MomentumAsTimeConstantSchedule& that)
+            : MomentumSchedule(that)
+        {
+        }
+
+
+#ifdef SWIG // for Python interop (adds indexer)
+         const double __getitem__(size_t count) const
+         {
+             return TrainingParameterSchedule<double>::operator[](count);
+         }
 #endif
 
     private:
         CNTK_API void ConvertToPerSampleValues();
     };
+
+
 
     ///
     /// A collection of additional options that affect parameter updates and 
@@ -4336,11 +4360,7 @@ namespace CNTK
     {
         double l1RegularizationWeight = 0.0;
         double l2RegularizationWeight = 0.0;
-#ifdef SWIG //for python interop (swig does not fully support "using")
-        TrainingParameterPerUnitSchedule<double> gaussianNoiseInjectionStdDev = 0.0;
-#else
-        TrainingParameterPerSampleSchedule<double> gaussianNoiseInjectionStdDev = 0.0;
-#endif
+        TrainingParameterSchedule<double> gaussianNoiseInjectionStdDev = 0.0;
         double gradientClippingThresholdPerSample = std::numeric_limits<double>::infinity();
         bool gradientClippingWithTruncation = true;
 

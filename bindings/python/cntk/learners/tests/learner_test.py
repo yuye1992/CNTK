@@ -199,11 +199,9 @@ def test_learner_logging():
 
 def test_training_parameter_schedule():
     C.training_parameter_schedule(0.01)
+    C.learning_rate_schedule(0.01)
+    C.momentum_schedule(0.01)
 
-    with pytest.raises(ValueError):
-        C.training_parameter_schedule(0.01, unit='not_supported')
-    with pytest.raises(ValueError):
-        C.training_parameter_schedule(0.01, unit=5)
 
 def test_sweep_based_schedule(tmpdir, device_id):
     from cntk.io import MinibatchSource, CTFDeserializer, StreamDef, StreamDefs
