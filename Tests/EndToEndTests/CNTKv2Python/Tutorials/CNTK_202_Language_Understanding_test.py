@@ -35,3 +35,4 @@ def test_cntk_202_language_understanding_trainerror(nb):
     # TODO tighten tolerances
     assert numpy.allclose(expectedMetrics, metrics, atol=0.15)
 
+

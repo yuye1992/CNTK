@@ -5292,7 +5292,8 @@ void Matrix<ElemType>::Scale(ElemType alpha, const Matrix<ElemType>& a, Matrix<E
                                 &c,
                                 CPUMatrix<ElemType>::Scale(alpha, *a.m_CPUMatrix, *c.m_CPUMatrix),
                                 GPUMatrix<ElemType>::Scale(alpha, *a.m_GPUMatrix, *c.m_GPUMatrix),
-                                NOT_IMPLEMENTED, * c.m_GPUSparseMatrix = (*a.m_GPUSparseMatrix) * alpha);
+                                NOT_IMPLEMENTED, 
+                                * c.m_GPUSparseMatrix = (*a.m_GPUSparseMatrix) * alpha);
 }
 
 /// <summary>Matrix-scalar multiply with col-major matrices: a = alpha * a</summary>
@@ -5310,7 +5311,7 @@ void Matrix<ElemType>::Scale(ElemType alpha, Matrix<ElemType>& a)
                                 &a,
                                 CPUMatrix<ElemType>::Scale(alpha, *a.m_CPUMatrix),
                                 GPUMatrix<ElemType>::Scale(alpha, *a.m_GPUMatrix),
-                                NOT_IMPLEMENTED,
+                                CPUSparseMatrix<ElemType>::Scale(alpha, *a.m_CPUSparseMatrix), 
                                 GPUSparseMatrix<ElemType>::Scale(alpha, *a.m_GPUSparseMatrix));
 }
 
