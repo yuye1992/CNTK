@@ -55,8 +55,7 @@
 #define CNTK_MODEL_VERSION_23 23 // pooling: add include pad func for average pooling
 #define CNTK_MODEL_VERSION_24 24 // ReduceElements: add keepDimensions
 #define CNTK_MODEL_VERSION_25 25 // transpose: allow specifying a permutation
-#define CNTK_MODEL_VERSION_26 26 // Checkpoint storage format changed due to the removal of unitKey from TrainingParameterSchedule dictionary
-#define CURRENT_CNTK_MODEL_VERSION CNTK_MODEL_VERSION_26
+#define CURRENT_CNTK_MODEL_VERSION CNTK_MODEL_VERSION_25
 
 
 // helper mode for debugging
