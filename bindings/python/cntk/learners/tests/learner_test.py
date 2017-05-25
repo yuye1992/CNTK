@@ -45,6 +45,18 @@ def test_momentum_schedule_per_sample(params, expectation):
     l = C.momentum_schedule(*params)
     assert [l[i] for i in range(len(expectation))] == expectation
 
+    m = 2500
+    ms = C.momentum_as_time_constant_schedule([m])
+    assert ms[0] ==  np.exp(-1.0 / np.asarray(m))
+
+    ms = C.momentum_as_time_constant_schedule(m)
+    assert ms[0] ==  np.exp(-1.0 / np.asarray(m))
+
+    mlist = [980, 520]
+    msl = C.momentum_as_time_constant_schedule(mlist)
+    expected = np.exp(-1.0 / np.asarray(mlist))
+    assert all(mi == ei for mi,ei in zip(msl,expected))
+
 def test_learner_init():
     i = C.input_variable(shape=(1,), needs_gradient=True, name='a')
     w = parameter(shape=(1,))

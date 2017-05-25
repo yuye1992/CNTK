@@ -439,6 +439,53 @@ def momentum_schedule_from_time_constant(time_constant, minibatch_size, epoch_si
     momentum = np.exp(- float(minibatch_size) / float(time_constant))
     return momentum_schedule(momentum=momentum, epoch_size=epoch_size)
 
+@typemap
+def momentum_as_time_constant_schedule(momentum, epoch_size=None):
+    '''
+    Create a momentum schedule in a minibatch-size agnostic way
+    (using the same semantics as :func:`training_parameter_schedule`
+    with `unit=UnitType.sample`).
+    Args:
+        momentum (float or list): see parameter ``schedule`` in
+         :func:`training_parameter_schedule`.
+        epoch_size (int): see parameter ``epoch_size`` in
+         :func:`training_parameter_schedule`.
+    deprecated:: 3.0
+        Use :func:`momentum_schedule` instead
+
+    CNTK specifies momentum in a minibatch-size agnostic way as the time
+    constant (in samples) of a unit-gain 1st-order IIR filter. The value
+    specifies the number of samples after which a gradient has an effect of
+    1/e=37%.
+
+    If you want to specify the momentum per sample (or per minibatch),
+    use :func:`momentum_schedule`.
+
+    Examples:
+        >>> # Use a fixed momentum of 1100 for all samples
+        >>> m = momentum_as_time_constant_schedule(1100)
+
+        >>> # Use the time constant 1100 for the first 1000 samples,
+        >>> # then 1500 for the remaining ones
+        >>> m = momentum_as_time_constant_schedule([1100, 1500], 1000)
+
+    Returns:
+        momentum as time constant schedule
+    '''
+    if isinstance(momentum, (cntk_py.momentum_as_time_constant_schedule)):
+        return momentum
+
+    if isinstance(momentum, (int, float)):
+        if epoch_size is not None:
+            warnings.warn('When providing the schedule as a number, epoch_size is ignored', RuntimeWarning)
+        return cntk_py.momentum_as_time_constant_schedule(momentum)
+
+    if isinstance(momentum, list):
+        args = [momentum] if epoch_size is None else [momentum, epoch_size]
+        return cntk_py.momentum_as_time_constant_schedule(*args)
+
+    raise ValueError(
+        'momentum must be either a float or a list, not %s' % type(momentum))
 
 
 @typemap
