@@ -13,6 +13,12 @@ notebook = os.path.join(abs_path, "..", "..", "..", "..", "Tutorials", "CNTK_202
 # Runs on GPU only, batch normalization training on CPU is not yet implemented.
 notebook_deviceIdsToRun = [0]
 
+def _all_close_or_less(result, expect, tol):
+    df = (result - expect)
+    f1 = df < 0
+    f2 = numpy.abs(df) <= tol
+    return numpy.all(f1 | f2)
+
 def test_cntk_202_language_understanding_noErrors(nb):
     errors = [output for cell in nb.cells if 'outputs' in cell
               for output in cell['outputs'] if output.output_type == "error"]
@@ -33,6 +39,6 @@ def test_cntk_202_language_understanding_trainerror(nb):
            pass
     expectedMetrics = [0.34, 0.4, 0.37, 0.21]
     # TODO tighten tolerances
-    assert numpy.allclose(expectedMetrics, metrics, atol=0.15)
+    assert _all_close_or_less(metrics, expectedMetrics, 0.15)
 
 
