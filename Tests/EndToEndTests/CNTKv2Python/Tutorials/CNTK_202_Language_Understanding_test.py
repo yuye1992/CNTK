@@ -14,6 +14,8 @@ notebook = os.path.join(abs_path, "..", "..", "..", "..", "Tutorials", "CNTK_202
 notebook_deviceIdsToRun = [0]
 
 def _all_close_or_less(result, expect, tol):
+    result = numpy.array(result)
+    expect = numpy.array(expect)
     df = (result - expect)
     f1 = df < 0
     f2 = numpy.abs(df) <= tol

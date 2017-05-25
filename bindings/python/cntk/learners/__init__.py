@@ -430,6 +430,7 @@ def momentum_schedule(momentum, epoch_size=None):
 
 def momentum_schedule_from_time_constant(time_constant, minibatch_size, epoch_size=None):
     '''
+     Create a momentum schedule from a time constant. 
     :param time_constant: A constant as defined by parameter ``momentum`` in the deprecated function :func:`momentum_as_time_constant_schedule`. 
     :param minibatch_size: the batch size
     :param epoch_size(int): see parameter ``epoch_size`` in
@@ -450,8 +451,6 @@ def momentum_as_time_constant_schedule(momentum, epoch_size=None):
          :func:`training_parameter_schedule`.
         epoch_size (int): see parameter ``epoch_size`` in
          :func:`training_parameter_schedule`.
-    deprecated:: 3.0
-        Use :func:`momentum_schedule` instead
 
     CNTK specifies momentum in a minibatch-size agnostic way as the time
     constant (in samples) of a unit-gain 1st-order IIR filter. The value
