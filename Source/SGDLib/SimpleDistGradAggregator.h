@@ -367,6 +367,7 @@ private:
             std::vector<Matrix<ElemType>*> ncclReduceGradients;
             for (size_t i : m_gradientIndexToAggregate)
             {
+                fprintf(stderr, "NCCL allReduce for %d \n", (int)i);
                 ncclReduceGradients.push_back((i == -1) ? m_aggregationBuffer.get() : gradients[i]);
             }
             m_nccl.AllReduce(ncclReduceGradients);
