@@ -78,6 +78,8 @@ public:
     // Use GPUDirect RDMA support
     virtual bool UseGpuGdr() override;
 
+    virtual MPI_Comm GetCommunicator() override;
+
     // -----------------------------------------------------------------------
     // data-exchange functions (wrappers around MPI functions)
     // -----------------------------------------------------------------------
@@ -177,6 +179,8 @@ public:
     size_t LocalRankId() const;
     // Use GPUDirect RDMA
     virtual bool UseGpuGdr() override;
+
+    virtual MPI_Comm GetCommunicator() override;
 
     // -----------------------------------------------------------------------
     // data-exchange functions (wrappers around MPI functions)
@@ -711,6 +715,11 @@ bool MPIWrapperMpi::UseGpuGdr()
 #endif
 }
 
+MPI_Comm MPIWrapperMpi::GetCommunicator()
+{
+    return m_currentComm;
+}
+
 size_t MPIWrapperMpi::NumNodesInUse() const
 {
     return m_numNodesInUse;
@@ -1030,6 +1039,11 @@ bool MPIWrapperEmpty::IsMultiHost() const
 bool MPIWrapperEmpty::UseGpuGdr()
 {
     return false;
+}
+
+MPI_Comm MPIWrapperEmpty::GetCommunicator()
+{
+    return NULL;
 }
 
 int MPIWrapperEmpty::Finalize(void)

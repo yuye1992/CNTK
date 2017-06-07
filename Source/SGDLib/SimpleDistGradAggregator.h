@@ -27,9 +27,11 @@ public:
         : IDistGradAggregator<ElemType>(mpi), m_useAsyncAggregation(useAsyncAggregation), m_initialized(false), m_bufferedGradHeader(nullptr), m_syncStatsTrace(syncStatsTrace),
         m_iterationCount(0), m_nccl(mpi->CurrentNodeRank() % (m_mpi->NumNodesInUse() / mpi->NumHostsInUse()), mpi), m_packThresholdSizeInBytes(packThresholdSizeInBytes)
     {
-        if (m_mpi->CurrentNodeRank() % (m_mpi->NumNodesInUse() / m_mpi->NumHostsInUse()) == 0)
+        if (m_mpi->NumHostsInUse() > 1) // && m_mpi->CurrentNodeRank() % (m_mpi->NumNodesInUse() / m_mpi->NumHostsInUse()) == 0)
         {
-            m_localMpi = MPIWrapper::GetInstance();
+            int color = m_mpi->CurrentNodeRank() % (m_mpi->NumNodesInUse() / m_mpi->NumHostsInUse());
+            MPI_Comm global_comm = mpi->GetCommunicator();
+            MPI_Comm_split(global_comm, color, m_mpi->CurrentNodeRank(), &comm_two);
         }
     }
 
@@ -374,36 +376,42 @@ private:
             fprintf(stderr, "Done with local NCCL allreduce\n");
             // Reduce between nodes, rank 0 on each node does allreduce between nodes then broadcast within node
             ElemType* reductionBuffer;
-            if (m_mpi->CurrentNodeRank() % (m_mpi->NumNodesInUse() / m_mpi->NumHostsInUse()) == 0)
+            if (m_mpi->NumHostsInUse() > 1)
             {
-                fprintf(stderr, "TODO between node allreduce and broadcast\n");
+                m_allocator.reset(new CUDAPageLockedMemAllocator(deviceId));
+                GPUDataTransferer gpuDataTransferer(deviceId, m_useAsyncAggregation);
+                if (m_mpi->CurrentNodeRank() % (m_mpi->NumNodesInUse() / m_mpi->NumHostsInUse()) == 0)
+                {
+                    fprintf(stderr, "TODO between node allreduce and broadcast\n");
+                    for (size_t i : m_gradientIndexToAggregate)
+                    {
+                        std::shared_ptr<ElemType> intermediateCPUBuffer = AllocateIntermediateBuffer(deviceId, (i == -1) ? m_aggregationBuffer->GetNumElements() : gradients[i]->GetNumElements());
+                        fprintf(stderr, "intermediatebuffer prepared");
+                        gpuDataTransferer.CopyGPUToCPUAsync((i == -1) ? m_aggregationBuffer->Data() : gradients[i]->Data(), (i == -1) ? m_aggregationBuffer->GetNumElements() : gradients[i]->GetNumElements(), intermediateCPUBuffer.get());
+                        fprintf(stderr, "starting the copying from gpu to cpu\n");
+                        gpuDataTransferer.WaitForCopyGPUToCPUAsync();
+                        fprintf(stderr, "finished copying from gpu to cpu\n");
+                        reductionBuffer = intermediateCPUBuffer.get();
+                        MPI_Allreduce(reductionBuffer, reductionBuffer, (i == -1) ? m_aggregationBuffer->GetNumElements() : gradients[i]->GetNumElements(), MPI_DOUBLE, MPI_SUM, comm_two);
+                        fprintf(stderr, "finished local allreduce\n");
+                        gpuDataTransferer.CopyCPUToGPUAsync(intermediateCPUBuffer.get(), (i == -1) ? m_aggregationBuffer->GetNumElements() : gradients[i]->GetNumElements(), (i == -1) ? m_aggregationBuffer->Data() : gradients[i]->Data());
+                        fprintf(stderr, "copying data from cpu to gpu\n");
+                        gpuDataTransferer.WaitForCopyCPUToGPUAsync();
+                    }
+                }
+                m_mpi->WaitAll(); // Barrier to make sure all arrive here.
                 for (size_t i : m_gradientIndexToAggregate)
                 {
-                    fprintf(stderr, "Starting to do work for %d\n", (int)i);
-                    m_allocator.reset(new CUDAPageLockedMemAllocator(deviceId));
-                    fprintf(stderr, "cudapagelock allocated\n");
-                    GPUDataTransferer gpuDataTransferer(deviceId, m_useAsyncAggregation);
-                    fprintf(stderr, "gpudatatransferer prepared\n");
                     std::shared_ptr<ElemType> intermediateCPUBuffer = AllocateIntermediateBuffer(deviceId, (i == -1) ? m_aggregationBuffer->GetNumElements() : gradients[i]->GetNumElements());
-                    fprintf(stderr, "intermediatebuffer prepared");
                     gpuDataTransferer.CopyGPUToCPUAsync((i == -1) ? m_aggregationBuffer->Data() : gradients[i]->Data(), (i == -1) ? m_aggregationBuffer->GetNumElements() : gradients[i]->GetNumElements(), intermediateCPUBuffer.get());
-                    fprintf(stderr, "starting the copying from gpu to cpu\n");
                     gpuDataTransferer.WaitForCopyGPUToCPUAsync();
-                    fprintf(stderr, "finished copying from gpu to cpu\n");
                     reductionBuffer = intermediateCPUBuffer.get();
-                    m_localMpi->AllReduce(reductionBuffer, (i == -1) ? m_aggregationBuffer->GetNumElements() : gradients[i]->GetNumElements());
-                    fprintf(stderr, "finished local allreduce\n");
+                    m_mpi->Bcast(reductionBuffer, (i == -1) ? m_aggregationBuffer->GetNumElements() : gradients[i]->GetNumElements(), MPI_DOUBLE, 0);
                     gpuDataTransferer.CopyCPUToGPUAsync(intermediateCPUBuffer.get(), (i == -1) ? m_aggregationBuffer->GetNumElements() : gradients[i]->GetNumElements(), (i == -1) ? m_aggregationBuffer->Data() : gradients[i]->Data());
-                    fprintf(stderr, "copying data from cpu to gpu\n");
                     gpuDataTransferer.WaitForCopyCPUToGPUAsync();
                 }
+                fprintf(stderr, "Done with global NCCL allreduce\n");
             }
-            m_mpi->WaitAll(); // Barrier to make sure all arrive here.
-            for (size_t i : m_gradientIndexToAggregate)
-            {
-                m_mpi->Bcast((i == -1)? m_aggregationBuffer->Data() : gradients[i]->Data(), (i == -1) ? m_aggregationBuffer->GetNumElements() : gradients[i]->GetNumElements(), MPI_DOUBLE, 0);
-            }
-            fprintf(stderr, "Done with global NCCL allreduce\n");
         }
 
         // On the main node wait for the headers to arrive and aggregate
@@ -511,7 +519,7 @@ private:
 
     bool m_initialized;
 
-    MPIWrapperPtr m_localMpi;
+    MPI_Comm comm_two;
     NcclComm m_nccl;
 };
 } } }

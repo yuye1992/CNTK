@@ -101,6 +101,8 @@ public:
     // Use GPUDirect RDMA support
     virtual bool UseGpuGdr() = 0;
 
+    virtual MPI_Comm GetCommunicator() = 0;
+
     // -----------------------------------------------------------------------
     // data-exchange functions (wrappers around MPI functions)
     // -----------------------------------------------------------------------
