@@ -1048,6 +1048,30 @@ namespace CNTK
                 case PrimitiveOpType::Assign:
                     computationNodePtr = New<AssignNode<ElementType>>(network->GetDeviceId(), internalNodeName);
                     break;
+                case PrimitiveOpType::Pad:
+                {
+                    std::vector<Axis> axis;
+                    std::vector<int> padSize;
+                    if (functionConfig.Contains(PrimitiveFunction::AttributeNameAxisVec) &&
+                        functionConfig.Contains(PrimitiveFunction::AttributeNamePadSizeVec))
+                    {
+                        axis = AsVector<Axis>(functionConfig[PrimitiveFunction::AttributeNameAxisVec].Value<std::vector<DictionaryValue>>());
+                        padSize = AsVector<int>(functionConfig[PrimitiveFunction::AttributeNamePadSizeVec].Value<std::vector<DictionaryValue>>());
+                    }
+                    else if (functionConfig.Contains(PrimitiveFunction::AttributeNameAxis) &&
+                        functionConfig.Contains(PrimitiveFunction::AttributeNamePadSize))
+                    {
+                        axis.push_back(functionConfig[PrimitiveFunction::AttributeNameAxis].Value<Axis>());
+                        padSize.push_back(functionConfig[PrimitiveFunction::AttributeNameBeginIndex].Value<int>());
+                    }
+                    else
+                    {
+                        RuntimeError("Failed to create computation node: Pad operation specified with inconsistent attributes.");
+                    }
+                    // Internal CNTK SliceNode takes 1 based axis indices instead of 0 based
+                    computationNodePtr = New<PadNode<ElementType>>(network->GetDeviceId(), internalNodeName, padSize, AsCNTKInternalAxisIdx(axis));
+                    break;
+                }
                 default:
                     CNTK::LogicError("Specified op %S not yet supported", PrimitiveOpTypeName(op).c_str());
                     break;

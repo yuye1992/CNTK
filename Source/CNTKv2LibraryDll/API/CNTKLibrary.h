@@ -4067,6 +4067,11 @@ namespace CNTK
     CNTK_API FunctionPtr Splice(const std::vector<Variable>& operands, const Axis& axis, const std::wstring& name = L"");
 
     ///
+    /// Create an instance of the CNTK built-in pad operation to pad a tensor operand.
+    ///
+    CNTK_API FunctionPtr Pad(const Variable& operand, const std::vector<Axis>& axis, const std::vector<int>& padSize, const std::wstring& name = L"");
+
+    ///
     /// Create a new Function instance which just combines the outputs of the specified list of 'operands' Functions such that the 'Outputs' of the 
     /// new 'Function' are union of the 'Outputs' of each of the specified 'operands' Functions.
     /// E.g. When creating a classification model, typically the CrossEntropy loss Function and the ClassificationError Function comprise the two roots

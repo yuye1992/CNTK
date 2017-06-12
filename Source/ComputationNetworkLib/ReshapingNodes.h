@@ -634,6 +634,176 @@ template class SliceNode<float>;
 template class SliceNode<double>;
 
 // -----------------------------------------------------------------------
+// PadNode (input)
+// This node pads the dimensions of a tensor with 0s. 
+// -----------------------------------------------------------------------
+
+template <class ElemType>
+class PadNode : public ComputationNode<ElemType>, public NumInputs<1>
+{
+    typedef ComputationNode<ElemType> Base; UsingComputationNodeMembersBoilerplate;
+    static const std::wstring TypeName() { return L"Pad"; }
+
+public:
+    PadNode(DEVICEID_TYPE deviceId, const wstring& name, std::vector<int> padSize = { 1 }, std::vector<int> axis = { 1 })
+        : Base(deviceId, name), m_padSize(padSize), m_axis(axis)
+    {
+        if (m_padSize.size() != m_axis.size())
+            InvalidArgument("%ls %ls operation: invalid size of padSize (%d), and axis (%d). They must agree.", NodeName().c_str(), OperationName().c_str(), (int)m_padSize.size(), (int)m_axis.size());
+    }
+
+    PadNode(const ScriptableObjects::IConfigRecordPtr configp)
+        : PadNode(configp->Get(L"deviceId"), L"<placeholder>", { configp->Get(L"padSize") }, { configp->Get(L"axis") })
+    {
+        AttachInputsFromConfig(configp, this->GetExpectedNumInputs());
+    }
+
+    virtual void CopyTo(ComputationNodeBasePtr nodeP, const std::wstring& newName, const CopyNodeFlags flags) const override
+    {
+        Base::CopyTo(nodeP, newName, flags);
+        auto node = dynamic_pointer_cast<PadNode<ElemType>>(nodeP);
+        node->m_padSize = m_padSize;
+        node->m_axis = m_axis;
+    }
+
+    virtual void Load(File& fstream, size_t modelVersion) override
+    {
+        Base::Load(fstream, modelVersion);
+        int num = 1, axis = 1;  // axis = 1 to emulate old RowSliceNode 
+        ptrdiff_t padSize, height;
+        if (modelVersion >= CNTK_MODEL_VERSION_22)
+            fstream >> num;
+        if (num < 1)
+            InvalidArgument("Pad node number of axes (%d) invalid, must be >=1", num);
+
+        m_padSize.clear();
+        m_axis.clear();
+        for (int i = 0; i < num; i++)
+        {
+            fstream >> padSize >> height; // legacy format stored (end-begin)
+            m_padSize.push_back((int)padSize);
+            if (modelVersion >= CNTK_MODEL_VERSION_3)
+                fstream >> axis;
+            m_axis.push_back(axis);
+        }
+    }
+
+    virtual void Save(File& fstream) const override
+    {
+        Base::Save(fstream);
+        int num = (int)m_axis.size();
+        fstream << num;
+        for (auto i = 0; i < num; i++)
+        {
+            fstream << (ptrdiff_t)m_padSize[i];
+            fstream << m_axis[i];
+        }
+    }
+
+    std::vector<int> PadSize() const { return m_padSize; }
+    size_t PadSize(int idx) const
+    {
+        if (idx >= (int)m_axis.size())
+            InvalidArgument("Pad PadSize call with invalid index (%d) >= axis size (%d)", idx, (int)m_axis.size());
+        return m_padSize[idx];
+    }
+
+    std::vector<int> Axis() const { return m_axis; }
+    int Axis(int idx) const
+    {
+        if (idx >= (int)m_axis.size())
+            InvalidArgument("Pad Axis call with invalid index (%d) >= axis size (%d)", idx, (int)m_axis.size());
+        return m_axis[idx];
+    }
+
+private:
+
+    // determine the tensor shape that represents slice of the input that we are taking
+    TensorShape GetInputSlice(size_t rank, const FrameRange & fr) const
+    {
+        //auto inputSlice = InputRef(0).GetTensorSliceFor(rank, fr);    // input must be narrowed down
+        //for (int i = 0; i < (int)m_axis.size(); i++)
+        //    inputSlice.NarrowTo(Axis(i) - 1, BeginIndex(i), EndIndex(i));
+        //return inputSlice;
+        return inputSlice = InputRef(0).GetTensorSliceFor(rank, fr);
+    }
+
+public:
+
+    virtual void /*ComputationNode::*/ ForwardProp(const FrameRange& fr) override
+    {
+        size_t rank = DetermineElementwiseTensorRank();
+        auto output = ValueTensorFor(rank, fr);
+        // Can I do something like this to set all the output values to 0. Output(0)->Value().SetValue(0);
+        // Next get the TensorShape of output (which is TensorView) 
+        // Then call the NarrowTo() API on TensorShape of output to set the begin and end values based on that 
+        // dims padSize. 
+        let   input = TensorView<ElemType>(InputRef(0).ValuePtr(), GetInputSlice(rank, fr.AllowBroadcast()));
+        output.AssignCopyOf(input);
+    }
+    //template <class ElemType>
+    //void CropNode<ElemType>::BackpropTo(const size_t inputIndex, const FrameRange& /*fr*/)
+    //{
+    //    // We propagate gradients just to the cropped input.
+    //    if (inputIndex == 0)
+    //    {
+    //        // Reset input gradients to ensure that non-cropped parts do not affect backprop.
+    //        Input(0)->Gradient().SetValue(0);
+
+    //        // Retrieve input and output views for the gradients. Input and output views are tensor views
+    //        // that define parts of first input and output that we operate on (we copy gradients from output view
+    //        // to input view).
+    //        CroppedIOViews ioViews = CreateIOViews(&ComputationNode<ElemType>::GradientPtr);
+
+    //        // Copy gradients from output to cropped input.
+    //        ioViews.inputViewCropped.AddCopyOf(ioViews.outputView);
+    //    }
+    //}
+
+    virtual void /*ComputationNode::*/ BackpropTo(const size_t /*inputIndex*/, const FrameRange& fr) override
+    {
+        size_t rank = DetermineElementwiseTensorRank();
+        auto output = ValueTensorFor(rank, fr);
+        let   input = TensorView<ElemType>(InputRef(0).ValuePtr(), GetInputSlice(rank, fr.AllowBroadcast()));
+        output.AssignCopyOf(input);
+    }
+
+    virtual bool OutputUsedInComputingInputNodesGradients() const override { return false; }
+    virtual bool InputUsedInComputingInputNodesGradients(size_t /*childIndex*/) const override { return false; }
+
+    virtual void /*ComputationNodeBase::*/ Validate(bool isFinalValidationPass) override
+    {
+        Base::Validate(isFinalValidationPass);
+        InferMBLayoutFromInputsForStandardCase(isFinalValidationPass);
+
+        auto sampleLayout = Input(0)->GetSampleLayout();
+        for (int i = 0; i < (int)m_axis.size(); i++)
+        {
+            if (m_axis[i] < 1 || (isFinalValidationPass && m_axis[i] > sampleLayout.GetRank()))
+                RuntimeError("%ls %ls operation: axis parameter %d (%d) must be in range 1. Rank of input ([%s]).", NodeName().c_str(), OperationName().c_str(), i, m_axis[i], string(sampleLayout).c_str());
+
+            //if (isFinalValidationPass && (sampleLayout[m_axis[i] - 1] < EndIndex(i) || EndIndex(i) < BeginIndex(i) || BeginIndex(i) < 0))
+            //    RuntimeError("%ls %ls operation: Index range [%d,%d), interpreted as [%d,%d), is invalid for input ([%s]).", NodeName().c_str(), OperationName().c_str(), m_beginIndex[i], m_endIndex[i], (int)BeginIndex(i), (int)EndIndex(i), string(sampleLayout).c_str());
+
+            //// propagate as much as we can
+            //if (isFinalValidationPass || (m_axis[i] - 1 < sampleLayout.GetRank() && 0 <= BeginIndex(i) && BeginIndex(i) <= EndIndex(i) && EndIndex(i) <= sampleLayout[m_axis[i] - 1])) // (the second condition guards against failing an out-of-bounds error if not isFinalValidationPass)
+            //    sampleLayout.NarrowTo(m_axis[i] - 1, BeginIndex(i), EndIndex(i));
+        }
+        auto outputDims = sampleLayout.GetDims();
+        for (const auto & i : m_axis)
+            outputDims[m_axis[i] - 1] += 2 * m_padSize[i];
+        SetDims(TensorShape(outputDims), HasMBLayout());
+    }
+
+private:
+    std::vector<int> m_padSize; // TODO: I should make padSize size_t
+    std::vector<int> m_axis;                   // note: axes are 1-based
+};
+
+template class PadNode<float>;
+template class PadNode<double>;
+
+// -----------------------------------------------------------------------
 // CropNode
 //
 // Extracts portion of inputNode1 (input to be cropped) that corresponds to

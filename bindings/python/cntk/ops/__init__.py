@@ -1977,6 +1977,41 @@ def splice(*inputs, **kw_axis_name):
 
     return splice(inputs, axis, name) # C++ projection expects inputs as a list
 
+
+@typemap
+def pad(x, axis, pad_size, name=''):
+    '''
+    Pad the input along one or multiple axes.
+
+    Example:
+        >>> # Pad using input variable
+        >>> # Create 2x3 matrix
+        >>> x1 = C.input_variable((2,3))
+        >>> # Pad axis 0 by 3, and axis 1 by 4 on each side.
+        >>> C.pad(x1, [0 1], [3 4]).eval({x1: np.asarray([[[1,2,-3],
+                  [4, 5, 6]]],dtype=np.float32)})
+
+    Args:
+        x: input tensor
+        axis (int or :class:`~cntk.axis.Axis`): axis along which padding is done. 
+        will be used. If it is of type int it will be used as a static axis.
+        pad_size (int): The amount of padding that will be applied to each side
+        (begining and end) along the dimension.
+        name (str, optional): the name of the Function instance in the network
+
+    See also:
+        Indexing in NumPy: https://docs.scipy.org/doc/numpy/reference/arrays.indexing.html
+
+    Returns:
+        :class:`~cntk.ops.functions.Function`
+    '''
+    from cntk.cntk_py import pad
+    x = sanitize_input(x)
+    axis = sanitize_axis_list(axis)
+    pad_size = sanitize_shape(pad_size)
+    return pad(x, axis, pad_size, name)
+
+
 @typemap
 def one_hot(x, num_classes, sparse_output=False, axis=-1, name=''):
     '''

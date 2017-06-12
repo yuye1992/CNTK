@@ -1695,6 +1695,25 @@ namespace CNTK
         return AsComposite(MakeSharedObject<PrimitiveFunction>(PrimitiveOpType::Splice, operandsCopy, std::move(additionalProperties), name), name);
     }
 
+    FunctionPtr Pad(const Variable& operand, const std::vector<Axis>& axis, const std::vector<int>& padSize, const std::wstring& name)
+    {
+        assert(axis.size() > 0 && axis.size() == padSize.size());
+        auto additionalProperties = Dictionary();
+        if (axis.size() == 1)
+        {
+            additionalProperties[PrimitiveFunction::AttributeNameAxis] = axis[0];
+            additionalProperties[PrimitiveFunction::AttributeNamePadSize] = padSize[0];
+        }
+        else
+        {
+            additionalProperties[PrimitiveFunction::AttributeNameAxisVec] = AsDictionaryValueVector(axis);
+            additionalProperties[PrimitiveFunction::AttributeNamePadSize] = AsDictionaryValueVector(padSize);
+        }
+        return UnaryOp(PrimitiveOpType::Pad, operand, std::move(additionalProperties), name);
+        // TO DO: Check if we need to do this following :
+        // return AsComposite(MakeSharedObject<PrimitiveFunction>(PrimitiveOpType::Splice, operandsCopy, std::move(additionalProperties), name), name);
+    }
+
     FunctionPtr Combine(const std::vector<Variable>& operands, const std::wstring& name)
     {
         return AsComposite(MakeSharedObject<PrimitiveFunction>(PrimitiveOpType::Combine, operands, Dictionary(), name), name);

@@ -102,6 +102,7 @@ namespace CNTK
         {PrimitiveOpType::Gather, L"Gather"},
         {PrimitiveOpType::StableSigmoid, L"StableSigmoid"},
         {PrimitiveOpType::RandomDistribution, L"RandomDistribution"},
+        {PrimitiveOpType::Pad, L"Pad" },
     };
 
     inline const std::wstring& PrimitiveOpTypeName(PrimitiveOpType opType)
@@ -265,6 +266,8 @@ namespace CNTK
         static const std::wstring AttributeNameSequenceUnpackSuppressMaskOutput;
         static const std::wstring AttributeNameRandomDistributionType;
         static const std::wstring AttributeNameRandomDistributionArgs;
+        static const std::wstring AttributeNamePadSize;
+        static const std::wstring AttributeNamePadSizeVec;
 
     protected:
         PrimitiveFunction(PrimitiveOpType op, const std::vector<Variable>& inputs, Dictionary&& functionConfig, const std::wstring& functionName, const std::wstring& uid)
