@@ -762,6 +762,8 @@ public:
 
     virtual void /*ComputationNode::*/ BackpropTo(const size_t /*inputIndex*/, const FrameRange& fr) override
     {
+        // NOte to self: The code below is just a copy from SliceNode's forward prop. 
+        // Here we work with Gradient tensor and not value tensor (i.e. use gradients below). 
         size_t rank = DetermineElementwiseTensorRank();
         auto output = ValueTensorFor(rank, fr);
         let   input = TensorView<ElemType>(InputRef(0).ValuePtr(), GetInputSlice(rank, fr.AllowBroadcast()));
