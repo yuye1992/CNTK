@@ -793,6 +793,21 @@ namespace CNTK
                     computationNodePtr = New<ReshapeNode<ElementType>>(network->GetDeviceId(), internalNodeName, AsTensorShape(replacementShape), AsCNTKInternalAxisIdx(beginAxis), AsCNTKInternalAxisIdx(endAxis));
                     break;
                 }
+                case PrimitiveOpType::ConstantOp:
+                {
+                    double fillValue = functionConfig[PrimitiveFunction::AttributeNameFillValue].Value<double>();
+                    computationNodePtr = New<ConstantNode<ElementType>>(network->GetDeviceId(), internalNodeName, fillValue);
+                    break;
+                }
+                case PrimitiveOpType::Squeeze:
+                {
+                    auto axis = Axis::AllStaticAxes();
+                    if (functionConfig.Contains(PrimitiveFunction::AttributeNameAxis))
+                        axis = functionConfig[PrimitiveFunction::AttributeNameAxis].Value<Axis>();
+
+                    computationNodePtr = New<SqueezeNode<ElementType>>(network->GetDeviceId(), internalNodeName, AsCNTKInternalAxisIdx(axis));
+                    break;
+                }
                 case PrimitiveOpType::ROIPooling:
                 {
                     PoolingType poolingType = (PoolingType)(functionConfig[PrimitiveFunction::AttributeNamePoolingType].Value<size_t>());

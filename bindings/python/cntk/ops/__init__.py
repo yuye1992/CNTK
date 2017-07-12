@@ -1663,6 +1663,61 @@ def reciprocal(x, name=''):
 
 
 @typemap
+def ones_like(x, name=''):
+    '''
+    Creates an all-ones tensor with the same shape and dynamic axes as ``x``:
+
+    Example:
+        >>> x0 = np.arange(24).reshape((2, 3, 4)).astype('f')
+        >>> x = C.input_variable((3, 4))
+        >>> C.ones_like(x).eval({x: x0})
+        array([[[ 1.,  1.,  1.,  1.],
+                [ 1.,  1.,  1.,  1.],
+                [ 1.,  1.,  1.,  1.]],
+        <BLANKLINE>
+               [[ 1.,  1.,  1.,  1.],
+                [ 1.,  1.,  1.,  1.],
+                [ 1.,  1.,  1.,  1.]]], dtype=float32)
+
+    Args:
+        x: numpy array or any :class:`~cntk.ops.functions.Function` that outputs a tensor
+        name (str, optional): the name of the Function instance in the network
+    Returns:
+        :class:`~cntk.ops.functions.Function`
+    '''
+    from cntk.cntk_py import ones_like
+    x = sanitize_input(x)
+    return ones_like(x, name)
+
+
+@typemap
+def zeros_like(x, name=''):
+    '''
+    Creates an all-zeros tensor with the same shape and dynamic axes as ``x``:
+
+    Example:
+        >>> x0 = np.arange(24).reshape((2, 3, 4)).astype('f')
+        >>> x = C.input_variable((3, 4))
+        >>> C.zeros_like(x).eval({x: x0})
+        array([[[ 0.,  0.,  0.,  0.],
+                [ 0.,  0.,  0.,  0.],
+                [ 0.,  0.,  0.,  0.]],
+        <BLANKLINE>
+               [[ 0.,  0.,  0.,  0.],
+                [ 0.,  0.,  0.,  0.],
+                [ 0.,  0.,  0.,  0.]]], dtype=float32)
+
+    Args:
+        x: numpy array or any :class:`~cntk.ops.functions.Function` that outputs a tensor
+        name (str, optional): the name of the Function instance in the network
+    Returns:
+        :class:`~cntk.ops.functions.Function`
+    '''
+    from cntk.cntk_py import zeros_like
+    x = sanitize_input(x)
+    return zeros_like(x, name)
+
+@typemap
 def element_select(flag, value_if_true, value_if_false, name=''):
     '''
     return either ``value_if_true`` or ``value_if_false`` based on the value of ``flag``.
@@ -1980,6 +2035,37 @@ def splice(*inputs, **kw_axis_name):
     axis = sanitize_axis(axis)
 
     return splice(inputs, axis, name) # C++ projection expects inputs as a list
+
+
+@typemap
+def squeeze(x, axis=None, name=''):
+    '''
+        Removes axes whose size is 1. If ``axis`` is specified, and its size is not 1
+        an exception will be raised.
+
+    Example:
+        >>> x0 = np.arange(12).reshape((2, 2, 1, 3)).astype('f')
+        >>> x = C.input_variable((2, 1, 3))
+        >>> C.squeeze(x).eval({x: x0})
+        array([[[  0.,   1.,   2.],
+                [  3.,   4.,   5.]],
+        <BLANKLINE>
+               [[  6.,   7.,   8.],
+                [  9.,  10.,  11.]]], dtype=float32)
+
+    Args:
+        x: input tensor
+        axis (int): The axis to squeeze out (default: all static axes).
+        name (str, optional): the name of the Function instance in the network
+
+    Returns:
+        :class:`~cntk.ops.functions.Function`
+    '''
+    from cntk.cntk_py import squeeze
+    x = sanitize_input(x)
+    axis = sanitize_axis(axis)
+    return squeeze(x, axis, name)
+
 
 @typemap
 def one_hot(x, num_classes, sparse_output=False, axis=-1, name=''):

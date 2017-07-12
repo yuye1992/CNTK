@@ -327,6 +327,77 @@ private:
     shared_ptr<Matrix<ElemType>> m_tempUnpackedData;
 };
 
+
+// -----------------------------------------------------------------------
+// Squeeze(x, axis) -- squeeze out singleton dimensions
+// -----------------------------------------------------------------------
+
+template <class ElemType>
+class SqueezeNode : public UnaryElementWiseNode<ElemType>
+{
+    typedef UnaryElementWiseNode<ElemType> Base; UsingUnaryElementwiseNodeBaseMembers;
+    static const std::wstring TypeName() { return L"Squeeze"; }
+
+public:
+    SqueezeNode(DEVICEID_TYPE deviceId, const wstring& name)
+        : Base(deviceId, name)
+    {
+        m_axis = Microsoft::MSR::CNTK::ReduceElementsNode<ElemType>::CNTKInternalIdxValueForAllStaticAxes;
+    }
+    SqueezeNode(DEVICEID_TYPE deviceId, const wstring& name, int axis)
+        : Base(deviceId, name),
+        m_axis(axis)
+    {
+    }
+
+    virtual void /*ComputationNodeBase::*/ Validate(bool isFinalValidationPass) override
+    {
+        Base::Validate(isFinalValidationPass);
+
+        auto inputSampleLayout = Input(0)->GetSampleLayout();
+        auto smallVectorDims = inputSampleLayout.GetDims(); // thanks for the useless small vector, let me turn it into something useful now
+        std::vector<size_t> dims{};
+        for (int i = 0; i < smallVectorDims.size(); ++i)
+            dims.push_back(smallVectorDims[i]);
+
+        if (SqueezeAllStaticAxes())
+            // Remove all 1-dimensional axes
+            dims.erase(remove_if(dims.begin(), dims.end(), [](const size_t dim) { return dim == 1; }), dims.end());
+        else
+        {
+            if (dims[m_axis - 1] == 1)
+                dims.erase(dims.begin() + (m_axis - 1));
+            else
+                LogicError("%ls %ls operation: The specified axis has size %d but Squeeze can only drop axes of size one.", NodeName().c_str(), OperationName().c_str(), dims[m_axis - 1]);
+        }
+        SetDims(TensorShape(dims), HasMBLayout());
+    }
+
+    virtual void /*ComputationNode::*/ ForwardProp(const FrameRange& fr) override
+    {
+        auto result = ValueFor(fr);
+        auto inputValue = InputRef(0).ValueFor(fr);
+        result.AssignValuesOf(inputValue.Reshaped(result.GetNumRows(), result.GetNumCols()));
+    }
+
+    virtual void /*ComputationNode::*/ BackpropTo(const size_t inputIndex, const FrameRange& fr) override
+    {
+        auto gradient = GradientFor(fr);
+        auto inputGradient = InputRef(inputIndex).GradientFor(fr);
+        inputGradient += gradient.Reshaped(inputGradient.GetNumRows(), inputGradient.GetNumCols());
+    }
+
+    virtual bool OutputUsedInComputingInputNodesGradients() const override { return false; }
+    virtual bool InputUsedInComputingInputNodesGradients(size_t /*childIndex*/) const override { return false; }
+
+private:
+    bool SqueezeAllStaticAxes() const { return m_axis == Microsoft::MSR::CNTK::ReduceElementsNode<ElemType>::CNTKInternalIdxValueForAllStaticAxes; }
+    int m_axis;
+};
+
+template class SqueezeNode<float>;
+template class SqueezeNode<double>;
+
 // -----------------------------------------------------------------------
 // ReconcileDynamicAxis (dataInput, layoutInput)
 // This node copies data from 'dataInput' while it propagates the minibatch-layout information from 'layoutInput'.

@@ -104,6 +104,7 @@ namespace CNTK
     /*static*/ const std::wstring PrimitiveFunction::AttributeNameRandomDistributionType = L"randomDistributionType";
     /*static*/ const std::wstring PrimitiveFunction::AttributeNameRandomDistributionArgs = L"randomDistributionArgs";
     /*static*/ const std::wstring PrimitiveFunction::AttributeNameSpatialScale = L"spatialScale";
+    /*static*/ const std::wstring PrimitiveFunction::AttributeNameFillValue = L"fillValue";
 
     /*static*/ DataType PrimitiveFunction::GetOutputDataType(PrimitiveOpType op, std::vector<Variable>& inputs, bool inferDimensions)
     {
@@ -366,6 +367,7 @@ namespace CNTK
                         case PrimitiveOpType::StopGradient:
                         case PrimitiveOpType::ELU:
                         case PrimitiveOpType::StableSigmoid:
+                        case PrimitiveOpType::ConstantOp:
                             assert(m_inputs.size() == 1);
                             outputShape = UnaryElementwiseOpOutputShape(m_inputs[0].Shape());
                             break;
@@ -439,6 +441,28 @@ namespace CNTK
                                 InvalidArgument("ScatterPacked: All operands '%S' must have dynamic axes.", NamedListString(m_inputs).c_str());
 
                             outputShape = UnaryElementwiseOpOutputShape(m_inputs[0].Shape());
+                            break;
+                        }
+                        case PrimitiveOpType::Squeeze:
+                        {
+                            assert(m_inputs.size() == 1);
+                            auto shape = m_inputs[0].Shape();
+                            auto dims = shape.Dimensions();
+
+                            if (m_attributes.Contains(PrimitiveFunction::AttributeNameAxis))
+                            {
+                                // Remove a single 1-dimensional axis
+                                auto axis = NormalizeStaticAxis(m_attributes[PrimitiveFunction::AttributeNameAxis].Value<Axis>(), shape);
+                                auto idx = axis.StaticAxisIndex();
+                                if (dims[idx] == 1)
+                                    dims.erase(dims.begin() + idx);
+                                else
+                                    LogicError("Function '%S': The specified axis has size %d but Squeeze can only drop axes of size one", AsString().c_str(), shape[idx]);
+                            }
+                            else
+                                // Remove all 1-dimensional axes
+                                dims.erase(remove_if(dims.begin(), dims.end(), [](const size_t dim) { return dim == 1; }), dims.end());
+                            outputShape = NDShape(dims);
                             break;
                         }
                         case PrimitiveOpType::TransposeAxes:

@@ -479,3 +479,21 @@ def test_gather_op(device_id, precision):
     expectd2 = np.asarray([[[[0., 1.],[4.,5.]],[[2., 3.],[6., 7.]]],[[[4., 5.],[8.,9.]],[[6., 7.], [10., 11.]]]])
     assert np.array_equal(res2, expectd2)
 
+
+SQUEEZE_TEST_CASES = [((1,1,1), ax) for ax in [-3,-2,-1,0,1,2,None]] + [((1,3), ax) for ax in [0,-2,None]] + [((1,2,1), ax) for ax in [-3,-1,0,2,None]]
+
+@pytest.mark.parametrize("operand_shape, axis", SQUEEZE_TEST_CASES)
+def test_squeeze(operand_shape, axis, device_id, precision):
+    operand = np.arange(np.prod(operand_shape)).reshape(operand_shape).astype('f')
+    expected = np.squeeze(operand, axis)
+
+    expected_forward = [expected]
+    expected_backward = {
+        'arg': [np.ones_like(operand)],
+    }
+
+    from .. import squeeze, placeholder
+    p = C.placeholder()
+    squeeze_with_axis = C.squeeze(p, axis)
+    _test_unary_op(precision, device_id, squeeze_with_axis, operand,
+                   expected_forward, expected_backward)

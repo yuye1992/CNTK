@@ -3693,6 +3693,26 @@ namespace CNTK
     }
 
     ///
+    /// Create an instance of the squeeze operation on specified tensor input operand
+    ///
+    CNTK_API FunctionPtr Squeeze(const Variable& operand, const std::wstring& name = L"");
+
+    ///
+    /// Create an instance of the squeeze operation on specified tensor input operand, for the specified axis 
+    ///
+    CNTK_API FunctionPtr Squeeze(const Variable& operand, const Axis& axis, const std::wstring& name = L"");
+
+    ///
+    /// Create an instance of a zeros-like operation. This produces zeros with the shape and dynamic axes specified by the operand.
+    ///
+    CNTK_API FunctionPtr ZerosLike(const Variable& operand, const std::wstring& name = L"");
+
+    ///
+    /// Create an instance of a ones-like operation. This produces ones with the shape and dynamic axes specified by the operand.
+    ///
+    CNTK_API FunctionPtr OnesLike(const Variable& operand, const std::wstring& name = L"");
+
+    ///
     /// Create an instance of the CNTK built-in elementwise tensor addition operation with the specified input operands.
     ///
     CNTK_API FunctionPtr Plus(const Variable& leftOperand, const Variable& rightOperand, const std::wstring& name = L"");

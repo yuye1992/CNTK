@@ -1291,6 +1291,38 @@ namespace CNTK
         return UnaryOp(PrimitiveOpType::Reshape, operand, std::move(additionalProperties), name);
     }
 
+    FunctionPtr Squeeze(const Variable& operand, const std::wstring& name)
+    {
+        return UnaryOp(PrimitiveOpType::Squeeze, operand, {}, name);
+    }
+
+    FunctionPtr Squeeze(const Variable& operand, const Axis& axis, const std::wstring& name)
+    {
+        auto additionalProperties = Dictionary();
+        if (axis.IsStaticAxis())
+            additionalProperties[PrimitiveFunction::AttributeNameAxis] = axis;
+        else if (axis != Axis::AllStaticAxes())
+            LogicError("Squeeze: operation only supports squeezing out a static axis or all static axes");
+
+        return UnaryOp(PrimitiveOpType::Squeeze, operand, std::move(additionalProperties), name);
+    }
+
+    FunctionPtr ZerosLike(const Variable& operand, const std::wstring& name)
+    {
+        auto additionalProperties = Dictionary();
+        additionalProperties[PrimitiveFunction::AttributeNameFillValue] = 0.0;
+
+        return UnaryOp(PrimitiveOpType::ConstantOp, operand, std::move(additionalProperties), name);
+    }
+
+    FunctionPtr OnesLike(const Variable& operand, const std::wstring& name)
+    {
+        auto additionalProperties = Dictionary();
+        additionalProperties[PrimitiveFunction::AttributeNameFillValue] = 1.0;
+
+        return UnaryOp(PrimitiveOpType::ConstantOp, operand, std::move(additionalProperties), name);
+    }
+
     FunctionPtr BinaryOp(PrimitiveOpType op, const Variable& leftOperand, const Variable& rightOperand, Dictionary&& opConfig, const std::wstring& name)
     {
         std::vector<Variable> operands = { leftOperand, rightOperand };
