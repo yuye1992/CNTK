@@ -355,7 +355,7 @@ public:
         Base::Validate(isFinalValidationPass);
 
         auto inputSampleLayout = Input(0)->GetSampleLayout();
-        auto smallVectorDims = inputSampleLayout.GetDims(); // thanks for the useless small vector, let me turn it into something useful now
+        auto smallVectorDims = inputSampleLayout.GetDims(); // The smallVector class is useless and error prone, vectors are better.
         std::vector<size_t> dims{};
         for (int i = 0; i < smallVectorDims.size(); ++i)
             dims.push_back(smallVectorDims[i]);
