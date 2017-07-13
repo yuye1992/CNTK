@@ -2148,7 +2148,7 @@ namespace CNTK
         {
             bool keepReducedDimensions = true;
             if (std::any_of(axes.begin(), axes.end(),
-                [](auto axis) {return axis == Axis::AllStaticAxes() || axis == Axis::AllAxes(); }))
+                [](const Axis& axis) {return axis == Axis::AllStaticAxes() || axis == Axis::AllAxes(); }))
                 keepReducedDimensions = false;
 
             return ReduceElements(operand, reductionOpName, axes, keepReducedDimensions, name);
