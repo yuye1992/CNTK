@@ -18,11 +18,18 @@ from cntk.internal import sanitize_dtype_cntk
 REDUCE_TEST_OPERANDS = [
     #(input_data,  axis)
     ([[1]], 0),
+    ([[1]], [0]),
+    ([[1]], [0,1]),
     ([[1,2],[4,5]], 0),
+    ([[1, 2], [4, 5]], [0]),
+    ([[1, 2], [4, 5]], [0,1]),
     ([[1,2],[4,5]], 1),
     ([[1,2],[4,5]], -1),
+    ([[1, 2], [4, 5]], [-1]),
     ([[[1,2],[3,4]],[[5,6],[7,8]]], -2),
+    ([[[1, 2], [3, 4]], [[5, 6], [7, 8]]], [0, -2]),
     ([[[1,2],[3,4]],[[5,6],[7,8]]], 2),
+    ([[[1,2],[3,4]],[[5,6],[7,8]]], [1,2]),
 ]
 
 @pytest.mark.parametrize("input_data, axis", REDUCE_TEST_OPERANDS)
@@ -31,7 +38,8 @@ def test_op_reduce_sum(input_data, axis, device_id, precision):
 
     data = AA(input_data, dtype=dt)
 
-    expected_forward = [np.sum(data, axis=(axis), keepdims=True)]
+    axis = tuple(axis) if isinstance(axis, list) else (axis)
+    expected_forward = [np.sum(data, axis=axis, keepdims=True)]
 
     backward = np.ones_like(data)
 
@@ -49,7 +57,8 @@ def test_op_reduce_max(input_data, axis, device_id, precision):
 
     data = AA(input_data, dtype=dt)
 
-    expected_forward = [np.amax(data, axis=(axis), keepdims=True)]
+    axis = tuple(axis) if isinstance(axis, list) else (axis)
+    expected_forward = [np.amax(data, axis=axis, keepdims=True)]
 
     forward_array = np.asarray(expected_forward, dtype=dt)
     max_elements = forward_array.reshape(forward_array.size).tolist()
@@ -72,8 +81,9 @@ def test_op_reduce_min(input_data, axis, device_id, precision):
     dt = PRECISION_TO_TYPE[precision]
 
     data = AA(input_data, dtype=dt)
+    axis = tuple(axis) if isinstance(axis, list) else (axis)
 
-    expected_forward = [np.amin(data, axis=(axis), keepdims=True)]
+    expected_forward = [np.amin(data, axis=axis, keepdims=True)]
 
     forward_array = np.asarray(expected_forward, dtype=dt)
     max_elements = forward_array.reshape(forward_array.size).tolist()
@@ -96,10 +106,11 @@ def test_op_reduce_mean(input_data, axis, device_id, precision):
     dt = PRECISION_TO_TYPE[precision]
 
     data = AA(input_data, dtype=dt)
+    axis = tuple(axis) if isinstance(axis, list) else (axis)
+    expected_forward = [np.mean(data, axis=axis, keepdims=True)]
 
-    expected_forward = [np.mean(data, axis=(axis), keepdims=True)]
-
-    backward = np.ones_like(data) / data.shape[axis]
+    counts = np.prod([data.shape[a] for a in axis]) if type(axis) in [list, tuple] else data.shape[axis]
+    backward = np.ones_like(data) / counts
 
     expected_backward = {
         'arg': [backward]
@@ -114,9 +125,10 @@ def test_op_reduce_log_sum(input_data, axis, device_id, precision):
     dt = PRECISION_TO_TYPE[precision]
 
     data = AA(input_data, dtype=dt)
+    axis = tuple(axis) if isinstance(axis, list) else (axis)
 
     data_exp = np.exp(data)
-    sum_exp = np.sum(data_exp, axis=(axis), keepdims=True)
+    sum_exp = np.sum(data_exp, axis=axis, keepdims=True)
     expected_forward = [np.log(sum_exp)]
 
     backward = data_exp / sum_exp
@@ -134,8 +146,9 @@ def test_op_reduce_prod(input_data, axis, device_id, precision):
     dt = PRECISION_TO_TYPE[precision]
 
     data = AA(input_data, dtype=dt)
+    axis = tuple(axis) if isinstance(axis, list) else (axis)
 
-    p = np.prod(data, axis=(axis), keepdims=True)
+    p = np.prod(data, axis=axis, keepdims=True)
     expected_forward = [p]
 
     backward = p / data
@@ -252,13 +265,15 @@ def test_op_reduce_over_batch_axis(input_data, device_id, precision):
 
 @pytest.mark.parametrize("input_data, axis", REDUCE_TEST_OPERANDS)
 def test_op_reduce_argmax(input_data, axis, device_id, precision):
+    if isinstance(axis, list):
+        #following numpy, argmax over multiple axis is not supported
+        return
     dt = PRECISION_TO_TYPE[precision]
-
     data = AA(input_data, dtype=dt)
 
     # numpy argmax doesn't support keepdims
-    arg_shape = np.amax(data, axis=(axis), keepdims=True).shape
-    expected_forward = [np.argmax(data, axis=(axis)).reshape(arg_shape)]
+    arg_shape = np.amax(data, axis=axis, keepdims=True).shape
+    expected_forward = [np.argmax(data, axis=axis).reshape(arg_shape)]
 
     from .. import argmax
     _test_unary_op(precision, device_id, argmax, input_data,
@@ -266,13 +281,16 @@ def test_op_reduce_argmax(input_data, axis, device_id, precision):
 
 @pytest.mark.parametrize("input_data, axis", REDUCE_TEST_OPERANDS)
 def test_op_reduce_argmin(input_data, axis, device_id, precision):
-    dt = PRECISION_TO_TYPE[precision]
+    if isinstance(axis, list):
+        #following numpy, argmin over multiple axis is not supported
+        return;
 
+    dt = PRECISION_TO_TYPE[precision]
     data = AA(input_data, dtype=dt)
 
     # numpy argmin doesn't support keepdims
-    arg_shape = np.amin(data, axis=(axis), keepdims=True).shape
-    expected_forward = [np.argmin(data, axis=(axis)).reshape(arg_shape)]
+    arg_shape = np.amin(data, axis=axis, keepdims=True).shape
+    expected_forward = [np.argmin(data, axis=axis).reshape(arg_shape)]
 
     from .. import argmin
     _test_unary_op(precision, device_id, argmin, input_data,

@@ -11,6 +11,7 @@
 #include "ComputationNode.h"
 #include "Sequences.h"
 
+#include <iostream>
 #include <unordered_set>
 #include <map>
 #include <string>
@@ -36,7 +37,7 @@ template <class ElemType>
     if (flags & CopyNodeFlags::copyNodeValue)
     {
         auto node = dynamic_pointer_cast<ReduceElementsNode<ElemType>>(nodeP);
-        node->m_axis        = m_axis;
+        node->m_axes        = m_axes;
         node->m_operation   = m_operation;
         node->m_reductionOp = m_reductionOp;
         node->m_scale       = m_scale;
@@ -48,11 +49,11 @@ template <class ElemType>
 /*virtual*/ void ReduceElementsNode<ElemType>::Load(File& fstream, size_t modelVersion) /*override*/
 {
     Base::Load(fstream, modelVersion);
-    fstream >> m_axis >> m_operation;
+    fstream >> m_axes >> m_operation;
     if (modelVersion >= CNTK_MODEL_VERSION_24)
         fstream >> m_keepDimensions;
     else
-        m_keepDimensions = DefaultKeepDimensionsSetting(m_axis);
+        m_keepDimensions = DefaultKeepDimensionsSetting(m_axes);
 
     ValidateOp();
 }
@@ -61,7 +62,7 @@ template <class ElemType>
 /*virtual*/ void ReduceElementsNode<ElemType>::Save(File& fstream) const /*override*/
 {
     Base::Save(fstream);
-    fstream << m_axis << m_operation; // note: we serialize the string and not the opcode, since opcodes may change
+    fstream << m_axes << m_operation; // note: we serialize the string and not the opcode, since opcodes may change
     fstream << m_keepDimensions;
 }
 
@@ -116,6 +117,11 @@ template <class ElemType>
     {
     case ElementWiseOperator::opArgmin:
     case ElementWiseOperator::opArgmax:
+        //TODO: Support argmin or argmax over multiple axes? numpy does not support it.
+        //      Currently, it is sort of already supported. However, we need to correct the retruend result: a tensor of tuples --- multi-dimensional indices. 
+        if (m_axes.size() > 1)
+            LogicError("%ls: %s node cannot perform argmin or argmax operator over multiple axes.", Base::NodeDescription().c_str(), typeid(*this).name());
+
         result.DoArgReductionOpOf(input, m_reductionOp);
         break;
     default:
@@ -247,12 +253,15 @@ template <class ElemType>
 {
     // validate the opcode (in case we got instantiated empty and never updated)
     ValidateOp();
+
     m_scale = (ElemType)1;
     if (ReduceAllAxes())
         Base::ValidateUnaryReduce(isFinalValidationPass, m_keepDimensions);
     else if (ReduceSequenceAxis())
     {
         Base::Validate(isFinalValidationPass);
+        for (auto axis : m_axes)
+            std::cerr << "reducing sequence axis: " << axis << std::endl;
 
         // we generate its own MBLayout
         if (isFinalValidationPass && !Input(0)->HasMBLayout())
@@ -284,26 +293,38 @@ template <class ElemType>
 
         let shape = Input(0)->GetSampleLayout();
         auto dims = shape.GetDims();
-        size_t reducedDim = 0; // (init to keep compiler happy)
+        size_t reducedDimProd = 1; // (init to keep compiler happy)
         if (ReduceAllStaticAxes())
         {
-            reducedDim = shape.GetNumElements();
+            reducedDimProd = shape.GetNumElements();
             dims = m_keepDimensions ? SmallVector<size_t>(shape.GetRank(), 1) : (Environment().IsV2Library() ? SmallVector<size_t>({}) : SmallVector<size_t>({ 1 })); // entire sample is reduced to a scalar
         }
-        else if (m_axis - 1 >= 0 && m_axis - 1 < dims.size())
+        else if (!m_axes.empty() 
+                && std::all_of(m_axes.begin(), 
+                                m_axes.end(), 
+                                [&](int axis) { return axis - 1 >= 0 && axis - 1 < dims.size(); }))
         {
-            reducedDim = dims[m_axis - 1];
-            // one axis is reduced to a scalar
+            //Accumulate the number of elements for reduce_mean
+            std::for_each(m_axes.begin(),
+                            m_axes.end(), 
+                            [&](int axis) {reducedDimProd *= dims[axis - 1]; }
+            );
+
+            // axes reduced to a scalar
             if (m_keepDimensions)
-                dims[m_axis - 1] = 1;
+                std::for_each(m_axes.begin(),
+                    m_axes.end(),
+                    [&](int axis) {dims[axis - 1] = 1; }
+                 );
             else
             {
-                SmallVector<size_t> reducedDims(dims.size() - 1);
+                SmallVector<size_t> reducedDims(dims.size() - m_axes.size());
                 for (size_t i = 0, j = 0; i < dims.size(); ++i)
                 {
-                    if (i == (m_axis - 1))
+                    if (ReductionAxesHave(i + 1)) //axis = (i + 1)
+                    {
                         continue;
-
+                    }
                     reducedDims[j] = dims[i];
                     j++;
                 }
@@ -311,11 +332,11 @@ template <class ElemType>
             }
         }
         else if (isFinalValidationPass)
-            InvalidArgument("The shape of %ls [%s] has no axis %d", NodeDescription().c_str(), string(shape).c_str(), m_axis);
+            InvalidArgument("The shape of %ls [%s] has no axis %d", NodeDescription().c_str(), string(shape).c_str(), m_axes);
 
         // for "Mean", we must divide by #elements
         if (isFinalValidationPass && IsMean())
-            m_scale = (ElemType)(1.0 / reducedDim);
+            m_scale = (ElemType)(1.0 / reducedDimProd);
 
         SetDims(TensorShape(dims), Input(0)->HasMBLayout());
     }

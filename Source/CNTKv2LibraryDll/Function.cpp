@@ -1556,6 +1556,38 @@ namespace CNTK
         return Internal::ReduceElements(operand, PrimitiveFunction::InternalProdReductionOpName, axis, name);
     }
 
+    //multiple axes reduction below:
+
+    FunctionPtr ReduceSum(const Variable& operand, const std::vector<Axis>& axis, const std::wstring& name)
+    {
+        return Internal::ReduceElements(operand, PrimitiveFunction::InternalSumReductionOpName, axis, name);
+    }
+
+    FunctionPtr ReduceLogSum(const Variable& operand, const std::vector<Axis>& axis, const std::wstring& name)
+    {
+        return Internal::ReduceElements(operand, PrimitiveFunction::InternalLogSumReductionOpName, axis, name);
+    }
+
+    FunctionPtr ReduceMean(const Variable& operand, const std::vector<Axis>& axis, const std::wstring& name)
+    {
+        return Internal::ReduceElements(operand, PrimitiveFunction::InternalMeanReductionOpName, axis, name);
+    }
+
+    FunctionPtr ReduceMax(const Variable& operand, const std::vector<Axis>& axis, const std::wstring& name)
+    {
+        return Internal::ReduceElements(operand, PrimitiveFunction::InternalMaxReductionOpName, axis, name);
+    }
+
+    FunctionPtr ReduceMin(const Variable& operand, const std::vector<Axis>& axis, const std::wstring& name)
+    {
+        return Internal::ReduceElements(operand, PrimitiveFunction::InternalMinReductionOpName, axis, name);
+    }
+
+    FunctionPtr ReduceProd(const Variable& operand, const std::vector<Axis>& axis, const std::wstring& name)
+    {
+        return Internal::ReduceElements(operand, PrimitiveFunction::InternalProdReductionOpName, axis, name);
+    }
+
     FunctionPtr PerDimMeanVarianceNormalize(const Variable& operand, const Variable& mean, const Variable& invStdDev, const std::wstring& name)
     {
         auto operandPlaceholder = PlaceholderVariable(L"operand");
@@ -1787,6 +1819,16 @@ namespace CNTK
     {
         return Internal::ReduceElements(operand, PrimitiveFunction::InternalArgminReductionOpName, axis, name);
     }
+    FunctionPtr Argmax(const Variable& operand, const std::vector<Axis>& axis, const std::wstring& name)
+    {
+        return Internal::ReduceElements(operand, PrimitiveFunction::InternalArgmaxReductionOpName, axis, name);
+    }
+
+    FunctionPtr Argmin(const Variable& operand, const std::vector<Axis>& axis, const std::wstring& name)
+    {
+        return Internal::ReduceElements(operand, PrimitiveFunction::InternalArgminReductionOpName, axis, name);
+    }
+
 
     FunctionPtr StopGradient(const Variable& operand, const std::wstring& name)
     {
@@ -2066,6 +2108,7 @@ namespace CNTK
             LogicError("ReduceElements: operand %S; Invalid axis argument provided. To reduce an operand along its ordered dynamic axis use Sequence::ReduceElements.",
                        operand.AsString().c_str());
         }
+ 
 
         FunctionPtr ReduceElements(const Variable& operand, const std::wstring& reductionOpName, const Axis& axis, const std::wstring& name)
         {
@@ -2074,6 +2117,41 @@ namespace CNTK
                 keepReducedDimensions = false;
 
             return ReduceElements(operand, reductionOpName, axis, keepReducedDimensions, name);
+        
+        }
+
+        FunctionPtr ReduceElements(const Variable& operand, const std::wstring& reductionOpName, const std::vector<Axis>& axes, bool keepReducedDimensions, const std::wstring& name)
+        {
+            if (
+                std::any_of(axes.begin(), axes.end(),
+                    [](auto axis) {
+                return axis.IsStaticAxis() ||
+                    (axis == Axis::AllStaticAxes()) ||
+                    (axis == Axis::AllAxes()) ||
+                    (axis == Axis::DefaultBatchAxis()); })
+                || ((reductionOpName == PrimitiveFunction::InternalSumReductionOpName)
+                    && std::any_of(axes.begin(), axes.end(),
+                        [](auto axis) {return axis == Axis::OperandSequenceAxis(); }))
+                    )
+            {
+                auto additionalProperties = Dictionary();
+                additionalProperties[PrimitiveFunction::AttributeNameAxisVec] = AsDictionaryValueVector(axes);
+                additionalProperties[PrimitiveFunction::AttributeNameReductionOpName] = reductionOpName;
+                additionalProperties[PrimitiveFunction::AttributeNameReductionKeepDimensions] = keepReducedDimensions;
+                return UnaryOp(PrimitiveOpType::ReduceElements, operand, std::move(additionalProperties), name);
+            }
+
+                LogicError("ReduceElements: operand %S; Invalid axis argument provided. To reduce an operand along its ordered dynamic axis use Sequence::ReduceElements.",
+                    operand.AsString().c_str());
+        }
+        FunctionPtr ReduceElements(const Variable& operand, const std::wstring& reductionOpName, const std::vector<Axis>& axes, const std::wstring& name)
+        {
+            bool keepReducedDimensions = true;
+            if (std::any_of(axes.begin(), axes.end(),
+                [](auto axis) {return axis == Axis::AllStaticAxes() || axis == Axis::AllAxes(); }))
+                keepReducedDimensions = false;
+
+            return ReduceElements(operand, reductionOpName, axes, keepReducedDimensions, name);
         }
 
         FunctionPtr Convolution(const Variable& convolutionMap,

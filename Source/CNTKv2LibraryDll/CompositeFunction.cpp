@@ -974,9 +974,20 @@ namespace CNTK
                     bool keepDimensions = true;
                     if (functionConfig.Contains(PrimitiveFunction::AttributeNameReductionKeepDimensions))
                         keepDimensions = functionConfig[PrimitiveFunction::AttributeNameReductionKeepDimensions].Value<bool>();
-
-                    auto reductionAxis = functionConfig[PrimitiveFunction::AttributeNameAxis].Value<Axis>();
                     auto reductionOpName = functionConfig[PrimitiveFunction::AttributeNameReductionOpName].Value<std::wstring>();
+                    std::vector<Axis> reductionAxis;
+                    if (functionConfig.Contains(PrimitiveFunction::AttributeNameAxisVec) )
+                    {
+                        reductionAxis = AsVector<Axis>(functionConfig[PrimitiveFunction::AttributeNameAxisVec].Value<std::vector<DictionaryValue>>());
+                     }
+                    else if (functionConfig.Contains(PrimitiveFunction::AttributeNameAxis))
+                    {
+                        reductionAxis.push_back(functionConfig[PrimitiveFunction::AttributeNameAxis].Value<Axis>());
+                    }
+                    else
+                    {
+                        RuntimeError("Failed to create computation node: Reduce operation with inconsistent attributes");
+                    } 
                     computationNodePtr = New<ReduceElementsNode<ElementType>>(network->GetDeviceId(), internalNodeName, reductionOpName, AsCNTKInternalAxisIdx(reductionAxis), keepDimensions);
                     break;
                 }

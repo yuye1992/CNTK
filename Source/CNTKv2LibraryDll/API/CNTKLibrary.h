@@ -3984,7 +3984,37 @@ namespace CNTK
     /// Create an instance of the CNTK built-in Prod reduction operation on specified tensor input operand along the specified axis
     ///
     CNTK_API FunctionPtr ReduceProd(const Variable& operand, const Axis& axis, const std::wstring& name = L"");
+    //multiple axes reduction below:
 
+    ///
+    /// Create an instance of the CNTK built-in sum reduction operation on specified tensor input operand along the specified axis
+    ///
+    CNTK_API FunctionPtr ReduceSum(const Variable& operand, const std::vector<Axis>& axis, const std::wstring& name = L"");
+
+    ///
+    /// Create an instance of the CNTK built-in LogSum reduction operation on specified tensor input operand along the specified axis
+    ///
+    CNTK_API FunctionPtr ReduceLogSum(const Variable& operand, const std::vector<Axis>& axis, const std::wstring& name = L"");
+
+    ///
+    /// Create an instance of the CNTK built-in Mean reduction operation on specified tensor input operand along the specified axis
+    ///
+    CNTK_API FunctionPtr ReduceMean(const Variable& operand, const std::vector<Axis>& axis, const std::wstring& name = L"");
+
+    ///
+    /// Create an instance of the CNTK built-in Max reduction operation on specified tensor input operand along the specified axis
+    ///
+    CNTK_API FunctionPtr ReduceMax(const Variable& operand, const std::vector<Axis>& axis, const std::wstring& name = L"");
+
+    ///
+    /// Create an instance of the CNTK built-in Min reduction operation on specified tensor input operand along the specified axis
+    ///
+    CNTK_API FunctionPtr ReduceMin(const Variable& operand, const std::vector<Axis>& axis, const std::wstring& name = L"");
+
+    ///
+    /// Create an instance of the CNTK built-in Prod reduction operation on specified tensor input operand along the specified axis
+    ///
+    CNTK_API FunctionPtr ReduceProd(const Variable& operand, const std::vector<Axis>& axis, const std::wstring& name = L"");
     ///
     /// Per dimension mean-variance normalization of the specified input operand.
     ///
@@ -4173,6 +4203,17 @@ namespace CNTK
     /// Create an instance of the CNTK built-in argmin on specified tensor input operand along the specified axis
     ///
     CNTK_API FunctionPtr Argmin(const Variable& operand, const Axis& axis, const std::wstring& name = L"");
+
+    ///
+    /// Create an instance of the CNTK built-in argmax operation on specified tensor input operand along the specified axis
+    ///
+    CNTK_API FunctionPtr Argmax(const Variable& operand, const std::vector<Axis>& axis, const std::wstring& name = L"");
+
+    ///
+    /// Create an instance of the CNTK built-in argmin on specified tensor input operand along the specified axis
+    ///
+    CNTK_API FunctionPtr Argmin(const Variable& operand, const std::vector<Axis>& axis, const std::wstring& name = L"");
+
 
     ///
     /// Create an instance of the CNTK built-in operator for converting the specified tensor operand into a sequence
