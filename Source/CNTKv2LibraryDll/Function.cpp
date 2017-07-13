@@ -2124,14 +2124,14 @@ namespace CNTK
         {
             if (
                 std::any_of(axes.begin(), axes.end(),
-                    [](auto axis) {
+                    [](const Axis& axis) {
                 return axis.IsStaticAxis() ||
                     (axis == Axis::AllStaticAxes()) ||
                     (axis == Axis::AllAxes()) ||
                     (axis == Axis::DefaultBatchAxis()); })
                 || ((reductionOpName == PrimitiveFunction::InternalSumReductionOpName)
                     && std::any_of(axes.begin(), axes.end(),
-                        [](auto axis) {return axis == Axis::OperandSequenceAxis(); }))
+                        [](const Axis& axis) {return axis == Axis::OperandSequenceAxis(); }))
                     )
             {
                 auto additionalProperties = Dictionary();
