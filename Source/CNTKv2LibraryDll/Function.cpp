@@ -2152,6 +2152,10 @@ namespace CNTK
         */
         FunctionPtr ReduceElements(const Variable& operand, const std::wstring& reductionOpName, const std::vector<Axis>& axes, bool keepReducedDimensions, const std::wstring& name)
         {
+            //if axes is empty, raise error:
+            if (axes.empty())
+                LogicError("ReduceElements: operand %S; Empty axes argument provided.", operand.AsString().c_str());
+
             //if reduce over all axes, we directly compose the reduction node:
             for (auto &axis : axes)
                 if (axis == Axis::AllAxes() || axis == Axis::AllStaticAxes())
@@ -2176,7 +2180,9 @@ namespace CNTK
                     static_axes.push_back(axis);
                 }
             }
-            FunctionPtr res = operand;
+            auto operand_placeholder = PlaceholderVariable(L"reduction_operand");
+
+            FunctionPtr res = operand_placeholder;
             if (!static_axes.empty())
             {
                 res = ComposeReduceElements(res, reductionOpName, static_axes, keepReducedDimensions, name + L"_static_axes_subop");
@@ -2189,8 +2195,7 @@ namespace CNTK
             {
                 res = ComposeReduceElements(res, reductionOpName, batch_axes, keepReducedDimensions, name + L"_batch_axes_subop");
             }
-            //Name the sequece of reductions with the user given name:
-            return Alias(res, name);
+            return AsBlock(std::move(res), { { operand_placeholder, operand }}, L"MultiAxisReduce", name);
         }
 
         FunctionPtr ReduceElements(const Variable& operand, const std::wstring& reductionOpName, const std::vector<Axis>& axes, const std::wstring& name)

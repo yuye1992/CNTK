@@ -345,7 +345,7 @@ def test_op_reduce_batch_sequence_static_axes_together(input_data, dynamic_axes,
     dt = PRECISION_TO_TYPE[precision]
     data = AA(input_data, dtype=dt)
     if dynamic_axes == [C.Axis.default_batch_axis()]:
-        #only batch axe is tested
+        #Reduction along the batch axis on input sequence is currently unsupported, so only batch axis input is tested
         v = C.input_variable(data.shape[1:],
                                   dtype=sanitize_dtype_cntk(dt),
                                   needs_gradient=True)

@@ -52,7 +52,16 @@ template <class ElemType>
 /*virtual*/ void ReduceElementsNode<ElemType>::Load(File& fstream, size_t modelVersion) /*override*/
 {
     Base::Load(fstream, modelVersion);
-    fstream >> m_axes >> m_operation;
+    int num_axes = 1; //emulate old version in which only 1 axis is supported
+    if (modelVersion >= CNTK_MODEL_VERSION_27)
+        fstream >> num_axes;
+    for (int i = 0; i < num_axes; ++i)
+    {
+        int axis; 
+        fstream >> axis;
+        m_axes.push_back(axis);
+    }
+    fstream >> m_operation;
     if (modelVersion >= CNTK_MODEL_VERSION_24)
         fstream >> m_keepDimensions;
     else
@@ -65,7 +74,12 @@ template <class ElemType>
 /*virtual*/ void ReduceElementsNode<ElemType>::Save(File& fstream) const /*override*/
 {
     Base::Save(fstream);
-    fstream << m_axes << m_operation; // note: we serialize the string and not the opcode, since opcodes may change
+    fstream << m_axes.size();
+    for (int i = 0; i < m_axes.size(); ++i)
+    {
+        fstream << m_axes[i];
+    }
+    fstream << m_operation; // note: we serialize the string and not the opcode, since opcodes may change
     fstream << m_keepDimensions;
 }
 
