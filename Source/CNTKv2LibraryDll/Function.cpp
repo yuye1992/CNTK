@@ -2,7 +2,6 @@
 // Copyright (c) Microsoft. All rights reserved.
 // Licensed under the MIT license. See LICENSE.md file in the project root for full license information.
 //
-
 #include "stdafx.h"
 #include "CNTKLibrary.h"
 #include "PrimitiveFunction.h"
@@ -11,6 +10,8 @@
 #include "Utils.h"
 #include "UserFunctionFactory.h"
 #include "TrainingNodes.h"
+
+#include <iostream>
 
 using namespace Microsoft::MSR::CNTK;
 
@@ -2120,7 +2121,8 @@ namespace CNTK
         
         }
 
-        FunctionPtr ReduceElements(const Variable& operand, const std::wstring& reductionOpName, const std::vector<Axis>& axes, bool keepReducedDimensions, const std::wstring& name)
+ 
+        FunctionPtr ComposeReduceElements(const Variable& operand, const std::wstring& reductionOpName, const std::vector<Axis>& axes, bool keepReducedDimensions, const std::wstring& name)
         {
             if (
                 std::any_of(axes.begin(), axes.end(),
@@ -2144,6 +2146,53 @@ namespace CNTK
                 LogicError("ReduceElements: operand %S; Invalid axis argument provided. To reduce an operand along its ordered dynamic axis use Sequence::ReduceElements.",
                     operand.AsString().c_str());
         }
+        /**
+        * Compose reduction operation along multiple axes.
+        * Compose reduction along multiple axes to perform reduction over static axese first, then sequence axis and then batch axis.
+        */
+        FunctionPtr ReduceElements(const Variable& operand, const std::wstring& reductionOpName, const std::vector<Axis>& axes, bool keepReducedDimensions, const std::wstring& name)
+        {
+            //if reduce over all axes, we directly compose the reduction node:
+            for (auto &axis : axes)
+                if (axis == Axis::AllAxes() || axis == Axis::AllStaticAxes())
+                    return  ComposeReduceElements(operand, reductionOpName, axes, keepReducedDimensions, name);
+
+            std::vector<Axis> static_axes;
+            std::vector<Axis> sequence_axes;
+            std::vector<Axis> batch_axes;
+            for (auto& axis : axes)
+            {
+                if (axis.IsBatchAxis())
+                {
+                    batch_axes.push_back(axis);
+                }
+                else if (axis.IsSequenceAxis())
+                {
+                    sequence_axes.push_back(axis);
+                }
+                else if (axis.IsStaticAxis() || (axis == Axis::AllStaticAxes()))
+                {
+                    //TODO: we might want to ignore other static axes if it is AllStaticAxes(). However, logically this should raise an error.
+                    static_axes.push_back(axis);
+                }
+            }
+            FunctionPtr res = operand;
+            if (!static_axes.empty())
+            {
+                res = ComposeReduceElements(res, reductionOpName, static_axes, keepReducedDimensions, name + L"_static_axes_subop");
+            }            
+            if (!sequence_axes.empty())
+            {
+                res = CNTK::Sequence::ReduceElements(res, reductionOpName, name + L"_sequence_axes_subop");
+            }
+            if (!batch_axes.empty())
+            {
+                res = ComposeReduceElements(res, reductionOpName, batch_axes, keepReducedDimensions, name + L"_batch_axes_subop");
+            }
+            //Name the sequece of reductions with the user given name:
+            return Alias(res, name);
+        }
+
         FunctionPtr ReduceElements(const Variable& operand, const std::wstring& reductionOpName, const std::vector<Axis>& axes, const std::wstring& name)
         {
             bool keepReducedDimensions = true;

@@ -263,8 +263,6 @@ template <class ElemType>
     else if (ReduceSequenceAxis())
     {
         Base::Validate(isFinalValidationPass);
-        for (auto axis : m_axes)
-            std::cerr << "reducing sequence axis: " << axis << std::endl;
 
         // we generate its own MBLayout
         if (isFinalValidationPass && !Input(0)->HasMBLayout())

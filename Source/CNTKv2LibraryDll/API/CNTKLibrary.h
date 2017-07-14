@@ -1053,6 +1053,23 @@ namespace CNTK
             return (m_staticAxisIdx == SentinelStaticAxisIndexValueForDynamicAxes);
         }
 
+        /*
+         * Indicate whether 'this' Axis is a batch axis.
+        */
+        bool IsBatchAxis() const
+        {
+            //TODO: Do we assume there is only one batch axis in the whole system?
+            return (this->IsDynamicAxis() && !this->m_isOrderedDynamicAxis);
+        }
+
+        /*
+        * Indicate whether 'this' Axis is a sequence axis.
+        */
+        bool IsSequenceAxis() const
+        {
+            return (this->IsDynamicAxis() && this->m_isOrderedDynamicAxis);
+        }
+
         ///
         /// Returns a boolean indicating if 'this' Axis is ordered; i.e. if there is an ordering between the dimensions along this axis.
         ///

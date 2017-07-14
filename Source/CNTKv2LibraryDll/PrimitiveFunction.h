@@ -689,6 +689,7 @@ namespace CNTK
                 else
                     outputDims[j++] = operandShape[i];
             }
+
             return NDShape(std::move(outputDims));
         }
 
@@ -752,7 +753,7 @@ namespace CNTK
         void SetRandomSeed(size_t seed);
     private:
         //aux functions
-        void CollectReduceOutputAxes(std::vector<Axis>& staticAxesToReduce,
+        void CollectReduceOutputAxesForOutputShape(std::vector<Axis>& staticAxesToReduce,
             std::vector<Axis>& batchAxesToReduce,
             std::vector<Axis>& dynamicAxesToReduce,
             bool & isAllAxesReduced);

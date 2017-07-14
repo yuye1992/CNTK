@@ -853,13 +853,13 @@ namespace CNTK
                             std::vector<Axis> dynamicAxesToReduce;
                             bool  isAllAxesReduced;
 
-                            CollectReduceOutputAxes(staticAxesToReduce, batchAxesToReduce, dynamicAxesToReduce, isAllAxesReduced);
+                            CollectReduceOutputAxesForOutputShape(staticAxesToReduce, batchAxesToReduce, dynamicAxesToReduce, isAllAxesReduced);
                             if (isAllAxesReduced) {
                                 outputShape = keepDimensions ? NDShape(m_inputs[0].Shape().Rank(), 1) : NDShape({});
                             }
                             else {
                                 //TODO for very far future: Handle reduction on (multiple) batches all in once: batchAxesToReduce 
-                                //TODO for very far future: Handle reduction on (multiple) sequences all in once: dynamicAxesToReduce
+                                //TODO for very far future: Handle reduction on (multiple) sequences all in once: sequenceAxesToReduce
                                 if (!staticAxesToReduce.empty()) 
                                 {
                                     std::vector<int> reductionAxesInIndcies(staticAxesToReduce.size());
@@ -1024,13 +1024,13 @@ namespace CNTK
     * Collect output axes for reduce operation.
     * @param staticAxesToReduce a list of static axes to reduce
     * @param batchAxesToReduce a list of batch axes to reduce
-    * @param dynamicAxesToReduce a list of dynamic axes to reduce
+    * @param sequenceAxesToReduce a list of sequence axes to reduce
     * @param isAllAxesReduced a flag which indicates whether all axes need to be reduced
     */
-    void PrimitiveFunction::CollectReduceOutputAxes(
+    void PrimitiveFunction::CollectReduceOutputAxesForOutputShape(
         std::vector<Axis>& staticAxesToReduce,
         std::vector<Axis>& batchAxesToReduce,
-        std::vector<Axis>& dynamicAxesToReduce,
+        std::vector<Axis>& sequenceAxesToReduce,
         bool & isAllAxesReduced)
     {
         isAllAxesReduced = false;
@@ -1051,9 +1051,9 @@ namespace CNTK
                 }
                 batchAxesToReduce.push_back(reductionAxis);
             }
-            else if (reductionAxis.IsDynamicAxis()) 
+            else if (reductionAxis.IsSequenceAxis()) 
             {
-                dynamicAxesToReduce.push_back(reductionAxis);
+                sequenceAxesToReduce.push_back(reductionAxis);
             }
             else
             {
