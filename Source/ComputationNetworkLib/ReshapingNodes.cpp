@@ -74,7 +74,7 @@ template <class ElemType>
 /*virtual*/ void ReduceElementsNode<ElemType>::Save(File& fstream) const /*override*/
 {
     Base::Save(fstream);
-    fstream << m_axes.size();
+    fstream << ((int) m_axes.size());
     for (int i = 0; i < m_axes.size(); ++i)
     {
         fstream << m_axes[i];
