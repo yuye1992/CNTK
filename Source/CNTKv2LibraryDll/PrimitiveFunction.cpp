@@ -173,11 +173,10 @@ namespace CNTK
             else
             {
                 auto &reductionAxes = functionConfig[PrimitiveFunction::AttributeNameAxisVec].Value<std::vector<DictionaryValue>>();
-                for (auto& reductionAxis : reductionAxes)
-                {
-                    if (axis_predicate(reductionAxis.Value<Axis>()))
-                        return true;
-                }
+                return std::any_of(reductionAxes.begin(), 
+                    reductionAxes.end(), 
+                    [&axis_predicate](const CNTK::DictionaryValue& axis) {return axis_predicate(axis.Value<Axis>()); });
+
             }
             return false;
         };
