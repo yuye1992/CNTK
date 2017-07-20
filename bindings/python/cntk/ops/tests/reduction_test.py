@@ -301,13 +301,13 @@ def test_op_reduce_argmin(input_data, axis, device_id, precision):
 #way to figure out which multi-dimensional index corresponds to
 #the max or min values. To test the backward gradicent of
 #reduce_max and reduce_min, we have to enforce all the
-#numbers in the data set must be equal to identify the index of
+#numbers in the data set must be distinct to identify the index of
 #max and min along multi-dimensional axes.
 REDUCE_BATCH_SEQUENCE_STATIC_TEST_DATA = [
     [#a data set
     # batch axis:
-    [[[1, 2], [3, 4]], [[5, 6], [7, 8]], ],  # a sequence
-    [[[9, 10], [11, 12]], [[13, 14], [15, 16]], ],  # a sequence
+        [[[1, 2], [3, 4]], [[5, 6], [7, 8]], ],  # a sequence
+        [[[9, 10], [11, 12]], [[13, 14], [15, 16]], ],  # a sequence
     ],
     [  # a data set
         # batch axis:
@@ -326,13 +326,13 @@ REDUCE_BATCH_SEQUENCE_STATIC_TEST_AXES =[
 
 REDUCE_BATCH_SEQUENCE_DYNAMIC_TEST_AXES =[
     #test reduction over batch axis + static axes;
-    #when static axes = [], test test reduction over batch axis
+    #when static axes = [], test reduction over batch axis
     [C.Axis.default_batch_axis()],
     #test reduction over sequence axis + static axes;
-    #when static axes = [], test test reduction over sequence axis
+    #when static axes = [], test reduction over sequence axis
     [C.Axis.default_dynamic_axis()],
     #test reduction over batch axis + sequence axis  + static axes;
-    #when static axes = [], test test reduction over batch axis + sequence axis
+    #when static axes = [], test reduction over batch axis + sequence axis
     [C.Axis.default_batch_axis(), C.Axis.default_dynamic_axis()],
 ]
 
