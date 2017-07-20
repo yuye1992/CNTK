@@ -11,7 +11,6 @@
 #include "ComputationNode.h"
 #include "Sequences.h"
 
-#include <iostream>
 #include <unordered_set>
 #include <map>
 #include <string>
@@ -25,7 +24,6 @@
 #include <unordered_map>
 #include <boost/algorithm/string/join.hpp>
 #include <boost/range/adaptor/transformed.hpp>
-
 
 namespace Microsoft { namespace MSR { namespace CNTK {
 
@@ -134,8 +132,6 @@ template <class ElemType>
     {
     case ElementWiseOperator::opArgmin:
     case ElementWiseOperator::opArgmax:
-        //TODO: Support argmin or argmax over multiple axes? numpy does not support it.
-        //      Currently, it is sort of already supported. However, we need to correct the retruend result: a tensor of tuples --- multi-dimensional indices. 
         if (m_axes.size() > 1)
             LogicError("%ls: %s node cannot perform argmin or argmax operator over multiple axes.", Base::NodeDescription().c_str(), typeid(*this).name());
 
@@ -308,7 +304,7 @@ template <class ElemType>
 
         let shape = Input(0)->GetSampleLayout();
         auto dims = shape.GetDims();
-        size_t reducedDimProd = 1; // (init to keep compiler happy)
+        size_t reducedDimProd = 1; 
         if (ReduceAllStaticAxes())
         {
             reducedDimProd = shape.GetNumElements();
@@ -317,7 +313,7 @@ template <class ElemType>
         else if (!m_axes.empty() 
                 && std::all_of(m_axes.begin(), 
                                 m_axes.end(), 
-                                [&](int axis) { return axis - 1 >= 0 && axis - 1 < dims.size(); }))
+                                [&dims](int axis) { return axis - 1 >= 0 && axis - 1 < dims.size(); }))
         {
             //Accumulate the number of elements for reduce_mean
             std::for_each(m_axes.begin(),
@@ -329,7 +325,7 @@ template <class ElemType>
             if (m_keepDimensions)
                 std::for_each(m_axes.begin(),
                     m_axes.end(),
-                    [&](int axis) {dims[axis - 1] = 1; }
+                    [&dims](int axis) {dims[axis - 1] = 1; }
                  );
             else
             {
@@ -346,13 +342,12 @@ template <class ElemType>
                 dims = reducedDims;
             }
         }
-        else if (isFinalValidationPass) {
-            using boost::adaptors::transformed;
-            using boost::algorithm::join;
-            InvalidArgument("The shape of %ls [%s] can not be reduced along axes [%s]",
+        else if (isFinalValidationPass) 
+        {
+            InvalidArgument("The shape of %ls [%ls] can not be reduced along axes [%ls]",
                 NodeDescription().c_str(),
-                string(shape).c_str(),
-                join(m_axes | transformed([](int axis) { return std::to_string(axis); }), ", ").c_str()
+                wstring(shape).c_str(),
+                boost::algorithm::join(m_axes | boost::adaptors::transformed([](int axis) { return std::to_wstring(axis); }), ", ").c_str()
             );
         }
         // for "Mean", we must divide by #elements
