@@ -156,8 +156,7 @@ namespace CNTK
 
     /*static*/ std::vector<Axis> PrimitiveFunction::GetOutputDynamicAxes(PrimitiveOpType op, std::vector<Variable>& inputs, PrimitiveFunction* owner, Dictionary& functionConfig)
     {
-        std::vector<Axis> outputDynamicAxes;
-        auto reduceAxis = [](Axis reductionAxis, Variable input, std::vector<Axis>& outputDynamicAxes)
+        auto reduceAxis = [](Axis reductionAxis, Variable& input, std::vector<Axis>& outputDynamicAxes)
         {
             if (!reductionAxis.IsDynamicAxis()) return;
             reductionAxis = NormalizeAxis(reductionAxis, input);
@@ -167,7 +166,7 @@ namespace CNTK
                     outputDynamicAxes.push_back(inputDynamicAxis);
             }
         };
-        auto anyOfAxesInReduction = [&](std::function<bool (const Axis&)> axis_predicate)
+        auto anyOfAxesInReduction = [&functionConfig](std::function<bool (const Axis&)> axis_predicate)
         {
             if (functionConfig.Contains(PrimitiveFunction::AttributeNameAxis))
                 return axis_predicate(functionConfig[PrimitiveFunction::AttributeNameAxis].Value<Axis>());
@@ -183,8 +182,8 @@ namespace CNTK
             return false;
         };
  
-
-       // We currently require that the inputs' dynamic axes, if any, match
+        // We currently require that the inputs' dynamic axes, if any, match
+        std::vector<Axis> outputDynamicAxes;
         if ((op == PrimitiveOpType::SumAll) ||
             (op == PrimitiveOpType::ReduceElements &&  anyOfAxesInReduction([](const Axis& axis) { return axis == Axis::AllAxes(); })) ||
             (op == PrimitiveOpType::SquaredError) ||
@@ -212,7 +211,7 @@ namespace CNTK
             else if (functionConfig.Contains(PrimitiveFunction::AttributeNameAxisVec))
             {
                 auto &reductionAxes = functionConfig[PrimitiveFunction::AttributeNameAxisVec].Value<std::vector<DictionaryValue>>();
-                for (auto& axis : reductionAxes)
+                for (const auto& axis : reductionAxes)
                 {
                     auto reductionAxis = axis.Value<Axis>();
                     reduceAxis(reductionAxis, inputs[0], outputDynamicAxes);
@@ -1076,7 +1075,11 @@ namespace CNTK
         }
         else
         {
-            RuntimeError("Function '%S': Reduce operation with inconsistent attributes", AsString().c_str());
+            RuntimeError("Function '%ls': Reduce operation with no '%ls' or  '%ls' attributes", 
+                AsString().c_str(),
+                PrimitiveFunction::AttributeNameAxis.c_str(),
+                PrimitiveFunction::AttributeNameAxisVec.c_str()
+                );
         }
     }
     vector<DictionaryValue> GetInputUids(const Function& f)
