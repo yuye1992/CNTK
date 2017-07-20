@@ -1053,18 +1053,18 @@ namespace CNTK
             return (m_staticAxisIdx == SentinelStaticAxisIndexValueForDynamicAxes);
         }
 
-        /*
-         * Indicate whether 'this' Axis is a batch axis.
-        */
+        ///
+        /// Indicate whether 'this' Axis is a batch axis.
+        ///
         bool IsBatchAxis() const
         {
             //TODO: Do we assume there is only one batch axis in the whole system?
-            return (this->IsDynamicAxis() && !this->m_isOrderedDynamicAxis);
+            return (this->IsDynamicAxis() && !this->IsSequenceAxis());
         }
 
-        /*
-        * Indicate whether 'this' Axis is a sequence axis.
-        */
+        ///
+        /// Indicate whether 'this' Axis is a sequence axis.
+        ///
         bool IsSequenceAxis() const
         {
             return (this->IsDynamicAxis() && this->m_isOrderedDynamicAxis);
@@ -4221,17 +4221,7 @@ namespace CNTK
     ///
     CNTK_API FunctionPtr Argmin(const Variable& operand, const Axis& axis, const std::wstring& name = L"");
 
-    ///
-    /// Create an instance of the CNTK built-in argmax operation on specified tensor input operand along the specified axis
-    ///
-    CNTK_API FunctionPtr Argmax(const Variable& operand, const std::vector<Axis>& axis, const std::wstring& name = L"");
-
-    ///
-    /// Create an instance of the CNTK built-in argmin on specified tensor input operand along the specified axis
-    ///
-    CNTK_API FunctionPtr Argmin(const Variable& operand, const std::vector<Axis>& axis, const std::wstring& name = L"");
-
-
+ 
     ///
     /// Create an instance of the CNTK built-in operator for converting the specified tensor operand into a sequence
     ///

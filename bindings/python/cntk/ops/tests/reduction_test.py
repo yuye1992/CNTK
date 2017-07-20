@@ -42,7 +42,6 @@ def test_op_reduce_sum(input_data, axis, device_id, precision):
 
     axis = tuple(axis) if isinstance(axis, list) else (axis)
     expected_forward = [np.sum(data, axis=axis, keepdims=True)]
-
     backward = np.ones_like(data)
 
     expected_backward = {
@@ -222,6 +221,7 @@ REDUCE_BATCH_TEST_OPERANDS = [
 ]
 
 
+#TODO: The implementation of this functon requires that all values in the data are distinct.
 def min_max_bwd(x, f, dtype):
     forward_array = np.asarray(f, dtype=dtype)
     min_max_elements = forward_array.reshape(forward_array.size).tolist()
@@ -297,17 +297,23 @@ def test_op_reduce_argmin(input_data, axis, device_id, precision):
     _test_unary_op(precision, device_id, argmin, input_data,
                    expected_forward, None, {'axis': axis})
 
+#Note that due to the limited capability of np.amax (there is no
+#way to figure out which multi-dimensional index corresponds to
+#the max or min values. To test the backward gradicent of
+#reduce_max and reduce_min, we have to enforce all the
+#numbers in the data set must be equal to identify the index of
+#max and min along multi-dimensional axes.
 REDUCE_BATCH_SEQUENCE_STATIC_TEST_DATA = [
     [#a data set
     # batch axis:
-    [[[1, 2], [3, 4]], [[1, 2], [3, 4]], ],  # a sequence
-    [[[5, 6], [7, 8]], [[5, 6], [7, 8]], ],  # a sequence
+    [[[1, 2], [3, 4]], [[5, 6], [7, 8]], ],  # a sequence
+    [[[9, 10], [11, 12]], [[13, 14], [15, 16]], ],  # a sequence
     ],
     [  # a data set
         # batch axis:
-        [[[1, 2], [3, 4]], [[1, 2], [3, 4]], ],  # a sequence
-        [[[5, 6], [7, 8]], [[5, 6], [7, 8]], ],  # a sequence
-        [[[15, 16], [17, 18]], [[15, 16], [17, 18]], ],  # a sequence
+        [[[1, 2], [3, 4]], [[5, 6], [7, 8]], ],  # a sequence
+        [[[17, 18], [19, 20]], [[21, 22], [23, 24]], ],  # a sequence
+        [[[9, 10], [11, 12]], [[13, 14], [15, 16]], ],  # a sequence
     ],
 ]
 
@@ -319,9 +325,15 @@ REDUCE_BATCH_SEQUENCE_STATIC_TEST_AXES =[
 ]
 
 REDUCE_BATCH_SEQUENCE_DYNAMIC_TEST_AXES =[
+    #test reduction over batch axis + static axes;
+    #when static axes = [], test test reduction over batch axis
     [C.Axis.default_batch_axis()],
+    #test reduction over sequence axis + static axes;
+    #when static axes = [], test test reduction over sequence axis
     [C.Axis.default_dynamic_axis()],
-    [C.Axis.default_batch_axis(), C.Axis.default_dynamic_axis()]
+    #test reduction over batch axis + sequence axis  + static axes;
+    #when static axes = [], test test reduction over batch axis + sequence axis
+    [C.Axis.default_batch_axis(), C.Axis.default_dynamic_axis()],
 ]
 
 REDUCE_BATCH_SEQUENCE_STATIC_TEST_OPERANDS = itertools.product(REDUCE_BATCH_SEQUENCE_STATIC_TEST_DATA, REDUCE_BATCH_SEQUENCE_DYNAMIC_TEST_AXES, REDUCE_BATCH_SEQUENCE_STATIC_TEST_AXES)
@@ -337,6 +349,21 @@ def reduce_batch_sequence_static_ops(dtype):
      lambda x, f, axes: np.exp(x - f)),
     (reduce_prod, lambda x, axes: np.prod(x, axis=axes, keepdims=True), lambda x, f, axes: f / x)
     ]
+
+#aux function to the ops
+def _test_reduce_ops(input_var, data, op, cntk_axes, numpy_axes, fwd, bwd):
+    expected_forward = fwd(data, numpy_axes)
+    expected_backward = bwd(data, expected_forward, numpy_axes)
+    binding = {input_var: data}
+
+    cntk_op = op(input_var, axis=cntk_axes)
+    actual_backward = cntk_op.grad(binding)
+    actual_forward = cntk_op.eval(binding)
+
+    assert np.allclose(actual_forward, expected_forward)
+    for ab, eb in zip(actual_backward, expected_backward):
+        assert np.allclose(ab, eb)
+
 
 @pytest.mark.parametrize("input_data, dynamic_axes, static_axes", REDUCE_BATCH_SEQUENCE_STATIC_TEST_OPERANDS)
 def test_op_reduce_batch_sequence_static_axes_together(input_data, dynamic_axes, static_axes, device_id, precision):
@@ -362,19 +389,4 @@ def test_op_reduce_batch_sequence_static_axes_together(input_data, dynamic_axes,
     for op, fwd, bwd in reduce_batch_sequence_static_ops(dt):
         cntk_axes = tuple(dynamic_axes + static_axes)
         numpy_axes = tuple([0 if a == C.Axis.default_batch_axis() else 1 for a in dynamic_axes] + [ax + numpy_axis_offset for ax in static_axes])
-        expected_forward = fwd(data, numpy_axes)
-        expected_backward = bwd(data, expected_forward, numpy_axes)
-        binding = {v: data}
-
-        cntk_op = op(v, axis=cntk_axes)
-        actual_backward = cntk_op.grad(binding)
-        actual_forward  = cntk_op.eval(binding)
-
-        actual_forward, expected_forward = np.squeeze(actual_forward), np.squeeze(expected_forward)
-        assert np.allclose(actual_forward, expected_forward)
-        # no point to check min and max gradient along the batch axis, so:
-        if not (((op == reduce_max or op == reduce_min)) and ignore_max_min):
-            for ab,eb in zip (actual_backward, expected_backward):
-                assert np.allclose(ab, eb)
-
-
+        _test_reduce_ops(v, data, op, cntk_axes, numpy_axes, fwd, bwd)

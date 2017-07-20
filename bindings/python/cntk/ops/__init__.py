@@ -2316,7 +2316,7 @@ def argmax(x, axis=None, name=''):
     '''
     from cntk.cntk_py import argmax
     x = sanitize_input(x)
-    axis = sanitize_axis_list(axis)
+    axis = sanitize_axis(axis)
     return argmax(x, axis, name)
 
 @typemap
@@ -2349,7 +2349,7 @@ def argmin(x, axis=None, name=''):
     '''
     from cntk.cntk_py import argmin
     x = sanitize_input(x)
-    axis = sanitize_axis_list(axis)
+    axis = sanitize_axis(axis)
     return argmin(x, axis, name)
 
 @typemap

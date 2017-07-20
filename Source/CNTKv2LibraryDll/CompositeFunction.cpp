@@ -976,7 +976,7 @@ namespace CNTK
                         keepDimensions = functionConfig[PrimitiveFunction::AttributeNameReductionKeepDimensions].Value<bool>();
                     auto reductionOpName = functionConfig[PrimitiveFunction::AttributeNameReductionOpName].Value<std::wstring>();
                     std::vector<Axis> reductionAxis;
-                    if (functionConfig.Contains(PrimitiveFunction::AttributeNameAxisVec) )
+                    if (functionConfig.Contains(PrimitiveFunction::AttributeNameAxisVec))
                     {
                         reductionAxis = AsVector<Axis>(functionConfig[PrimitiveFunction::AttributeNameAxisVec].Value<std::vector<DictionaryValue>>());
                      }
@@ -986,7 +986,12 @@ namespace CNTK
                     }
                     else
                     {
-                        RuntimeError("Failed to create computation node: Reduce operation with inconsistent attributes");
+                        RuntimeError("Failed to create computation node': Reduce operation %ls with no '%ls' or  '%ls' attributes",
+                            PrimitiveOpTypeName(op).c_str(),
+                            PrimitiveFunction::AttributeNameAxis.c_str(),
+                            PrimitiveFunction::AttributeNameAxisVec.c_str()
+                        );
+
                     } 
                     computationNodePtr = New<ReduceElementsNode<ElementType>>(network->GetDeviceId(), internalNodeName, reductionOpName, AsCNTKInternalAxisIdx(reductionAxis), keepDimensions);
                     break;

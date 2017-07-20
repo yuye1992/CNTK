@@ -2,6 +2,7 @@
 // Copyright (c) Microsoft. All rights reserved.
 // Licensed under the MIT license. See LICENSE.md file in the project root for full license information.
 //
+
 #include "stdafx.h"
 #include "CNTKLibrary.h"
 #include "PrimitiveFunction.h"
@@ -10,8 +11,6 @@
 #include "Utils.h"
 #include "UserFunctionFactory.h"
 #include "TrainingNodes.h"
-
-#include <iostream>
 
 using namespace Microsoft::MSR::CNTK;
 
@@ -1820,16 +1819,6 @@ namespace CNTK
     {
         return Internal::ReduceElements(operand, PrimitiveFunction::InternalArgminReductionOpName, axis, name);
     }
-    FunctionPtr Argmax(const Variable& operand, const std::vector<Axis>& axis, const std::wstring& name)
-    {
-        return Internal::ReduceElements(operand, PrimitiveFunction::InternalArgmaxReductionOpName, axis, name);
-    }
-
-    FunctionPtr Argmin(const Variable& operand, const std::vector<Axis>& axis, const std::wstring& name)
-    {
-        return Internal::ReduceElements(operand, PrimitiveFunction::InternalArgminReductionOpName, axis, name);
-    }
-
 
     FunctionPtr StopGradient(const Variable& operand, const std::wstring& name)
     {
@@ -1970,14 +1959,19 @@ namespace CNTK
             auto broadcastAsPlaceholder = PlaceholderVariable(L"broadcastAs");
             return AsBlock(ReconcileDynamicAxes(operandPlaceholder, broadcastAsPlaceholder), { { operandPlaceholder, operand }, { broadcastAsPlaceholder, broadcastAs } }, L"Sequence::BroadcastAs", name);
         }
-
-        FunctionPtr ReduceElements(const Variable& operand, const std::wstring& reductionOpName, const std::wstring& name)
+        
+        FunctionPtr ReduceElements(const Variable& operand, const std::wstring& reductionOpName, bool keepReducedDimensions, const std::wstring& name)
         {
             auto operandPlaceholder = PlaceholderVariable(L"operand");
             auto unpackedSequence = Unpack(operandPlaceholder, ReductionIdentityValue(PrimitiveFunction::InternalSumReductionOpName), /*suppressMaskOutput =*/ true, name);
-            auto reductionResult = Internal::ReduceElements(unpackedSequence, reductionOpName, Axis(-1), /*keepReducedDimensions =*/ false);
+            auto reductionResult = Internal::ReduceElements(unpackedSequence, reductionOpName, Axis(-1), keepReducedDimensions);
 
             return AsBlock(std::move(reductionResult), { { operandPlaceholder, operand } }, L"Sequence::ReduceElements", name);
+        }
+
+        FunctionPtr ReduceElements(const Variable& operand, const std::wstring& reductionOpName, const std::wstring& name)
+        {
+            return  ReduceElements(operand, reductionOpName, /*keepReducedDimensions =*/ false, name);
         }
 
         FunctionPtr ReduceSum(const Variable& operand, const std::wstring& name)
@@ -2110,7 +2104,6 @@ namespace CNTK
                        operand.AsString().c_str());
         }
  
-
         FunctionPtr ReduceElements(const Variable& operand, const std::wstring& reductionOpName, const Axis& axis, const std::wstring& name)
         {
             bool keepReducedDimensions = true;
@@ -2118,10 +2111,8 @@ namespace CNTK
                 keepReducedDimensions = false;
 
             return ReduceElements(operand, reductionOpName, axis, keepReducedDimensions, name);
-        
         }
-
- 
+         
         FunctionPtr ComposeReduceElements(const Variable& operand, const std::wstring& reductionOpName, const std::vector<Axis>& axes, bool keepReducedDimensions, const std::wstring& name)
         {
             if (
@@ -2146,10 +2137,11 @@ namespace CNTK
                 LogicError("ReduceElements: operand %S; Invalid axis argument provided. To reduce an operand along its ordered dynamic axis use Sequence::ReduceElements.",
                     operand.AsString().c_str());
         }
-        /**
-        * Compose reduction operation along multiple axes.
-        * Compose reduction along multiple axes to perform reduction over static axese first, then sequence axis and then batch axis.
-        */
+
+        ///
+        /// Compose reduction operation along multiple axes.
+        /// Compose reduction along multiple axes to perform reduction over static axes first, then sequence axis and then batch axis.
+        ///
         FunctionPtr ReduceElements(const Variable& operand, const std::wstring& reductionOpName, const std::vector<Axis>& axes, bool keepReducedDimensions, const std::wstring& name)
         {
             //if axes is empty, raise error:
@@ -2164,6 +2156,7 @@ namespace CNTK
             std::vector<Axis> static_axes;
             std::vector<Axis> sequence_axes;
             std::vector<Axis> batch_axes;
+            bool static_axes_reduced = false;
             for (auto& axis : axes)
             {
                 if (axis.IsBatchAxis())
@@ -2176,7 +2169,10 @@ namespace CNTK
                 }
                 else if (axis.IsStaticAxis() || (axis == Axis::AllStaticAxes()))
                 {
-                    //TODO: we might want to ignore other static axes if it is AllStaticAxes(). However, logically this should raise an error.
+                    if (axis == Axis::AllStaticAxes())
+                        static_axes_reduced = true;
+                    if (static_axes_reduced && static_axes.size() > 1)
+                        LogicError("ReduceElements: operand %S; additional static axes are provided when doing reduction over AllStaticAxes.", operand.AsString().c_str());
                     static_axes.push_back(axis);
                 }
             }
@@ -2189,7 +2185,7 @@ namespace CNTK
             }            
             if (!sequence_axes.empty())
             {
-                res = CNTK::Sequence::ReduceElements(res, reductionOpName, name + L"_sequence_axes_subop");
+                res = CNTK::Sequence::ReduceElements(res, reductionOpName, keepReducedDimensions, name + L"_sequence_axes_subop");
             }
             if (!batch_axes.empty())
             {
