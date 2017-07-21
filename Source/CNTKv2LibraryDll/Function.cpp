@@ -2117,14 +2117,14 @@ namespace CNTK
         {
             if (
                 std::any_of(axes.begin(), axes.end(),
-                    [](const Axis& axis) {
+                    [](const Axis axis) {
                 return axis.IsStaticAxis() ||
                     (axis == Axis::AllStaticAxes()) ||
                     (axis == Axis::AllAxes()) ||
                     (axis == Axis::DefaultBatchAxis()); })
                 || ((reductionOpName == PrimitiveFunction::InternalSumReductionOpName)
                     && std::any_of(axes.begin(), axes.end(),
-                        [](const Axis& axis) {return axis == Axis::OperandSequenceAxis(); }))
+                        [](const Axis axis) {return axis == Axis::OperandSequenceAxis(); }))
                     )
             {
                 auto additionalProperties = Dictionary();
@@ -2198,7 +2198,7 @@ namespace CNTK
         {
             bool keepReducedDimensions = true;
             if (std::any_of(axes.begin(), axes.end(),
-                [](const Axis& axis) {return axis == Axis::AllStaticAxes() || axis == Axis::AllAxes(); }))
+                [](Axis axis) {return axis == Axis::AllStaticAxes() || axis == Axis::AllAxes(); }))
                 keepReducedDimensions = false;
 
             return ReduceElements(operand, reductionOpName, axes, keepReducedDimensions, name);
