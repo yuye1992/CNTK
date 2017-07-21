@@ -210,7 +210,7 @@ namespace CNTK
             else if (functionConfig.Contains(PrimitiveFunction::AttributeNameAxisVec))
             {
                 auto &reductionAxes = functionConfig[PrimitiveFunction::AttributeNameAxisVec].Value<std::vector<DictionaryValue>>();
-                for (const auto& axis : reductionAxes)
+                for (auto& axis : reductionAxes)
                 {
                     auto reductionAxis = axis.Value<Axis>();
                     reduceAxis(reductionAxis, inputs[0], outputDynamicAxes);
