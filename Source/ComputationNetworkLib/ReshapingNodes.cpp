@@ -22,6 +22,7 @@
 #include <assert.h>
 #include <stack>
 #include <unordered_map>
+#include <numeric>
 #include <boost/algorithm/string/join.hpp>
 #include <boost/range/adaptor/transformed.hpp>
 
@@ -316,10 +317,10 @@ template <class ElemType>
                                 [&dims](int axis) { return axis - 1 >= 0 && axis - 1 < dims.size(); }))
         {
             //Accumulate the number of elements for reduce_mean
-            std::for_each(m_axes.begin(),
-                            m_axes.end(), 
-                            [&](int axis) {reducedDimProd *= dims[axis - 1]; }
-            );
+            reducedDimProd = std::accumulate(m_axes.begin(),
+                                                m_axes.end(), 
+                                                1, 
+                                                [&dims](size_t acc, int& axis) { return acc * dims[axis - 1]; });
 
             // axes reduced to a scalar
             if (m_keepDimensions)
@@ -332,10 +333,8 @@ template <class ElemType>
                 SmallVector<size_t> reducedDims(dims.size() - m_axes.size());
                 for (size_t i = 0, j = 0; i < dims.size(); ++i)
                 {
-                    if (ReductionAxesHave(i + 1)) //axis = (i + 1)
-                    {
+                    if (Contains(m_axes, i + 1)) //note that axis = (i + 1) --- starting from 1 instead of 0
                         continue;
-                    }
                     reducedDims[j] = dims[i];
                     j++;
                 }

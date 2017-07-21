@@ -260,7 +260,7 @@ public:
     }
 
     ReduceElementsNode(DEVICEID_TYPE deviceId, const wstring& name, const std::wstring& operation, const std::vector<int>& axis, bool keepDimensions) :
-        Base(deviceId, name), m_operation(operation), m_axes( axis ), m_reductionOp((ElementWiseOperator)-1/*invalid*/), m_scale(0/*invalid*/), m_keepDimensions(keepDimensions)
+        Base(deviceId, name), m_operation(operation), m_axes(axis), m_reductionOp((ElementWiseOperator)-1/*invalid*/), m_scale(0/*invalid*/), m_keepDimensions(keepDimensions)
     {
         if (!m_operation.empty()) // verify validity already here out of courtesy (would otherwise be caught in Validate())
             ValidateOp();
@@ -270,8 +270,9 @@ public:
         ReduceElementsNode(deviceId, name, operation, axis, DefaultKeepDimensionsSetting(axis))
     {
     }
+
     ReduceElementsNode(const ScriptableObjects::IConfigRecordPtr configp) :
-        ReduceElementsNode(configp->Get(L"deviceId"), L"<placeholder>", configp->Get(L"reductionOp"), std::vector<int>({ configp->Get(L"axis") }))
+        ReduceElementsNode(configp->Get(L"deviceId"), L"<placeholder>", configp->Get(L"reductionOp"), (int) configp->Get(L"axis"))
     {
         AttachInputsFromConfig(configp, this->GetExpectedNumInputs());
     }
@@ -321,13 +322,11 @@ public:
     static const int  CNTKInternalIdxValueForBatchAxis = -3;
 
 private:
-    inline bool ReductionAxesHave(int axis) const { return Contains(m_axes, axis); }
-
     bool IsMean() const { return (m_operation == L"Mean"); }
-    bool ReduceAllStaticAxes() const { return ReductionAxesHave(CNTKInternalIdxValueForAllStaticAxes); }
-    bool ReduceAllAxes() const { return ReductionAxesHave(CNTKInternalIdxValueForAllAxes); }
-    bool ReduceSequenceAxis() const { return ReductionAxesHave(CNTKInternalIdxValueForSequenceAxis); }
-    bool ReduceBatchAxis() const { return ReductionAxesHave(CNTKInternalIdxValueForBatchAxis); }
+    bool ReduceAllStaticAxes() const { return Contains(m_axes, CNTKInternalIdxValueForAllStaticAxes); }
+    bool ReduceAllAxes() const { return Contains(m_axes, CNTKInternalIdxValueForAllAxes); }
+    bool ReduceSequenceAxis() const { return Contains(m_axes, CNTKInternalIdxValueForSequenceAxis); }
+    bool ReduceBatchAxis() const { return Contains(m_axes, CNTKInternalIdxValueForBatchAxis); }
 
 private:
     // operation attributes
