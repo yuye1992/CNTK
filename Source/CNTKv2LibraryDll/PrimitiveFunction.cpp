@@ -156,7 +156,7 @@ namespace CNTK
 
     /*static*/ std::vector<Axis> PrimitiveFunction::GetOutputDynamicAxes(PrimitiveOpType op, std::vector<Variable>& inputs, PrimitiveFunction* owner, Dictionary& functionConfig)
     {
-        auto reduceAxis = [](Axis reductionAxis, Variable& input, std::vector<Axis>& outputDynamicAxes)
+        auto reduceAxis = [](Axis reductionAxis, Variable input, std::vector<Axis>& outputDynamicAxes)
         {
             if (!reductionAxis.IsDynamicAxis()) return;
             reductionAxis = NormalizeAxis(reductionAxis, input);
