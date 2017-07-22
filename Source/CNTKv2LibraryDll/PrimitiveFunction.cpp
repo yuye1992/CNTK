@@ -1098,8 +1098,8 @@ namespace CNTK
                 PrimitiveFunction::AttributeNameAxisVec.c_str()
             );
         }
-
     }
+
     vector<DictionaryValue> GetInputUids(const Function& f)
     {
         auto inputs = f.Inputs();
