@@ -51,6 +51,7 @@ template <class ElemType>
 /*virtual*/ void ReduceElementsNode<ElemType>::Load(File& fstream, size_t modelVersion) /*override*/
 {
     Base::Load(fstream, modelVersion);
+    m_axes.clear();
     int num_axes = 1; //emulate old version in which only 1 axis is supported
     if (modelVersion >= CNTK_MODEL_VERSION_27)
         fstream >> num_axes;
