@@ -241,6 +241,10 @@ void TensorView<ElemType>::DoUnaryOpOf(ElemType beta, const TensorView& a, ElemT
     SmallVector<size_t> regularOpDims, reducingOpDims;
     PrepareTensorOperands<ElemType, 2>(array<TensorShape, 2>{a.GetShape(), GetShape()}, offsets, regularOpDims, regularStrides, reducingOpDims, reducingStrides);
 
+    // output cannot be input when reducing
+    if (reducingOpDims.size() > 0)
+        CheckDifferentObject(a, *this);
+
     // now perform the operation
     GetSOB().TensorOp(beta, a.GetSOB(), alpha, op, reductionOp, offsets, regularOpDims, regularStrides, reducingOpDims, reducingStrides);
 }
