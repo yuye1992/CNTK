@@ -845,6 +845,26 @@ namespace CNTK
                             bool keepDimensions = true;
                             if (m_attributes.Contains(PrimitiveFunction::AttributeNameReductionKeepDimensions))
                                 keepDimensions = m_attributes[PrimitiveFunction::AttributeNameReductionKeepDimensions].Value<bool>();
+                            //Note that we need to normalize the axes inside the attributes here/in InferOutputs
+                            if (m_attributes.Contains(PrimitiveFunction::AttributeNameAxisVec))
+                            {
+                                auto &axisDictionary = m_attributes[PrimitiveFunction::AttributeNameAxisVec].Value<std::vector<DictionaryValue>>();
+                                for (auto& value : axisDictionary) {
+                                    auto reductionAxis = NormalizeAxis(value.Value<Axis>(), m_inputs[0]);
+                                }
+                            }
+                            else if (m_attributes.Contains(PrimitiveFunction::AttributeNameAxis))
+                            {
+                                auto reductionAxis = NormalizeAxis(m_attributes[PrimitiveFunction::AttributeNameAxis].Value<Axis>(), m_inputs[0]);
+                            }
+                            else
+                            {
+                                RuntimeError("Function '%ls': Reduce operation with no '%ls' or  '%ls' attributes",
+                                    AsString().c_str(),
+                                    PrimitiveFunction::AttributeNameAxis.c_str(),
+                                    PrimitiveFunction::AttributeNameAxisVec.c_str()
+                                );
+                            }
 
                             std::vector<Axis> staticAxesToReduce;
                             std::vector<Axis> batchAxesToReduce;
@@ -1033,7 +1053,7 @@ namespace CNTK
     {
         isAllAxesReduced = false;
 
-        auto process_axis = [&](Axis reductionAxis) {
+        auto collect_axis = [&](const Axis& reductionAxis) {
             if (reductionAxis == Axis::AllStaticAxes() || reductionAxis == Axis::AllAxes())
                 isAllAxesReduced = true;
             else if (reductionAxis == Axis::DefaultBatchAxis())
@@ -1060,26 +1080,25 @@ namespace CNTK
         };
         if (m_attributes.Contains(PrimitiveFunction::AttributeNameAxisVec))
         {
-            auto &axisDictionary = m_attributes[PrimitiveFunction::AttributeNameAxisVec].Value<std::vector<DictionaryValue>>();
-            for (auto& value : axisDictionary) {
-                auto reductionAxis = NormalizeAxis(value.Value<Axis>(), m_inputs[0]);
-                process_axis(reductionAxis);
+            const auto &axisDictionary = m_attributes[PrimitiveFunction::AttributeNameAxisVec].Value<std::vector<DictionaryValue>>();
+            for (const auto& value : axisDictionary) {
+                collect_axis(value.Value<Axis>());
             }
 
         }
         else if (m_attributes.Contains(PrimitiveFunction::AttributeNameAxis))
         {
-            auto reductionAxis = NormalizeAxis(m_attributes[PrimitiveFunction::AttributeNameAxis].Value<Axis>(), m_inputs[0]);
-            process_axis(reductionAxis);
+            collect_axis(m_attributes[PrimitiveFunction::AttributeNameAxis].Value<Axis>());
         }
         else
         {
-            RuntimeError("Function '%ls': Reduce operation with no '%ls' or  '%ls' attributes", 
+            RuntimeError("Function '%ls': Reduce operation with no '%ls' or  '%ls' attributes",
                 AsString().c_str(),
                 PrimitiveFunction::AttributeNameAxis.c_str(),
                 PrimitiveFunction::AttributeNameAxisVec.c_str()
-                );
+            );
         }
+
     }
     vector<DictionaryValue> GetInputUids(const Function& f)
     {
