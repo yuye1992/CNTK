@@ -13,7 +13,7 @@ import numpy as np
 import numbers
 from . import sequence
 from .functions import CloneMethod, Function, BlockFunction, load_model, register_native_user_function, native_user_function
-from cntk.internal import sanitize_input, sanitize_shape, sanitize_axis, sanitize_dynamic_axes, sanitize_axis_list, typemap, sanitize_pooling_args, sanitize_convolution_args, sanitize_permutation
+from cntk.internal import sanitize_input, sanitize_shape, sanitize_axis, sanitize_dynamic_axes, sanitize_axis_list, sanitize_multi_axis_reduction_list, typemap, sanitize_pooling_args, sanitize_convolution_args, sanitize_permutation
 from cntk.internal.utils import get_data_type
 from ..axis import Axis
 from .. import cntk_py
@@ -2097,7 +2097,7 @@ def reduce_sum(x, axis=None, name=''):
     '''
     from cntk.cntk_py import reduce_sum
     x = sanitize_input(x)
-    axis = sanitize_axis_list(axis)
+    axis = sanitize_multi_axis_reduction_list(axis)
     return reduce_sum(x, axis, name)
 
 
@@ -2144,7 +2144,7 @@ def reduce_log_sum_exp(x, axis=None, name=''):
     # TODO: rename V2 API function as well from reduce_log_sum() to reduce_log_sum_exp()
     from cntk.cntk_py import reduce_log_sum
     x = sanitize_input(x)
-    axis = sanitize_axis_list(axis)
+    axis = sanitize_multi_axis_reduction_list(axis)
     return reduce_log_sum(x, axis, name)
 
 
@@ -2194,7 +2194,7 @@ def reduce_mean(x, axis=None, name=''):
     '''
     from cntk.cntk_py import reduce_mean
     x = sanitize_input(x)
-    axis = sanitize_axis_list(axis)
+    axis = sanitize_multi_axis_reduction_list(axis)
     return reduce_mean(x, axis, name)
 
 
@@ -2237,7 +2237,7 @@ def reduce_max(x, axis=None, name=''):
     '''
     from cntk.cntk_py import reduce_max
     x = sanitize_input(x)
-    axis = sanitize_axis_list(axis)
+    axis = sanitize_multi_axis_reduction_list(axis)
     return reduce_max(x, axis, name)
 
 
@@ -2323,7 +2323,7 @@ def reduce_prod(x, axis=None, name=''):
     '''
     from cntk.cntk_py import reduce_prod
     x = sanitize_input(x)
-    axis = sanitize_axis_list(axis)
+    axis = sanitize_multi_axis_reduction_list(axis)
     return reduce_prod(x, axis, name)
 
 @typemap

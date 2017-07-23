@@ -330,10 +330,11 @@ REDUCE_BATCH_SEQUENCE_DYNAMIC_TEST_AXES =[
     [C.Axis.default_batch_axis()],
     #test reduction over sequence axis + static axes;
     #when static axes = [], test reduction over sequence axis
-    [C.Axis.default_dynamic_axis()],
+    #TODO: Comment the following out before we can have an agreement on whether we allow sequence axis here for now
+    #[C.Axis.default_dynamic_axis()],
     #test reduction over batch axis + sequence axis  + static axes;
     #when static axes = [], test reduction over batch axis + sequence axis
-    [C.Axis.default_batch_axis(), C.Axis.default_dynamic_axis()],
+    #[C.Axis.default_batch_axis(), C.Axis.default_dynamic_axis()],
 ]
 
 REDUCE_BATCH_SEQUENCE_STATIC_TEST_OPERANDS = itertools.product(REDUCE_BATCH_SEQUENCE_STATIC_TEST_DATA, REDUCE_BATCH_SEQUENCE_DYNAMIC_TEST_AXES, REDUCE_BATCH_SEQUENCE_STATIC_TEST_AXES)
