@@ -446,8 +446,8 @@ void TestFunctionSerialization(const DeviceDescriptor& device)
 }
 
 TrainerPtr BuildTrainer(const FunctionPtr& function, const Variable& labels,
-                     LearningRateSchedule lr = LearningRatePerSampleSchedule(0.005),
-                     MomentumSchedule m = MomentumAsTimeConstantSchedule(0.0))
+                     LearningRateSchedule lr = LearningRateSchedule(RatePerSample(0.005)),
+                     MomentumSchedule m = MomentumAsTimeConstantSchedule(0))
 {
     auto trainingLoss = CrossEntropyWithSoftmax(function, labels, L"lossFunction");
     auto prediction = ClassificationError(function, labels, L"classificationError");
@@ -540,8 +540,8 @@ void TestTrainingWithCheckpointing(const FunctionPtr& function1, const FunctionP
     auto minibatchData = minibatchSource->GetNextMinibatch(minibatchSize, device);
     auto actualMBSize = minibatchData[labelStreamInfo].numberOfSamples;
 
-    LearningRatePerSampleSchedule learningRateSchedule({ { 2, 0.005 }, { 2, 0.0025 }, { 2, 0.0005 }, { 2, 0.00025 } }, actualMBSize);
-    MomentumAsTimeConstantSchedule momentumValues({ { 2, 100 }, { 2, 200 }, { 2, 400 }, { 2, 800 } }, actualMBSize);
+    LearningRateSchedule learningRateSchedule({ { 2, RatePerSample(0.005) }, { 2, RatePerSample(0.0025) }, { 2, RatePerSample(0.0005) }, { 2, RatePerSample(0.00025) } }, actualMBSize);
+    MomentumSchedule momentumValues({ { 2, MomentumRateAsTimeConstant(100) }, { 2, MomentumRateAsTimeConstant(200) }, { 2, MomentumRateAsTimeConstant(400) }, { 2, MomentumRateAsTimeConstant(800) } }, actualMBSize);
 
 
     auto trainer1 = BuildTrainer(function1, labels, learningRateSchedule, momentumValues);
@@ -675,7 +675,7 @@ void TestLegacyModelSaving(const DeviceDescriptor& device)
     auto minibatchData = minibatchSource->GetNextMinibatch(minibatchSize, device);
     auto actualMBSize = minibatchData[labelStreamInfo].numberOfSamples;
 
-    LearningRatePerSampleSchedule learningRateSchedule({ { 2, 0.0005 }, { 2, 0.00025 } }, actualMBSize);
+    LearningRateSchedule learningRateSchedule({ { 2, RatePerSample(0.0005) }, { 2, RatePerSample(0.00025) } }, actualMBSize);
     auto learner = SGDLearner(classifierOutput->Parameters(), learningRateSchedule);
     auto trainer = CreateTrainer(classifierOutput, trainingLoss, prediction, { learner });
 
@@ -707,8 +707,8 @@ void TestLegacyModelSaving(const DeviceDescriptor& device)
     FloatingPointCompare(postRestoreMB2Loss, MB2Loss, "Post checkpoint restoration training loss does not match expectation");
 
 
-    LearningRatePerSampleSchedule learningRateSchedule2({ { 0.04, 0.02, 0.01, 0.008, 0.004, 0.002, 0.001 } }, actualMBSize);
-    MomentumAsTimeConstantSchedule momentumSchedule({ { 900, 800, 700, 600, 500 } }, actualMBSize);
+    LearningRateSchedule learningRateSchedule2({ { RatePerSample(0.04), RatePerSample(0.02), RatePerSample(0.01), RatePerSample(0.008), RatePerSample(0.004), RatePerSample(0.002), RatePerSample(0.001) } }, actualMBSize);
+    MomentumSchedule momentumSchedule({ { MomentumRateAsTimeConstant(900), MomentumRateAsTimeConstant(800), MomentumRateAsTimeConstant(700), MomentumRateAsTimeConstant(600), MomentumRateAsTimeConstant(500) } }, actualMBSize);
     auto learner2 = AdamLearner(classifierOutput->Parameters(), learningRateSchedule, momentumSchedule, /*unitGainMomentum = */true);
     auto trainer2 = CreateTrainer(classifierOutput, trainingLoss, prediction, { learner });
 

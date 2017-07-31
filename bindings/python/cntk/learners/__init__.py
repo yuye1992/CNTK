@@ -392,6 +392,15 @@ def momentum_as_time_constant_schedule(momentum, epoch_size=None):
     Returns:
         momentum as time constant schedule
     '''
+
+    """
+    My note: (this should be deprecated for sure!)
+    After changing to rate, momentum_as_time_constant_schedule is actually a rate 
+    with rate = 1/e and reference_mbsize = time_constant
+    the corresponding adjusted momentum 
+        expoential decay rate = (1/e) ^ (encountered_mbsize / reference_mbsize)
+                              = (1/e) ^ (encountered_mbsize / time_constant)
+    """
     if isinstance(momentum, (cntk_py.momentum_as_time_constant_schedule)):
         return momentum
 

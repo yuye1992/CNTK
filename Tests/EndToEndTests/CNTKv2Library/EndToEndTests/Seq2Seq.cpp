@@ -174,8 +174,8 @@ void TrainSequenceToSequenceTranslator(const DeviceDescriptor& device, bool useS
     auto rawInputStreamInfo = minibatchSource->StreamInfo(featureStreamName);
     auto rawLabelsStreamInfo = minibatchSource->StreamInfo(labelStreamName);
 
-    LearningRatePerSampleSchedule learningRatePerSample = 0.007;
-    MomentumAsTimeConstantSchedule momentumTimeConstant = 1100;
+    auto learningRatePerSample = LearningRatePerSampleSchedule(0.007);
+    auto momentumTimeConstant = MomentumAsTimeConstantSchedule(1100);
     AdditionalLearningOptions additionalOptions;
     additionalOptions.gradientClippingThresholdPerSample = 2.3;
     additionalOptions.gradientClippingWithTruncation = true;

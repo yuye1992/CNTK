@@ -52,7 +52,7 @@
 %rename(sequence_reduce_sum) CNTK::Sequence::ReduceSum;
 %rename(sequence_reduce_max) CNTK::Sequence::ReduceMax;
 %rename(sequence_softmax) CNTK::Sequence::Softmax;
-%rename(momentum_as_time_constant_schedule) CNTK::MomentumAsTimeConstantSchedule;
+%rename(momentum_schedule) CNTK::MomentumSchedule;
 %rename(ctf_deserializer) CNTK::CTFDeserializer;
 %rename(cbf_deserializer) CNTK::CBFDeserializer;
 %rename(htk_feature_deserializer) CNTK::HTKFeatureDeserializer;
@@ -1918,11 +1918,19 @@ extern "C" CNTKPYTHON_API bool CreateDeserializer(DataDeserializerPtr& deseriali
 %template(DictionaryValueFromDict) CNTK::DictionaryValue::DictionaryValue<CNTK::Dictionary>;
 %template(DictionaryValueFromNDArrayView) CNTK::DictionaryValue::DictionaryValue<CNTK::NDArrayView>;
 
-%template(training_parameter_per_sample_schedule) CNTK::TrainingParameterPerUnitSchedule<double, CNTK::TrainingParameterSchedule<double>::UnitType::Sample>;
-%template(training_parameter_per_minibatch_schedule) CNTK::TrainingParameterPerUnitSchedule<double, CNTK::TrainingParameterSchedule<double>::UnitType::Minibatch>;
+%shared_ptr(CNTK::Rate)
+%shared_ptr(CNTK::TrainingParameterSchedule<double>)
+%shared_ptr(CNTK::TrainingParameterSchedule<size_t>)
+%shared_ptr(CNTK::TrainingParameterSchedule<Rate>)
+%shared_ptr(CNTK::MomentumSchedule)
 
-typedef CNTK::TrainingParameterPerUnitSchedule<size_t, CNTK::TrainingParameterSchedule<size_t>::UnitType::Sample> MinibatchSizeSchedule;
-%template(minibatch_size_schedule) CNTK::TrainingParameterPerUnitSchedule<size_t, CNTK::TrainingParameterSchedule<size_t>::UnitType::Sample>;
+typedef CNTK::TrainingParameterSchedule<size_t> MinibatchSizeSchedule;
+%template(minibatch_size_schedule) CNTK::TrainingParameterSchedule<size_t>;
+typedef CNTK::TrainingParameterSchedule<Rate> LearningRateSchedule;
+%template(learning_rate_schedule) CNTK::TrainingParameterSchedule<Rate>;
+typedef CNTK::TrainingParameterSchedule<Rate> MomentumSchedule;
+%template(momentum_schedule) CNTK::TrainingParameterSchedule<Rate>;
+
 
 %template(OptionalBool) CNTK::Internal::Optional<bool>;
 

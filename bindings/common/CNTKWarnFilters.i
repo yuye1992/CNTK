@@ -8,11 +8,10 @@
 // This file contains common warnfilters for Python, C# and Java
 
 // Disabling warning about constructor shadowing, learner tests check this.
-%warnfilter(401, 509) CNTK::TrainingParameterPerUnitSchedule;
-%warnfilter(509) CNTK::MomentumAsTimeConstantSchedule;
+%warnfilter(401, 509) CNTK::TrainingParameterSchedule;
+%warnfilter(509) CNTK::MomentuSchedule;
 %warnfilter(509) CNTK::NDArrayView::NDArrayView;
 
-%warnfilter(315) CNTK::TrainingParameterPerSampleSchedule;
 
 // Disabling warning about movable constructor shadowing, io tests check this.
 %warnfilter(509) CNTK::DictionaryValue::DictionaryValue;
@@ -39,6 +38,5 @@
 %warnfilter(401) CNTK::BackPropState;
 %warnfilter(401) CNTK::MinibatchSource;
 
-%warnfilter(401, 509) CNTK::MomentumAsTimeConstantSchedule;
 
 %warnfilter(340) CNTK::NoOp;

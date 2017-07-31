@@ -53,7 +53,7 @@ void TestSGDLearner(size_t numParameters, size_t numMinibatches, const DeviceDes
 {
     NDShape shape = CreateShape(rng() % maxNumAxes + 1, maxDimSize);
     auto parameters = CreateParameters<ElementType>(shape, numParameters, device);
-    auto learner = SGDLearner(parameters, LearningRatePerSampleSchedule(0.4));
+    auto learner = SGDLearner(parameters, LearningRateSchedule(RatePerSample(0.4)));
     TestUpdate<ElementType>(learner, shape, numMinibatches, device);
 }
 
@@ -62,11 +62,11 @@ void TestMomentumSGDLearner(size_t numParameters, size_t numMinibatches, bool un
 {
     NDShape shape = CreateShape(rng() % maxNumAxes + 1, maxDimSize);
     auto parameters = CreateParameters<ElementType>(shape, numParameters, device);
-    LearningRatePerMinibatchSchedule learnigRateSchedule = { { 3.0, 2.0, 1.0 }, numMinibatches };
-    MomentumPerSampleSchedule momentumValues = { { { 1, 1.0 }, { 3, 0.1 }, { 10, 0.01 } }, 2 };
+    LearningRateSchedule learnigRateSchedule = { { Rate(3.0, Rate::UNKNOWN_REFMBSIZE), Rate(2.0, Rate::UNKNOWN_REFMBSIZE), Rate(1.0, Rate::UNKNOWN_REFMBSIZE) }, numMinibatches };
+    MomentumSchedule momentumValues = { { { 1, RatePerSample(1.0) }, { 3, RatePerSample(0.1) }, { 10, RatePerSample(0.01) } }, 2 };
     auto learner = MomentumSGDLearner(parameters, learnigRateSchedule, momentumValues, unitGainMomentum);
     TestUpdate<ElementType>(learner, shape, numMinibatches, device);
-    FloatingPointCompare(learner->LearningRate(), 2.0, "Learner::LearningRate does not match expectation");
+    FloatingPointCompare(Learner::LearningRatePerMinibatch(learner->LearningRate(), Rate::UNKNOWN_REFMBSIZE), 2.0, "Learner::LearningRate does not match expectation");
 }
 
 template <typename ElementType>
@@ -74,8 +74,8 @@ void TestNesterovLearner(size_t numParameters, size_t numMinibatches, bool unitG
 {
     NDShape shape = CreateShape(rng() % maxNumAxes + 1, maxDimSize);
     auto parameters = CreateParameters<ElementType>(shape, numParameters, device);
-    MomentumAsTimeConstantSchedule momentumValues = { { { 1, 1 }, { 3, 5 }, { 10, 25 } }, 100 };
-    auto learner = NesterovLearner(parameters, LearningRatePerMinibatchSchedule( { { 1, 0.5 }, { 10, 0.25 }, { 20, 0.125 } }, 3 ), momentumValues, unitGainMomentum);
+    MomentumSchedule momentumValues = { { { 1, MomentumRateAsTimeConstant(1) }, { 3, MomentumRateAsTimeConstant(5) }, { 10, MomentumRateAsTimeConstant(25) } }, 100 };
+    auto learner = NesterovLearner(parameters, LearningRateSchedule( { { 1, Rate(0.5, Rate::UNKNOWN_REFMBSIZE) }, { 10, Rate(0.25, Rate::UNKNOWN_REFMBSIZE) }, { 20, Rate(0.125, Rate::UNKNOWN_REFMBSIZE) } }, 3 ), momentumValues, unitGainMomentum);
     TestUpdate<ElementType>(learner, shape, numMinibatches, device);
 }
 
@@ -84,7 +84,7 @@ void TestAdaGradLearner(size_t numParameters, size_t numMinibatches, const Devic
 {
     NDShape shape = CreateShape(rng() % maxNumAxes + 1, maxDimSize);
     auto parameters = CreateParameters<ElementType>(shape, numParameters, device);
-    auto learner = AdaGradLearner(parameters, LearningRatePerMinibatchSchedule( { 0.5, 0.4, 0.3, 0.2, 0.1 }, 2), true);
+    auto learner = AdaGradLearner(parameters, LearningRateSchedule( { RatePerSample(0.5), RatePerSample(0.4), RatePerSample(0.3), RatePerSample(0.2), RatePerSample(0.1) }, 2), true);
     TestUpdate<ElementType>(learner, shape, numMinibatches, device);
 }
 
@@ -93,7 +93,9 @@ void TestFSAdaGradLearner(size_t numParameters, size_t numMinibatches, bool unit
 {
     NDShape shape = CreateShape(rng() % maxNumAxes + 1, maxDimSize);
     auto parameters = CreateParameters<ElementType>(shape, numParameters, device);
-    auto learner = FSAdaGradLearner(parameters, LearningRatePerSampleSchedule({ 0.5 }), MomentumAsTimeConstantSchedule({ 10.0, 100.0, 1000.0 }), unitGainMomentum);
+    auto learner = FSAdaGradLearner(parameters, 
+                    LearningRateSchedule({ RatePerSample(0.5) }), 
+                    MomentumSchedule({ MomentumRateAsTimeConstant(10), MomentumRateAsTimeConstant(100), MomentumRateAsTimeConstant(1000)}), unitGainMomentum);
     TestUpdate<ElementType>(learner, shape, numMinibatches, device);
 }
 
@@ -102,7 +104,11 @@ void TestAdamLearner(size_t numParameters, size_t numMinibatches, bool unitGainM
 {
     NDShape shape = CreateShape(rng() % maxNumAxes + 1, maxDimSize);
     auto parameters = CreateParameters<ElementType>(shape, numParameters, device);
-    auto learner = AdamLearner(parameters, LearningRatePerSampleSchedule({ 0.5 }), MomentumAsTimeConstantSchedule({ 10.0, 100.0, 1000.0 }), unitGainMomentum, MomentumPerSampleSchedule(0.99));
+    auto learner = AdamLearner(parameters, 
+                LearningRateSchedule({ RatePerSample(0.5) }), 
+                MomentumSchedule({ MomentumRateAsTimeConstant(10), MomentumRateAsTimeConstant(100), MomentumRateAsTimeConstant(1000) }), 
+                unitGainMomentum, 
+                MomentumSchedule(RatePerSample(0.99)));
     TestUpdate<ElementType>(learner, shape, numMinibatches, device);
 }
 
@@ -111,7 +117,11 @@ void TestAdamaxLearner(size_t numParameters, size_t numMinibatches, bool unitGai
 {
     NDShape shape = CreateShape(rng() % maxNumAxes + 1, maxDimSize);
     auto parameters = CreateParameters<ElementType>(shape, numParameters, device);
-    auto learner = AdamLearner(parameters, LearningRatePerSampleSchedule({ 0.5 }), MomentumAsTimeConstantSchedule({ 10.0, 100.0, 1000.0 }), unitGainMomentum, MomentumPerSampleSchedule(0.99), 1e-8, true);
+    auto learner = AdamLearner(parameters, 
+                    LearningRateSchedule({ RatePerSample(0.5) }), 
+                    MomentumSchedule({ MomentumRateAsTimeConstant(10), MomentumRateAsTimeConstant(100), MomentumRateAsTimeConstant(1000) }), 
+                    unitGainMomentum, 
+                    MomentumSchedule(RatePerSample(0.99)), 1e-8, true);
     TestUpdate<ElementType>(learner, shape, numMinibatches, device);
 }
 
@@ -120,7 +130,8 @@ void TestRMSPropLearner(size_t numParameters, size_t numMinibatches, const Devic
 {
     NDShape shape = CreateShape(rng() % maxNumAxes + 1, maxDimSize);
     auto parameters = CreateParameters<ElementType>(shape, numParameters, device);
-    auto learner = RMSPropLearner(parameters, LearningRatePerMinibatchSchedule({ { 3, 0.7 }, { 1, 0.2 } }), 0.95, 1.2, 0.7, 10.0, 0.001);
+    auto learner = RMSPropLearner(parameters, 
+            LearningRateSchedule({ { 3, Rate(0.7, Rate::UNKNOWN_REFMBSIZE) }, { 1, Rate(0.2, Rate::UNKNOWN_REFMBSIZE) } }), 0.95, 1.2, 0.7, 10.0, 0.001);
     TestUpdate<ElementType>(learner, shape, numMinibatches, device);
 }
 
@@ -141,122 +152,107 @@ void TestUniversalLearner(size_t numParameters, size_t numMinibatches, const Dev
 
 void TestTrainingParametersSchedule()
 {
-    LearningRatePerSampleSchedule schedule1 = 0.5;
-    assert(schedule1.Unit() == LearningRateSchedule::UnitType::Sample);
-    assert(schedule1[0] == 0.5);
-    assert(schedule1[1] == 0.5);
-    assert(schedule1[100] == 0.5);
+    LearningRateSchedule schedule1 = RatePerSample(0.5);
+    assert(schedule1[0] == Rate(0.5, 1));
+    assert(schedule1[1] == Rate(0.5, 1));
+    assert(schedule1[100] == Rate(0.5, 1));
 
-    LearningRatePerSampleSchedule schedule2 = { 0.5 };
-    assert(schedule2.Unit() == LearningRateSchedule::UnitType::Sample);
-    assert(schedule2[0] == 0.5);
-    assert(schedule2[10] == 0.5);
-    assert(schedule2[100] == 0.5);
+    LearningRateSchedule schedule2 = { RatePerSample(0.5) };
+    assert(schedule2[0] == Rate(0.5, 1));
+    assert(schedule2[10] == Rate(0.5, 1));
+    assert(schedule2[100] == Rate(0.5, 1));
 
-    LearningRatePerSampleSchedule schedule3({ 0.5, 0.3, 0.3 });
-    assert(schedule3.Unit() == LearningRateSchedule::UnitType::Sample);
-    assert(schedule3[0] == 0.5);
-    assert(schedule3[1] == 0.3);
-    assert(schedule3[100] == 0.3);
+    LearningRateSchedule schedule3({ RatePerSample(0.5), RatePerSample(0.3), RatePerSample(0.3) });
+    assert(schedule3[0] == Rate(0.5, 1));
+    assert(schedule3[1] == Rate(0.3, 1));
+    assert(schedule3[100] == Rate(0.3, 1));
 
-    LearningRatePerMinibatchSchedule schedule4 = { vector<double>{ 0.5 }, 10 }; // without vector<> gcc complains that conversion here is ambiguousS
-    assert(schedule4.Unit() == LearningRateSchedule::UnitType::Minibatch);
-    assert(schedule4[0] == 0.5);
-    assert(schedule4[10] == 0.5);
-    assert(schedule4[100] == 0.5);
+    LearningRateSchedule schedule4 = { vector<Rate>{ Rate(0.5, Rate::UNKNOWN_REFMBSIZE) }, 10 }; // without vector<> gcc complains that conversion here is ambiguousS
+    assert(schedule4[0] == Rate(0.5, Rate::UNKNOWN_REFMBSIZE));
+    assert(schedule4[10] == Rate(0.5, Rate::UNKNOWN_REFMBSIZE));
+    assert(schedule4[100] == Rate(0.5, Rate::UNKNOWN_REFMBSIZE));
 
-    LearningRatePerSampleSchedule schedule5 = { { 0.5, 0.3, 0.2 }, 10 };
-    assert(schedule5.Unit() == LearningRateSchedule::UnitType::Sample);
-    assert(schedule5[0] == 0.5);
-    assert(schedule5[9] == 0.5);
-    assert(schedule5[10] == 0.3);
-    assert(schedule5[19] == 0.3);
-    assert(schedule5[20] == 0.2);
-    assert(schedule5[100] == 0.2);
+    LearningRateSchedule schedule5 = { { RatePerSample(0.5), RatePerSample(0.3), RatePerSample(0.2) }, 10 };
+    assert(schedule5[0] == Rate(0.5, 1));
+    assert(schedule5[9] == Rate(0.5, 1));
+    assert(schedule5[10] == Rate(0.3, 1));
+    assert(schedule5[19] == Rate(0.3, 1));
+    assert(schedule5[20] == Rate(0.2, 1));
+    assert(schedule5[100] == Rate(0.2, 1));
 
-    MomentumPerMinibatchSchedule schedule6 = { { make_pair(1, 0.5) } }; // without make_pair this is interpreted as a vector of doubles
-    assert(schedule6.Unit() == MomentumSchedule::UnitType::Minibatch);
-    assert(schedule6[0] == 0.5);
-    assert(schedule6[10] == 0.5);
-    assert(schedule6[100] == 0.5);
+    MomentumSchedule schedule6 = { { make_pair(1, Rate(0.5, Rate::UNKNOWN_REFMBSIZE)) } }; // without make_pair this is interpreted as a vector of doubles
+    assert(schedule6[0] == Rate(0.5, Rate::UNKNOWN_REFMBSIZE));
+    assert(schedule6[10] == Rate(0.5, Rate::UNKNOWN_REFMBSIZE));
+    assert(schedule6[100] == Rate(0.5, Rate::UNKNOWN_REFMBSIZE));
 
-    LearningRatePerMinibatchSchedule schedule7 = { { { 1, 0.5 }, { 1, 0.3 }, { 1, 0.2 } } };
-    assert(schedule7.Unit() == LearningRateSchedule::UnitType::Minibatch);
-    assert(schedule7[0] == 0.5);
-    assert(schedule7[1] == 0.3);
-    assert(schedule7[2] == 0.2);
-    assert(schedule7[100] == 0.2);
+    LearningRateSchedule schedule7 = { { { 1, Rate(0.5, Rate::UNKNOWN_REFMBSIZE) }, { 1, Rate(0.3, Rate::UNKNOWN_REFMBSIZE) }, { 1, Rate(0.2, Rate::UNKNOWN_REFMBSIZE) } } };
+    assert(schedule7[0] == Rate(0.5, Rate::UNKNOWN_REFMBSIZE));
+    assert(schedule7[1] == Rate(0.3, Rate::UNKNOWN_REFMBSIZE));
+    assert(schedule7[2] == Rate(0.2, Rate::UNKNOWN_REFMBSIZE));
+    assert(schedule7[100] == Rate(0.2, Rate::UNKNOWN_REFMBSIZE));
 
-    MomentumPerMinibatchSchedule schedule8 = { { { 1, 0.5 }, { 1, 0.3 }, { 1, 0.2 } }, 10 };
-    assert(schedule8.Unit() == MomentumSchedule::UnitType::Minibatch);
-    assert(schedule8[0] == 0.5);
-    assert(schedule8[9] == 0.5);
-    assert(schedule8[10] == 0.3);
-    assert(schedule8[19] == 0.3);
-    assert(schedule8[20] == 0.2);
-    assert(schedule8[100] == 0.2);
+    MomentumSchedule schedule8 = { { { 1, Rate(0.5, Rate::UNKNOWN_REFMBSIZE) }, { 1, Rate(0.3, Rate::UNKNOWN_REFMBSIZE) }, { 1, Rate(0.2, Rate::UNKNOWN_REFMBSIZE) } }, 10 };
+    assert(schedule8[0] == Rate(0.5, Rate::UNKNOWN_REFMBSIZE));
+    assert(schedule8[9] == Rate(0.5, Rate::UNKNOWN_REFMBSIZE));
+    assert(schedule8[10] == Rate(0.3, Rate::UNKNOWN_REFMBSIZE));
+    assert(schedule8[19] == Rate(0.3, Rate::UNKNOWN_REFMBSIZE));
+    assert(schedule8[20] == Rate(0.2, Rate::UNKNOWN_REFMBSIZE));
+    assert(schedule8[100] == Rate(0.2, Rate::UNKNOWN_REFMBSIZE));
 
-    LearningRatePerSampleSchedule schedule9 = { { { 3, 0.5 }, { 2, 0.3 }, { 1, 0.2 } } };
-    assert(schedule9.Unit() == LearningRateSchedule::UnitType::Sample);
-    assert(schedule9[0] == 0.5);
-    assert(schedule9[2] == 0.5);
-    assert(schedule9[3] == 0.3);
-    assert(schedule9[4] == 0.3);
-    assert(schedule9[5] == 0.2);
-    assert(schedule9[100] == 0.2);
+    LearningRateSchedule schedule9 = { { { 3, RatePerSample(0.5) }, { 2, RatePerSample(0.3) }, { 1, RatePerSample(0.2) } } };
+    assert(schedule9[0] == Rate(0.5, 1));
+    assert(schedule9[2] == Rate(0.5, 1));
+    assert(schedule9[3] == Rate(0.3, 1));
+    assert(schedule9[4] == Rate(0.3, 1));
+    assert(schedule9[5] == Rate(0.2, 1));
+    assert(schedule9[100] == Rate(0.2, 1));
 
-    MomentumPerMinibatchSchedule schedule10 = { { { 3, 0.5 }, { 2, 0.3 }, { 1, 0.2 } }, 10 };
-    assert(schedule10.Unit() == MomentumSchedule::UnitType::Minibatch);
-    assert(schedule10[0] == 0.5);
-    assert(schedule10[29] == 0.5);
-    assert(schedule10[30] == 0.3);
-    assert(schedule10[49] == 0.3);
-    assert(schedule10[50] == 0.2);
-    assert(schedule10[100] == 0.2);
+    MomentumSchedule schedule10 = { { { 3, Rate(0.5, Rate::UNKNOWN_REFMBSIZE) }, { 2, Rate(0.3, Rate::UNKNOWN_REFMBSIZE) }, { 1, Rate(0.2, Rate::UNKNOWN_REFMBSIZE) } }, 10 };
+    assert(schedule10[0] == Rate(0.5, Rate::UNKNOWN_REFMBSIZE));
+    assert(schedule10[29] == Rate(0.5, Rate::UNKNOWN_REFMBSIZE));
+    assert(schedule10[30] == Rate(0.3, Rate::UNKNOWN_REFMBSIZE));
+    assert(schedule10[49] == Rate(0.3, Rate::UNKNOWN_REFMBSIZE));
+    assert(schedule10[50] == Rate(0.2, Rate::UNKNOWN_REFMBSIZE));
+    assert(schedule10[100] == Rate(0.2, Rate::UNKNOWN_REFMBSIZE));
 
-    MomentumAsTimeConstantSchedule schedule11 = { { 0.0, 1.0, 2.0 }, 10 };
-    assert(schedule11.Unit() == MomentumAsTimeConstantSchedule::UnitType::Sample);
-    assert(schedule11[0] == 0.0);
-    assert(schedule11[9] == 0.0);
-    assert(schedule11[10] == exp(-1.0 / 1.0));
-    assert(schedule11[19] == exp(-1.0 / 1.0));
-    assert(schedule11[20] == exp(-1.0 / 2.0));
-    assert(schedule11[30] == exp(-1.0 / 2.0));
+    MomentumSchedule schedule11 = { { MomentumRateAsTimeConstant(0), MomentumRateAsTimeConstant(1), MomentumRateAsTimeConstant(2) }, 10 };
+    assert(Learner::ExponetialDecayRateForMinibatch(schedule11[0], 1) == 0.0);
+    assert(Learner::ExponetialDecayRateForMinibatch(schedule11[9], 1) == 0.0);
+    assert(Learner::ExponetialDecayRateForMinibatch(schedule11[10], 1) == exp(-1.0 / 1.0));
+    assert(Learner::ExponetialDecayRateForMinibatch(schedule11[19], 1) == exp(-1.0 / 1.0));
+    assert(Learner::ExponetialDecayRateForMinibatch(schedule11[20], 1) == exp(-1.0 / 2.0));
+    assert(Learner::ExponetialDecayRateForMinibatch(schedule11[30], 1) == exp(-1.0 / 2.0));
 
-    MomentumAsTimeConstantSchedule schedule12 = schedule11;
-    assert(schedule12.Unit() == MomentumAsTimeConstantSchedule::UnitType::Sample);
-    assert(schedule12[0] == 0.0);
-    assert(schedule12[9] == 0.0);
-    assert(schedule12[10] == exp(-1.0 / 1.0));
-    assert(schedule12[19] == exp(-1.0 / 1.0));
-    assert(schedule12[20] == exp(-1.0 / 2.0));
-    assert(schedule12[30] == exp(-1.0 / 2.0));
+    MomentumSchedule schedule12 = schedule11;
+    assert(Learner::ExponetialDecayRateForMinibatch(schedule12[0], 1) == 0.0);
+    assert(Learner::ExponetialDecayRateForMinibatch(schedule12[9], 1) == 0.0);
+    assert(Learner::ExponetialDecayRateForMinibatch(schedule12[10], 1) == exp(-1.0 / 1.0));
+    assert(Learner::ExponetialDecayRateForMinibatch(schedule12[19], 1) == exp(-1.0 / 1.0));
+    assert(Learner::ExponetialDecayRateForMinibatch(schedule12[20], 1) == exp(-1.0 / 2.0));
+    assert(Learner::ExponetialDecayRateForMinibatch(schedule12[30], 1) == exp(-1.0 / 2.0));
+     
+    MomentumSchedule schedule13 = MomentumAsTimeConstantSchedule(1);
+    assert(Learner::ExponetialDecayRateForMinibatch(schedule13[0], 1) == exp(-1.0 / 1.0));
+    assert(Learner::ExponetialDecayRateForMinibatch(schedule13[1], 1) == exp(-1.0 / 1.0));
+    assert(Learner::ExponetialDecayRateForMinibatch(schedule13[100], 1) == exp(-1.0 / 1.0));
 
-    MomentumAsTimeConstantSchedule schedule13 = 1;
-    assert(schedule13.Unit() == MomentumAsTimeConstantSchedule::UnitType::Sample);
-    assert(schedule13[0] == exp(-1.0 / 1.0));
-    assert(schedule13[1] == exp(-1.0 / 1.0));
-    assert(schedule13[100] == exp(-1.0 / 1.0));
-
-    MomentumAsTimeConstantSchedule schedule14 = { { 1.0, 2.0, 3.0 } };
-    assert(schedule14.Unit() == MomentumAsTimeConstantSchedule::UnitType::Sample);
-    assert(schedule14[0] == exp(-1.0 / 1.0));
-    assert(schedule14[1] == exp(-1.0 / 2.0));
-    assert(schedule14[2] == exp(-1.0 / 3.0));
-    assert(schedule14[100] == exp(-1.0 / 3.0));
+    MomentumSchedule schedule14 = { { MomentumRateAsTimeConstant(1), MomentumRateAsTimeConstant(2), MomentumRateAsTimeConstant(3) } };
+    assert(Learner::ExponetialDecayRateForMinibatch(schedule14[0], 1) == exp(-1.0 / 1.0));
+    assert(Learner::ExponetialDecayRateForMinibatch(schedule14[1], 1) == exp(-1.0 / 2.0));
+    assert(Learner::ExponetialDecayRateForMinibatch(schedule14[2], 1) == exp(-1.0 / 3.0));
+    assert(Learner::ExponetialDecayRateForMinibatch(schedule14[100], 1) == exp(-1.0 / 3.0));
     
-    MomentumAsTimeConstantSchedule schedule15 = { { { 100, 7.0 }, { 10, 5.0 }, { 1, 3.0 } }, 100 };
+    MomentumSchedule schedule15 = { { { 100, MomentumRateAsTimeConstant(7) }, { 10, MomentumRateAsTimeConstant(5) }, { 1, MomentumRateAsTimeConstant(3) } }, 100 };
 
     auto dict = schedule15.Serialize();
 
-    TrainingParameterSchedule<double> schedule16 = TrainingParameterSchedule<double>::Deserialize(dict);
-    assert(schedule16.Unit() == MomentumAsTimeConstantSchedule::UnitType::Sample);
-    assert(schedule16[0] == exp(-1.0 / 7.0));
-    assert(schedule16[9999] == exp(-1.0 / 7.0));
-    assert(schedule16[10000] == exp(-1.0 / 5.0));
-    assert(schedule16[10999] == exp(-1.0 / 5.0));
-    assert(schedule16[11000] == exp(-1.0 / 3.0));
-    assert(schedule16[99999] == exp(-1.0 / 3.0));
+    TrainingParameterSchedule<Rate> schedule16 = TrainingParameterSchedule<Rate>::Deserialize(dict);
+    assert(Learner::ExponetialDecayRateForMinibatch(schedule16[0], 1) == exp(-1.0 / 7.0));
+    assert(Learner::ExponetialDecayRateForMinibatch(schedule16[9999], 1) == exp(-1.0 / 7.0));
+    assert(Learner::ExponetialDecayRateForMinibatch(schedule16[10000], 1) == exp(-1.0 / 5.0));
+    assert(Learner::ExponetialDecayRateForMinibatch(schedule16[10999], 1) == exp(-1.0 / 5.0));
+    assert(Learner::ExponetialDecayRateForMinibatch(schedule16[11000], 1) == exp(-1.0 / 3.0));
+    assert(Learner::ExponetialDecayRateForMinibatch(schedule16[99999], 1) == exp(-1.0 / 3.0));
 }
 
 void TestDefaultUnitGainGetterAndSetter()
@@ -273,11 +269,11 @@ void TestDefaultUnitGainGetterAndSetter()
 void TestSweepBasedSchedule()
 {
     DeviceDescriptor device = DeviceDescriptor::CPUDevice();
-    auto schedule = LearningRatePerSampleSchedule({ 1, 2, 3, 4, 5 }, LearningRateSchedule::FullDataSweep);
+    auto schedule = LearningRateSchedule({ RatePerSample(1), RatePerSample(2), RatePerSample(3), RatePerSample(4), RatePerSample(5) }, LearningRateSchedule::FullDataSweep);
 
     auto weights = Parameter({ 2 }, DataType::Float, 0, device);
     auto learner1 = SGDLearner({ weights }, schedule);
-    assert(1 == learner1->LearningRate());
+    assert(1 == learner1->LearningRatePerSample());
 
     
     for (auto i : {2, 3, 4, 5 })
@@ -286,7 +282,7 @@ void TestSweepBasedSchedule()
         auto gradientValue = MakeSharedObject<NDArrayView>(weights.Shape(), gradientValueVector);
         std::unordered_map<Parameter, NDArrayViewPtr> gradients{ { weights, gradientValue } };
         learner1->Update(gradients, 1, true);
-        assert(i == learner1->LearningRate());
+        assert(i == learner1->LearningRatePerSample());
     }
 
     const size_t inputDim = 2;
@@ -328,7 +324,7 @@ void TestSweepBasedSchedule()
         trainer->TrainMinibatch({ { input, minibatchData[featureStreamInfo] }, { labels, minibatchData[labelStreamInfo] } }, device);
         auto expectedLR = std::min((sweepIndex2 + 1), 5);
 
-        if (expectedLR != learner2->LearningRate()) {
+        if (expectedLR != learner2->LearningRatePerSample()) {
             ReportFailure("TestSweepBasedSchedule failed: "
                 "learning rate value is different from expected.");
         }
@@ -468,20 +464,20 @@ BOOST_AUTO_TEST_CASE(TestResettingLearningRate)
     auto numSamples = 1; numParameters = 1, numMinibatches = 1;
     DeviceDescriptor device = DeviceDescriptor::CPUDevice();
     auto parameters = CreateParameters<float>(shape, numParameters, device);
-    auto learner = SGDLearner(parameters, LearningRatePerSampleSchedule({ 0.1, 1, 2, 3, 4, 5 }, numSamples));
-    BOOST_TEST(learner->LearningRate() == 0.1);
+    auto learner = SGDLearner(parameters, LearningRateSchedule({ RatePerSample(0.1), RatePerSample(1), RatePerSample(2), RatePerSample(3), RatePerSample(4), RatePerSample(5) }, numSamples));
+    BOOST_TEST(learner->LearningRatePerSample() == 0.1);
     for (int i = 1; i < 4; i++)
     {
         TestUpdate<float>(learner, shape, numMinibatches, device);
-        BOOST_TEST(learner->LearningRate() == float(i));
+        BOOST_TEST(learner->LearningRatePerSample() == float(i));
     }
 
-    learner->ResetLearningRate(LearningRatePerSampleSchedule({ 9, 10, 20, 30, 40, 50 }, numSamples));
-    BOOST_TEST(learner->LearningRate() == 9.0);
+    learner->ResetLearningRate(LearningRateSchedule({ RatePerSample(9), RatePerSample(10), RatePerSample(20), RatePerSample(30), RatePerSample(40), RatePerSample(50) }, numSamples));
+    BOOST_TEST(learner->LearningRatePerSample() == 9.0);
     for (int i = 1; i < 4; i++)
     {
         TestUpdate<float>(learner, shape, numMinibatches, device);
-        BOOST_TEST(learner->LearningRate() == float(i*10));
+        BOOST_TEST(learner->LearningRatePerSample() == float(i*10));
     }
 }
 

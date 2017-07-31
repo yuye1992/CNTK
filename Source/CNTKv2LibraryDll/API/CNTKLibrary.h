@@ -1260,6 +1260,7 @@ namespace CNTK
             Vector,
             Dictionary,
             NDArrayView,
+            Rate
         };
 
         static const char* TypeName(Type type)
@@ -1290,6 +1291,8 @@ namespace CNTK
                 return "Dictionary";
             case Type::NDArrayView:
                 return "NDArrayView";
+            case Type::Rate:
+                return "Rate";
             default:
                 LogicError("Unknown DictionaryValue::Type.");
             }
@@ -4377,16 +4380,6 @@ namespace CNTK
     {
     public:
         ///
-        /// Indicates whether the values in the schedule are specified on the per-sample or 
-        /// per-minibatch basis.
-        ///
-        enum class UnitType : unsigned int
-        {
-            Sample = 0,
-            Minibatch = 1,
-        };
-
-        ///
         /// A special value that can be used for the epochSize to indicate that the schedule is sweep-based.
         ///
         static const size_t FullDataSweep = 0;
@@ -4394,14 +4387,14 @@ namespace CNTK
         ///
         /// Create a schedule with a constant parameter value.
         ///
-        CNTK_API TrainingParameterSchedule(T value, UnitType unit);
+        CNTK_API TrainingParameterSchedule(T value);
 
         ///
         /// Create a schedule where the parameter changes its value every 'epochSize' samples:
         /// schedule[0] is used for the first 'epochSize' samples, schedule[1] -- for the second,
         /// and so on. The last value is then used repeatedly until the end of training.
         ///
-        CNTK_API TrainingParameterSchedule(const std::vector<T>& schedule, UnitType unit, size_t epochSize = FullDataSweep);
+        CNTK_API TrainingParameterSchedule(const std::vector<T>& schedule, size_t epochSize = FullDataSweep);
 
         ///
         /// Create a schedule using the list of key-value pairs, where the key specifies 
@@ -4412,20 +4405,13 @@ namespace CNTK
         /// the first 100 samples, then '0.1' is used for the second 200 samples, 
         /// after which the values is switched to '0.005'.
         ///
-        CNTK_API TrainingParameterSchedule(const std::vector<std::pair<size_t, T>>& schedule, UnitType unit, size_t epochSize = FullDataSweep);
+        CNTK_API TrainingParameterSchedule(const std::vector<std::pair<size_t, T>>& schedule, size_t epochSize = FullDataSweep);
 
         ///
         /// Returns a value corresponding to the absolute sample (or sweep) 
         /// count from the beginning of training.
         ///
         CNTK_API const T& operator[](size_t count) const;
-
-        ///
-        /// Returns the unit type for 'this' training parameter schedule. 
-        /// In case when the values are specified on the per-Minibatch basis, they are
-        /// re-scaled by the learner using the actual minibatch size in samples.
-        ///
-        UnitType Unit() const { return m_unit; }
 
         bool IsSweepBased() const { return m_epochSize == FullDataSweep; }
 
@@ -4442,6 +4428,13 @@ namespace CNTK
 
         CNTK_API static TrainingParameterSchedule<T> Deserialize(const Dictionary& dictionary);
 
+#ifdef SWIGPYTHON // for Python interop (adds indexer)
+        const T __getitem__(size_t count) const
+        {
+            return TrainingParameterSchedule<T>::operator[](count);
+        }
+#endif
+
     private:
 
         friend class Learner;
@@ -4454,98 +4447,74 @@ namespace CNTK
 
     protected:           
         std::map<size_t, T> m_schedule;
-        UnitType m_unit;
         size_t m_epochSize;
     };
 
-    template <typename T, typename TrainingParameterSchedule<T>::UnitType U>
-    class TrainingParameterPerUnitSchedule : public TrainingParameterSchedule<T>
-    {
-    public:
-        TrainingParameterPerUnitSchedule(T value)
-            : TrainingParameterSchedule<T>::TrainingParameterSchedule(value, U)
-        { }
+    const std::wstring RATEFIELD = L"Rate";
+    const std::wstring RERERENCEMBSIZEFIELD = L"reference_mbsize";
 
-        TrainingParameterPerUnitSchedule(const std::vector<T>& schedule, 
-                                         size_t epochSize = TrainingParameterSchedule<T>::FullDataSweep)
-            : TrainingParameterSchedule<T>::TrainingParameterSchedule(schedule, U, epochSize)
-        { }
-
-
-        TrainingParameterPerUnitSchedule(const std::vector<std::pair<size_t, T>>& schedule, 
-                                         size_t epochSize = TrainingParameterSchedule<T>::FullDataSweep)
-            : TrainingParameterSchedule<T>::TrainingParameterSchedule(schedule, U, epochSize)
-        { }
-
-#ifdef SWIGPYTHON // for Python interop (adds indexer)
-        const T __getitem__(size_t count) const
-        {
-            return TrainingParameterSchedule<T>::operator[](count);
-        }
-#endif
-    };
-
-// Swig does not understand type aliasing.
-#ifndef SWIG
-    ///
-    /// Training parameter schedule with per-sample values.
-    ///
-    template <typename T>
-    using TrainingParameterPerSampleSchedule = TrainingParameterPerUnitSchedule<T, TrainingParameterSchedule<T>::UnitType::Sample>;
-
-    ///
-    /// Training parameter schedule with per-minibatch values.
-    ///
-    template <typename T>
-    using TrainingParameterPerMinibatchSchedule = TrainingParameterPerUnitSchedule<T, TrainingParameterSchedule<T>::UnitType::Minibatch>;
-
-    typedef TrainingParameterPerSampleSchedule<double> LearningRatePerSampleSchedule;
-    typedef TrainingParameterPerMinibatchSchedule<double> LearningRatePerMinibatchSchedule;
-
-    typedef TrainingParameterPerSampleSchedule<double> MomentumPerSampleSchedule;
-    typedef TrainingParameterPerMinibatchSchedule<double> MomentumPerMinibatchSchedule;
-#endif
-
-    typedef TrainingParameterPerUnitSchedule<size_t, TrainingParameterSchedule<size_t>::UnitType::Sample> MinibatchSizeSchedule;
-    typedef TrainingParameterSchedule<double> LearningRateSchedule;
-    typedef TrainingParameterSchedule<double> MomentumSchedule;
-
-    ///
-    /// This class allows to specify momentum as time constant in place of momentum per sample in 
-    /// all of Learners factory methods. The specified values are then automatically converted into 
-    /// per sample values.
-    ///
-    class MomentumAsTimeConstantSchedule: public TrainingParameterSchedule<double>
-    {
-    public:
-        MomentumAsTimeConstantSchedule(double value) 
-            : TrainingParameterSchedule<double>::TrainingParameterSchedule(value, UnitType::Sample)
-        { 
-            ConvertToPerSampleValues();
-        }
-        
-        MomentumAsTimeConstantSchedule(const std::vector<double>& schedule, size_t epochSize = FullDataSweep) 
-            : TrainingParameterSchedule<double>::TrainingParameterSchedule(schedule, UnitType::Sample, epochSize) 
-        { 
-            ConvertToPerSampleValues();
-        }
-        
-        MomentumAsTimeConstantSchedule(const std::vector<std::pair<size_t, double>>& schedule, size_t epochSize = FullDataSweep) 
-            : TrainingParameterSchedule<double>::TrainingParameterSchedule(schedule, UnitType::Sample, epochSize)
-        { 
-            ConvertToPerSampleValues();
-        }
-
-#ifdef SWIGPYTHON // for Python interop (adds indexer)
-        const double __getitem__(size_t count) const
-        {
-            return operator[](count);
-        }
-#endif
-
+    ///A struct for defining learning rate, momumentum, and moumentum variance and other rates related to learning.
+    ///CNTK handles variable size minibatches by adjusting learning rates, momentum, momentum variance and so on correspondingly. 
+    ///In the literature learning rates (and other rates) are specified for a pre-defined
+    ///minibatch size. This causes confusion for end users. The intention of Rate struct is to specify these rates 
+    ///along with a reference minibatch size to help CNTK adjust learning based on minibatch size while 
+    ///at the same time following intended effect of learning rates as if it is applied on the reference minibatch 
+    ///size in the literature. 
+    class Rate {
     private:
-        CNTK_API void ConvertToPerSampleValues();
+        double rate; ///< rate corresponding to the reference minibatch size Rate::reference_mbsize.
+        size_t reference_mbsize; ///< Reference minibatch size.
+
+    public:
+        static const size_t UNKNOWN_REFMBSIZE = std::numeric_limits<size_t>::max(); ///< Represent unknown reference size. 
+
+        Rate() : rate(0), reference_mbsize(0) {};
+        Rate(double rate, size_t reference_mbsize) : rate(rate), reference_mbsize(reference_mbsize) {};
+        Rate(const Rate& right) : rate(right.rate), reference_mbsize(right.reference_mbsize) {};
+
+        bool operator ==(const Rate& right) const { return rate == right.rate && reference_mbsize == right.reference_mbsize; };
+
+        ///Convert to dictionary representation for serialization and descrialization
+        Dictionary ToDictionary() const
+        { 
+
+            Dictionary rep = Dictionary(); 
+            rep.Add(RATEFIELD, rate, RERERENCEMBSIZEFIELD, reference_mbsize);
+            return rep;
+        }
+
+        Rate(const Dictionary& dict) 
+        {
+            rate = dict[RATEFIELD].Value<double>();
+            reference_mbsize = dict[RERERENCEMBSIZEFIELD].Value<size_t>();
+        }
+        double Value() const { return rate; }
+        size_t ReferenceMBSize() const { return reference_mbsize; }
     };
+    typedef TrainingParameterSchedule<size_t> MinibatchSizeSchedule;
+    typedef TrainingParameterSchedule<Rate> LearningRateSchedule;
+    typedef TrainingParameterSchedule<Rate> MomentumSchedule;
+
+    //
+    inline Rate RatePerSample(double rate) { return Rate(rate, 1); }
+
+    ///MomentumAsTimeConstont is for legacy API. TODO: Should be deprecated.
+    inline Rate MomentumRateAsTimeConstant(size_t time_constant)
+    {
+        return Rate(exp(-1.0), time_constant);
+    }
+
+    inline MomentumSchedule MomentumAsTimeConstantSchedule(size_t time_constant) 
+    {
+        return MomentumSchedule(MomentumRateAsTimeConstant(time_constant));
+    }
+    inline LearningRateSchedule LearningRatePerSampleSchedule(double learning_rate)
+    {
+        return LearningRateSchedule(RatePerSample(learning_rate));
+    }
+    CNTK_API LearningRateSchedule LearningRatePerSampleSchedule(std::vector<double> learning_rates);
+    //
+
 
     ///
     /// A collection of additional options that affect parameter updates and 
@@ -4555,17 +4524,10 @@ namespace CNTK
     {
         double l1RegularizationWeight = 0.0;
         double l2RegularizationWeight = 0.0;
-#ifdef SWIG //for python interop (swig does not fully support "using")
-        TrainingParameterPerUnitSchedule<double, TrainingParameterSchedule<double>::UnitType::Minibatch> gaussianNoiseInjectionStdDev = 0.0;
-#else
-        TrainingParameterPerMinibatchSchedule<double> gaussianNoiseInjectionStdDev = 0.0;
-#endif
+        TrainingParameterSchedule<double> gaussianNoiseInjectionStdDev = 0.0;
+
         double gradientClippingThresholdPerSample = std::numeric_limits<double>::infinity();
         bool gradientClippingWithTruncation = true;
-
-        // This option results in the mean value of the gradients across the samples in the minibatch to be used by the learner.
-        // The mean gradient is computed by dividing the gradient values accumulated across all samples by the actual number of samples (labels) in the minibatch.
-        bool useMeanGradient = false;
     };
 
     ///  
@@ -4595,6 +4557,70 @@ namespace CNTK
     ///
     class Learner
     {
+    public: 
+        //TODO: encountered_mbsize is only for legacy API. 
+        //Learning rate per sample is irrelevant of encountered_mbsize once the reference mbsize is defined. 
+        //In the future, we should enforce the specification of reference_mbsize and deprecate learning rate 
+        //that is defined for unknown reference size minibatch. As it is mathematically incorrect. 
+        static double LearningRatePerSample(const Rate& rate, size_t encountered_mbsize)
+        {
+            if (rate.ReferenceMBSize() == Rate::UNKNOWN_REFMBSIZE) 
+                return rate.Value() / (double) encountered_mbsize;
+            else 
+                return rate.Value() / rate.ReferenceMBSize();
+        };
+        static double LearningRatePerSample(const Rate& rate)
+        {
+            if (rate.ReferenceMBSize() == Rate::UNKNOWN_REFMBSIZE)
+                LogicError("Reference minibatch size is not specified");
+
+            return rate.Value() / rate.ReferenceMBSize();
+        };
+        static double LearningRatePerMinibatch(const Rate& rate, size_t encountered_mbsize = Rate::UNKNOWN_REFMBSIZE)
+        {
+            if (encountered_mbsize == rate.ReferenceMBSize() || rate.ReferenceMBSize() == Rate::UNKNOWN_REFMBSIZE)
+                return rate.Value();
+            else
+                return encountered_mbsize * (rate.Value() / (double) rate.ReferenceMBSize());
+        };
+
+
+        /// Exponetial decay rate for encounter minibatch size. 
+        /// Exponential decay rate per minibatch is used by momumentum SGD and ADAM to smooth the gradients. 
+        ///
+        /// As CNTK can have variable minibatch size, we derive the exponential decay rate variable minibatch size as follows for reference:
+        /// Let sg be the smooth gradient, g be the gradient, lr being the learnign rate, and m be the moment for the designated mb_size.
+        /// Standard momumentum sgd:
+        /// sg_t = m * sg_{t-1} + lr * \sum_{i \in mb_t} g_{t-1, i} / mb_{t,size}
+        /// = m * [m * sg_{t-2}) + lr * \sum_{i \in mb_{t-1}} g_{t-1, i} / mb_{t-1, size}] + lr * \sum_{i \in mb_t} g_{t-1, i} / mb_{t,size}
+        /// w_t =  w_{t-1} - sg_t
+        /// 
+        /// If we have mb2_size for the encountered_mbsize (a difference size than mb_size) minibatch mb2, and the correponsding momument is m2
+        /// sg2_t = m2 * sg2_{t-1} + lr * \sum_{i \in mb2} g_{t-1, i} / mb2_size
+        /// w_t =  w_{t-1} - sg2_t
+        /// 
+        /// If we want w_t =  w_{t-1} - sg2_t to have the same updating effect for a sweep of data as with the original update
+        /// w_t =  w_{t-1} - sg_t, we need to have the number of times the momument multiplied into the gradients of the two equations equal
+        /// to each other:
+        /// m2 ^ [epoc_size / mb2_size] = m ^ [epoc_size / mb_size]
+        /// Therefore, we have
+        /// [epoc_size / mb2_size] log m2 = [epoc_size / mb_size] log m
+        /// log m2 = [mb2_size / mb_size] log m
+        /// m2 = m ^ [mb2_size / mb_size]
+        /// 
+        /// The adjustment for unit gain momentum with similar derivation.
+        ///                                                 Yuqing Tang
+        ///                                                 07/28/2017
+        /// 
+        static double ExponetialDecayRateForMinibatch(const Rate& rate, size_t encountered_mbsize)
+        {
+            if (encountered_mbsize == rate.ReferenceMBSize() || rate.ReferenceMBSize() == Rate::UNKNOWN_REFMBSIZE)
+                return rate.Value();
+            else if (rate.ReferenceMBSize() == 0)
+                return 0.0;
+            else
+                return std::pow(rate.Value(), encountered_mbsize / rate.ReferenceMBSize());
+        }
     public:
         //
         // Method to update the parameters associated with this learner. By returning false, this method indicates that
@@ -4643,9 +4669,18 @@ namespace CNTK
         ///
         /// Returns current learning rate.
         ///
-        virtual double LearningRate() const
+        virtual Rate LearningRate() const
         {
-            return GetCurrentTrainingParameterValue<double>(m_learningRateSchedule);
+            return GetCurrentTrainingParameterValue<Rate>(m_learningRateSchedule);
+        }
+
+        double LearningRatePerSample(size_t actualMBSize) const 
+        {
+            return LearningRatePerSample(LearningRate(), actualMBSize);
+        }
+        double LearningRatePerSample() const
+        {
+            return LearningRatePerSample(LearningRate());
         }
 
         size_t TotalNumberOfSamplesSeen() const
@@ -4713,6 +4748,9 @@ namespace CNTK
                                         bool unitGain = DefaultUnitGainValue(),
                                         AdditionalLearningOptions additionalOptions = AdditionalLearningOptions());
 
+    //Note for historical record: 
+    //  static MomentumSchedule DefaultVarianceMomentum = MomentumAsTimeConstantSchedule(2 * 3600 * 100);
+    //  which is equivalent to exponetial decay Rate( exp(-1.0), 2 * 3600 * 100) by definition
     static MomentumSchedule DefaultVarianceMomentum = MomentumAsTimeConstantSchedule(2 * 3600 * 100);
 
     ///
@@ -4808,7 +4846,7 @@ namespace CNTK
             m_learner->ResetLearningRate(learningRateSchedule);
         }
 
-        virtual double LearningRate() const
+        virtual Rate LearningRate() const
         {
             return m_learner->LearningRate();
         }
@@ -4848,7 +4886,7 @@ namespace CNTK
     protected:
         DistributedLearner(DistributedCommunicatorPtr communicator, LearnerPtr learner, size_t distributeAfterSamples)
             : Learner(learner? learner->Parameters() : std::vector<Parameter>(),
-                      LearningRateSchedule(0, LearningRateSchedule::UnitType::Sample)),
+                      LearningRateSchedule(Rate(0, 1))),
               m_learner(learner),
               m_communicator(communicator),
               m_distributeAfterSamples(distributeAfterSamples)

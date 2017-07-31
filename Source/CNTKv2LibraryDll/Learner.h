@@ -45,20 +45,7 @@ namespace CNTK
 
         std::string LearnerType() const;
 
-        // Returns current (per-sample) learning rate.
-        double LearningRate(size_t minibatchSize) const
-        {
-            auto learningRate = Learner::LearningRate();
-            if (m_learningRateSchedule.Unit() == LearningRateSchedule::UnitType::Minibatch)
-            {
-                // learning rate needs to be converted to the per-sample value.
-                return (minibatchSize == 0) ? 0.0 : learningRate / minibatchSize;
-            }
-
-            return learningRate;
-        }
-
-        void ReportTrainingParameterValue(const TrainingParameterSchedule<double>& schedule, const std::wstring& name) const;
+        void ReportTrainingParameterValue(const TrainingParameterSchedule<Rate>& schedule, const std::wstring& name) const;
 
         // A map cointaining hyperparameter names and corresponging values that's used to track and report changes 
         // in hyperparameter values.

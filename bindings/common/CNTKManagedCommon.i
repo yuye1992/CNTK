@@ -246,18 +246,20 @@ IGNORE_FUNCTION CNTK::HTKMLFDeserializer;
 
 IGNORE_NAMESPACE CNTK::Sequence;
 
+IGNORE_CLASS CNTK::Rate;
+IGNORE_FUNCTION CNTK::RatePerSample;
+IGNORE_FUNCTION CNTK::LearningRatePerSampleSchedule;
+IGNORE_FUNCTION CNTK::LearningRatePerSampleSchedule;
+IGNORE_FUNCTION CNTK::MomentumAsTimeConstantSchedule;
+IGNORE_FUNCTION CNTK::MomentumRateAsTimeConstant;
+IGNORE_FUNCTION CNTK::LearningRatePerSampleSchedule;
+IGNORE_FUNCTION CNTK::LearningRatePerSampleSchedule;
+
+
 IGNORE_CLASS CNTK::TrainingParameterSchedule;
-IGNORE_CLASS CNTK::TrainingParameterPerUnitSchedule;
-IGNORE_CLASS CNTK::TrainingParameterPerSampleSchedule;
-IGNORE_CLASS CNTK::TrainingParameterPerMinibatchSchedule;
-IGNORE_CLASS CNTK::LearningRatePerSampleSchedule;
-IGNORE_CLASS CNTK::LearningRatePerMinibatchSchedule;
 IGNORE_CLASS CNTK::MinibatchSizeSchedule;
 IGNORE_CLASS CNTK::LearningRateSchedule;
 IGNORE_CLASS CNTK::MomentumSchedule;
-IGNORE_CLASS CNTK::MomentumPerSampleSchedule;
-IGNORE_CLASS CNTK::MomentumPerMinibatchSchedule;
-IGNORE_CLASS CNTK::MomentumAsTimeConstantSchedule;
 IGNORE_STRUCT CNTK::AdditionalLearningOptions;
 IGNORE_CLASS CNTK::Learner;
 
