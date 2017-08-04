@@ -10,6 +10,10 @@ import itertools
 
 model_path = r'c:\repo\halide_playground\my_super.model'
 
+#####################################################################################################################################
+#####################################################################################################################################
+#####################################################################################################################################
+
 # Utility function for NX Graph visualization
 def nx_plot(g, filename):
     if filename:
@@ -132,6 +136,10 @@ def nx_plot(g, filename):
         else:
             dot_object.write_raw(filename)
 
+#####################################################################################################################################
+#####################################################################################################################################
+#####################################################################################################################################
+
 class ModelToGraphConverter:
     def __init__(self):
         super(ModelToGraphConverter, self).__init__()
@@ -195,6 +203,9 @@ class ModelToGraphConverter:
             raise ValueError("Unexpected node type %s" % node)
 
 
+#####################################################################################################################################
+#####################################################################################################################################
+#####################################################################################################################################
 # Utility functions for graph transformations
 
 def remove_output_nodes(g):
@@ -242,69 +253,81 @@ def split_past_values(g):
 
         g.remove_node(node)
 
+#####################################################################################################################################
+#####################################################################################################################################
+#####################################################################################################################################
+
 class ExpressionGenerator:
     def __init__(self):
         super(ExpressionGenerator, self).__init__()
-        self.variable_table = {}
-        self.full_listing = ''
 
-    def generate(self, node, visited, child):
-        if node.uid in visited:
-           return
-        visited.add(node.uid)
-
+    def generate(self, nodes):
         from cntk import cntk_py
 
-        if isinstance(node, cntk_py.Function):
-            if node.is_block:
-                new_root = node.block_root
-                new_root = new_root.root_function if new_root.is_composite else new_root
-                mapping = node.block_arguments_mapping
-                for placeholder, actual_input in mapping:
-                     self.generate(actual_input, visited, child)
-                self.generate(new_root, visited, child)
-            elif node.is_primitive:
-                for p in node.inputs:
-                    self.generate(p, visited, node)
+        for node in nodes:
+            if isinstance(node, cntk_py.Function):
+                if not node.is_primitive:
+                    raise ValueError('Unexpected non primitive function %s' % node)
                 self.generate_primitive_function(node)
-            elif node.is_composite:
-                self.generate(node.root_function, visited, child)
+            elif node.is_parameter:
+                self.generate_parameter(node)
+            elif node.is_constant:
+                self.generate_constant(node)
+            elif node.is_input:
+                self.generate_input(node)
+            elif node.is_output:
+                self.generate_output(node)
             else:
-                pdb.set_trace()
-                raise ValueError("Unexpected function node")
-        elif node.is_parameter:
-            self.generate_parameter(node)
-        elif node.is_constant:
-            self.generate_constant(node)
-        elif node.is_input:
-            self.generate_input(node)
-        elif node.is_output:
-            self.generate(node.owner, visited, node)
-            self.generate_output(node)
-        elif node.is_placeholder:
-            self.generate_placeholder(node)
-        else:
-            pdb.set_trace()
-            raise ValueError("Unexpected node type")
+                raise ValueError("Unexpected node type %s" % node)
 
     def generate_parameter(self, node):
-        self.full_listing += "Parameter() { name : %s, uid : %s, shape : %s }\n" % (node.name, node.uid, node.shape)
+        raise NotImplemented()
 
     def generate_constant(self, node):
-        self.full_listing += "Constant() { name : %s, uid : %s, shape : %s }\n" % (node.name, node.uid, node.shape)
+        raise NotImplemented()
 
     def generate_input(self, node):
-        self.full_listing += "Input() { name : %s, uid : %s, shape : %s }\n" % (node.name, node.uid, node.shape)
+        raise NotImplemented()
 
     def generate_output(self, node):
-        self.full_listing += "Output() { name : %s, uid : %s, shape : %s }\n" % (node.name, node.uid, node.shape)
+        raise NotImplemented()
 
     def generate_primitive_function(self, node):
-        self.full_listing += "Primitive Function() { name : %s, uid : %s, op name : %s }\n" % (node.name, node.uid, node.op_name)
+        raise NotImplemented()
 
-    def generate_placeholder(self, node):
-        self.full_listing += "Placeholder() { name : %s, uid : %s }\n" % (node.name, node.uid)
-      
+
+class HalideExpressionGenerator(ExpressionGenerator):
+    def __init__(self):
+        super(HalideExpressionGenerator, self).__init__()
+        uid_to_expression = {}
+
+    def generate_parameter(self, node):
+        pdb.set_trace()
+        raise NotImplemented()
+
+    def generate_constant(self, node):
+        pdb.set_trace()
+        raise NotImplemented()
+
+    def generate_input(self, node):
+        pdb.set_trace()
+        raise NotImplemented()
+
+    def generate_output(self, node):
+        pdb.set_trace()
+        raise NotImplemented()
+
+    def generate_primitive_function(self, node):
+        pdb.set_trace()
+        raise NotImplemented()
+
+
+#####################################################################################################################################
+#####################################################################################################################################
+#####################################################################################################################################
+
+
+
 model = Function.load(model_path)
 
 pdb.set_trace()
@@ -325,10 +348,13 @@ nx_plot(g, 'DAG.pdf')
 if not nx.is_directed_acyclic_graph(g):
     raise ValueError('Unsupported type of graph: please make sure there are no several past values in a single loop')
 
-sorted_for_generation = nx.topological_sort(g)
+nodes_sorted_for_generation = nx.topological_sort(g)
 
-for node in sorted_for_generation:
+for node in nodes_sorted_for_generation:
     print('Node name %s, uid %s' % (node.name, node.uid))
+
+generator = HalideExpressionGenerator()
+generator.generate(nodes_sorted_for_generation)
 
 #for node in g.nodes():
 #    print('Node id %s' % node.uid)
