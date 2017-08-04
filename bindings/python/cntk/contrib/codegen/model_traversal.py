@@ -322,10 +322,13 @@ nx_plot(g, 'graph_without_outputs.pdf')
 split_past_values(g)
 nx_plot(g, 'DAG.pdf')
 
-#if not nx.is_connected(g.to_undirected()):
-#    raise ValueError('Unsupported type of graph: please make sure there are no several past values in a single loop')
+if not nx.is_directed_acyclic_graph(g):
+    raise ValueError('Unsupported type of graph: please make sure there are no several past values in a single loop')
 
+sorted_for_generation = nx.topological_sort(g)
 
+for node in sorted_for_generation:
+    print('Node name %s, uid %s' % (node.name, node.uid))
 
 #for node in g.nodes():
 #    print('Node id %s' % node.uid)
