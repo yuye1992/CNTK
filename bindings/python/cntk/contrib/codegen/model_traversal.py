@@ -77,7 +77,8 @@ def nx_plot(g, filename):
         return cur_node
 
     # Add all nodes
-    for node in g.nodes():
+    for n in g.nodes():
+        node = g.node[n]['data']
         from cntk import cntk_py
         if isinstance(node, cntk_py.Function):
             # add current node
@@ -118,13 +119,14 @@ def nx_plot(g, filename):
         dot_nodes[node.uid] = cur_node
 
     # Add edges
-    for node in g.nodes():
-        successors = g.successors(node)
+    for n in g.nodes():
+        node = g.node[n]['data']
+        successors = g.successors(node.uid)
         for successor in successors:
             label = node.name if node.name else node.uid # the Output variables have no name if the function has none
             label += '\n' + shape_desc(node) + '\n' + node_desc(node)
 
-            dot_object.add_edge(pydot.Edge(dot_nodes[node.uid], dot_nodes[successor.uid], label=label))
+            dot_object.add_edge(pydot.Edge(dot_nodes[node.uid], dot_nodes[successor], label=label))
 
     if filename:
         if suffix == '.svg':
@@ -168,10 +170,14 @@ class ModelToGraphConverter:
 
         # First thing - add an edge between the child and the node
         # skipping blocks if needed
+        # BUGBUG: Two nested blocks?
         if child is not None:
-            g.add_edge(
-                dict(node.block_outputs_mapping)[child] if is_function and node.is_block else node,
-                child) 
+            if not g.has_node(child.uid):
+                g.add_node(child.uid, data=child)
+            cur = dict(node.block_outputs_mapping)[child] if is_function and node.is_block else node
+            if not g.has_node(cur.uid):
+                g.add_node(cur.uid, data=cur)
+            g.add_edge(cur.uid, child.uid)
 
         if node.uid in visited:
             return
@@ -214,26 +220,28 @@ def remove_output_nodes(g):
     removed = True
     while removed:
         removed = False
-        for node in g.nodes():
+        for n in g.nodes():
+            node = g.node[n]['data']
             if not (isinstance(node, cntk.variables.Variable) and node.is_output):
                 continue
      
-            successors = g.successors(node)
+            successors = g.successors(n)
             if len(successors) == 0:
                 continue
      
-            predecessors = g.predecessors(node)      
+            predecessors = g.predecessors(n)      
             if len(predecessors) == 0:
                 raise ValueError("Unexpected output node with no ancestors")
      
             for p, s in itertools.product(predecessors, successors):
-                g.add_edge(p, s, data = node, label = node.uid)
+                g.add_edge(p, s, data = g.node[n]['data'], label = g.node[n]['data'].uid)
      
-            g.remove_node(node)
+            g.remove_node(n)
             removed = True
 
 def split_past_values(g):
-    for node in g.nodes():
+    for n in g.nodes():
+        node = g.node[n]['data']
         if not isinstance(node, cntk_py.Function):
             continue
         if node.op_name != 'PastValue':
@@ -242,29 +250,31 @@ def split_past_values(g):
         external_output = cntk.output_variable(dynamic_axes=node.dynamic_axes, shape=node.shape, dtype=node.dtype, name=node.uid + '_external_output')
         external_input = cntk.input_variable(dynamic_axes=node.dynamic_axes, shape=node.shape, dtype=node.dtype, name=node.uid + '_external_input')
 
-        g.add_node(external_input, original=node, name=external_input.uid)
-        g.add_node(external_output, original=node, name=external_output.uid)
+        g.add_node(external_input.uid, data=external_input, original=node)
+        g.add_node(external_output.uid, data=external_output, original=node)
 
-        for successor in g.successors(node):
-            g.add_edge(external_input, successor)
+        for successor in g.successors(n):
+            g.add_edge(external_input.uid, successor)
 
-        for predecessor in g.predecessors(node):
-            g.add_edge(predecessor, external_output)
+        for predecessor in g.predecessors(n):
+            g.add_edge(predecessor, external_output.uid)
 
-        g.remove_node(node)
+        g.remove_node(n)
 
 #####################################################################################################################################
 #####################################################################################################################################
 #####################################################################################################################################
 
 class ExpressionGenerator:
-    def __init__(self):
+    def __init__(self, graph):
         super(ExpressionGenerator, self).__init__()
+        self.graph = graph
 
     def generate(self, nodes):
         from cntk import cntk_py
 
-        for node in nodes:
+        for n in nodes:
+            node = self.graph.node[n]['data']
             if isinstance(node, cntk_py.Function):
                 if not node.is_primitive:
                     raise ValueError('Unexpected non primitive function %s' % node)
@@ -298,8 +308,8 @@ class ExpressionGenerator:
 
 class HalideExpressionGenerator(ExpressionGenerator):
     def __init__(self, g):
-        super(HalideExpressionGenerator, self).__init__()
-        self.uid_to_expression = {}
+        super(HalideExpressionGenerator, self).__init__(g)
+        self.uid_to_exp = {}
         self.graph = g
         self.listing = ''
 
@@ -314,9 +324,9 @@ class HalideExpressionGenerator(ExpressionGenerator):
             expression += ('%f' % value) + ', '
         expression += '};\n'
         if len(node.shape) == 2:
-            expression += 'Buffer<%s> %s = Buffer<%s>(c_%s, %s, %s, "%s")' % (data_type, node.uid, data_type, node.uid, node.shape[0], node.shape[1], node.uid)
+            expression += 'Buffer<%s> %s = Buffer<%s>(c_%s, %s, %s, "%s");' % (data_type, node.uid, data_type, node.uid, node.shape[0], node.shape[1], node.uid)
         elif len(node.shape) == 1:
-            expression += 'Buffer<%s> %s = Buffer<%s>(c_%s, %s, "%s")' % (data_type, node.uid, data_type, node.uid, node.shape[0], node.uid)
+            expression += 'Buffer<%s> %s = Buffer<%s>(c_%s, %s, "%s");' % (data_type, node.uid, data_type, node.uid, node.shape[0], node.uid)
         else:
             raise ValueError('Unexpected shape encoutered, only 1 and 2D are currently supported %s' % node)
         return expression
@@ -325,24 +335,40 @@ class HalideExpressionGenerator(ExpressionGenerator):
         node = node.as_parameter()
         exp = self.generate_value(node)
         self.listing += exp + '\n'
+        self.uid_to_exp[node.uid] = '%s' % node.uid
 
     def generate_constant(self, node):
         node = node.as_constant()
         exp = self.generate_value(node)
         self.listing += exp + '\n'
+        self.uid_to_exp[node.uid] = '%s' % node.uid
 
     def generate_input(self, node):
-        set_trace()
-
-        pass
+        input = self.graph.node[node.uid]
+        if 'original' in input:
+            original = input['original']
+            exp = '%s(%d)' % (node.name, original.attributes['offset'])
+        else:
+            exp = '%s()' % (node.uid)
+        self.uid_to_exp[node.uid] = '%s' % exp
 
     def generate_output(self, node):
-        operands = self.graph.predecessors(node)
-        arguments = '%s' % operands[0].uid
-        for o in operands[1:]:
-            arguments += ', %s' % o.uid
-        exp = '%s(%s)' % (node.uid, arguments)
-        self.listing += exp;
+        output = self.graph.node[node.uid]
+        operands = self.graph.predecessors(node.uid)
+        if 'original' in output:
+            original = output['original']
+            if len(operands) != 2:
+                raise ValueError('Past Value value is expected to have 2 operands, given %s' % str(operands))
+            arguments = '%s' % operands[0]
+            for o in operands[1:]:
+                arguments += ', %s' % o
+            exp = '%s(%s)' % (node.name, arguments)
+        else:
+            if len(operands) != 1:
+                raise ValueError('Output value is expected to have a single operand, given %s' % str(operands))
+            arguments = '%s' % operands[0]
+            exp = '%s(%s)' % (node.uid, operands[0])
+        self.listing += exp + ';\n';
 
     def generate_primitive_function(self, node):
         op_name = node.op_name
@@ -361,28 +387,28 @@ class HalideExpressionGenerator(ExpressionGenerator):
         else:
             set_trace()
             raise ValueError('Not implemented function %s' % node.op_name)
-        self.uid_to_expression[node.uid] = '%s' % node.uid
+        self.uid_to_exp[node.uid] = '%s' % node.uid
 
     def generate_binary_call(self, node, op_name):
-        operands = self.graph.predecessors(node)
+        operands = self.graph.predecessors(node.uid)
         if len(operands) != 2:
             raise ValueError('Operation "%s" expects 2 operands, given %s', op_name, str(operands))
-        exp = '%s = %s(%s, %s)' % tuple([node.uid, op_name] + [o.uid for o in operands])
-        self.listing += exp + '\n'
+        exp = '%s = %s(%s, %s)' % tuple([node.uid, op_name] + [self.uid_to_exp[o] for o in operands])
+        self.listing += exp + ';\n'
 
     def generate_binary_op(self, node, op_name):
-        operands = self.graph.predecessors(node)
+        operands = self.graph.predecessors(node.uid)
         if len(operands) != 2:
             raise ValueError('Operation "%s" expects 2 operands, given %s', op_name, str(operands))
-        exp = '%s = %s %s %s' % tuple([node.uid, operands[0], op_name, operands[1]])
-        self.listing += exp + '\n'
+        exp = '%s = %s %s %s' % tuple([node.uid, self.uid_to_exp[operands[0]], op_name, self.uid_to_exp[operands[1]]])
+        self.listing += exp + ';\n'
 
     def generate_unary_op(self, node, op_name):
-        operands = self.graph.predecessors(node)
+        operands = self.graph.predecessors(node.uid)
         if len(operands) != 1:
             raise ValueError('Operation "%s" expects 1 operand, given %s', op_name, str(operands))
-        exp = '%s = %s(%s)' % tuple([node.uid, op_name, operands[0]])
-        self.listing += exp + '\n'
+        exp = '%s = %s(%s)' % tuple([node.uid, op_name, self.uid_to_exp[operands[0]]])
+        self.listing += exp + ';\n'
 
     def generate_times(self, node):
         self.generate_binary_call(node, 'Times')
@@ -400,20 +426,20 @@ class HalideExpressionGenerator(ExpressionGenerator):
         self.generate_unary_op(node, 'Tanh')
 
     def generate_slice(self, node):
-        operand = self.graph.predecessors(node)
+        operand = self.graph.predecessors(node.uid)
         if len(operand) != 1:
             raise ValueError('Operation "slice" expects 2 operands')
-        operand = operand[0]
+        operand = self.graph.node[operand[0]]['data']
         if len(operand.shape) == 1:
             begin = node.attributes['beginIndex']
             end = node.attributes['endIndex']
             stride = node.attributes['sliceStrides']
             if stride != 1:
                 raise ValueError('Unexpected stride "%s", only stride of 1 is currently supported' % str(stride))
-            exp = '%s = ((%s)(%d, %d))' % (node.uid, operand.uid, begin, end)
+            exp = '%s = ((%s)(%d, %d))' % (node.uid, self.uid_to_exp[operand.uid], begin, end)
         else:
             raise ValueError('Slice is not supported on node of shape %s' % str(node.shape)) 
-        self.listing += exp + '\n'
+        self.listing += exp + ';\n'
 
 #####################################################################################################################################
 #####################################################################################################################################
@@ -444,7 +470,7 @@ if not nx.is_directed_acyclic_graph(g):
 nodes_sorted_for_generation = nx.topological_sort(g)
 
 for node in nodes_sorted_for_generation:
-    print('Node name %s, uid %s' % (node.name, node.uid))
+    print('Node name %s, uid %s' % (g.node[node]['data'].name, node))
 
 generator = HalideExpressionGenerator(g)
 generator.generate(nodes_sorted_for_generation)
