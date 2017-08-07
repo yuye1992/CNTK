@@ -5,7 +5,7 @@ import cntk.variables
 import numpy as np
 import networkx as nx
 import matplotlib.pyplot as plt
-import pdb
+from pdb import set_trace
 import itertools
 
 model_path = r'c:\repo\halide_playground\my_super.model'
@@ -188,7 +188,7 @@ class ModelToGraphConverter:
                     i = placeholder_mapping[i] if i.is_placeholder else i
                     self._convert(g, i, node, visited, placeholder_mapping)
             else:
-                pdb.set_trace()
+                set_trace()
                 raise ValueError("Unexpected function node type %s" % node)
 
         elif node.is_parameter or node.is_constant or node.is_input:
@@ -199,7 +199,7 @@ class ModelToGraphConverter:
             actual_node = placeholder_mapping[node]
             self._convert(g, actual_node, visited, placeholder_mapping)
         else:
-            pdb.set_trace()
+            set_trace()
             raise ValueError("Unexpected node type %s" % node)
 
 
@@ -239,11 +239,11 @@ def split_past_values(g):
         if node.op_name != 'PastValue':
             continue
 
-        external_output = cntk.output_variable(dynamic_axes=node.dynamic_axes, shape=node.shape, dtype=node.dtype, name = node.uid + 'PastValue_external_output')
-        external_input = cntk.input_variable(dynamic_axes=node.dynamic_axes, shape=node.shape, dtype=node.dtype, name = node.uid + 'PastValue_external_input')
+        external_output = cntk.output_variable(dynamic_axes=node.dynamic_axes, shape=node.shape, dtype=node.dtype, name=node.uid + '_external_output')
+        external_input = cntk.input_variable(dynamic_axes=node.dynamic_axes, shape=node.shape, dtype=node.dtype, name=node.uid + '_external_input')
 
-        g.add_node(external_input, original = node)
-        g.add_node(external_output, original = node)
+        g.add_node(external_input, original=node, name=external_input.uid)
+        g.add_node(external_output, original=node, name=external_output.uid)
 
         for successor in g.successors(node):
             g.add_edge(external_input, successor)
@@ -297,30 +297,123 @@ class ExpressionGenerator:
 
 
 class HalideExpressionGenerator(ExpressionGenerator):
-    def __init__(self):
+    def __init__(self, g):
         super(HalideExpressionGenerator, self).__init__()
-        uid_to_expression = {}
+        self.uid_to_expression = {}
+        self.graph = g
+        self.listing = ''
+
+    def generate_value(self, node):
+        if node.dtype == np.float32:
+            data_type = 'float'
+        else:
+            assert node.dtype == np.float64
+            data_type = 'double'
+        expression = 'const %s* c_%s = {' % (data_type, node.uid)        
+        for value in node.value.flatten():
+            expression += ('%f' % value) + ', '
+        expression += '};\n'
+        if len(node.shape) == 2:
+            expression += 'Buffer<%s> %s = Buffer<%s>(c_%s, %s, %s, "%s")' % (data_type, node.uid, data_type, node.uid, node.shape[0], node.shape[1], node.uid)
+        elif len(node.shape) == 1:
+            expression += 'Buffer<%s> %s = Buffer<%s>(c_%s, %s, "%s")' % (data_type, node.uid, data_type, node.uid, node.shape[0], node.uid)
+        else:
+            raise ValueError('Unexpected shape encoutered, only 1 and 2D are currently supported %s' % node)
+        return expression
 
     def generate_parameter(self, node):
-        pdb.set_trace()
-        raise NotImplemented()
+        node = node.as_parameter()
+        exp = self.generate_value(node)
+        self.listing += exp + '\n'
 
     def generate_constant(self, node):
-        pdb.set_trace()
-        raise NotImplemented()
+        node = node.as_constant()
+        exp = self.generate_value(node)
+        self.listing += exp + '\n'
 
     def generate_input(self, node):
-        pdb.set_trace()
-        raise NotImplemented()
+        set_trace()
+
+        pass
 
     def generate_output(self, node):
-        pdb.set_trace()
-        raise NotImplemented()
+        operands = self.graph.predecessors(node)
+        arguments = '%s' % operands[0].uid
+        for o in operands[1:]:
+            arguments += ', %s' % o.uid
+        exp = '%s(%s)' % (node.uid, arguments)
+        self.listing += exp;
 
     def generate_primitive_function(self, node):
-        pdb.set_trace()
-        raise NotImplemented()
+        op_name = node.op_name
+        if op_name == 'Times':
+            self.generate_times(node)
+        elif op_name == 'Plus':
+            self.generate_plus(node)
+        elif op_name == 'Slice':
+            self.generate_slice(node)
+        elif op_name == 'StableSigmoid':
+            self.generate_stable_sigmoid(node)
+        elif op_name == 'Tanh':
+            self.generate_tanh(node)
+        elif op_name == 'ElementTimes':
+            self.generate_element_times(node)
+        else:
+            set_trace()
+            raise ValueError('Not implemented function %s' % node.op_name)
+        self.uid_to_expression[node.uid] = '%s' % node.uid
 
+    def generate_binary_call(self, node, op_name):
+        operands = self.graph.predecessors(node)
+        if len(operands) != 2:
+            raise ValueError('Operation "%s" expects 2 operands, given %s', op_name, str(operands))
+        exp = '%s = %s(%s, %s)' % tuple([node.uid, op_name] + [o.uid for o in operands])
+        self.listing += exp + '\n'
+
+    def generate_binary_op(self, node, op_name):
+        operands = self.graph.predecessors(node)
+        if len(operands) != 2:
+            raise ValueError('Operation "%s" expects 2 operands, given %s', op_name, str(operands))
+        exp = '%s = %s %s %s' % tuple([node.uid, operands[0], op_name, operands[1]])
+        self.listing += exp + '\n'
+
+    def generate_unary_op(self, node, op_name):
+        operands = self.graph.predecessors(node)
+        if len(operands) != 1:
+            raise ValueError('Operation "%s" expects 1 operand, given %s', op_name, str(operands))
+        exp = '%s = %s(%s)' % tuple([node.uid, op_name, operands[0]])
+        self.listing += exp + '\n'
+
+    def generate_times(self, node):
+        self.generate_binary_call(node, 'Times')
+
+    def generate_element_times(self, node):
+        self.generate_binary_op(node, '*')
+
+    def generate_plus(self, node):
+        self.generate_binary_op(node, '+')
+
+    def generate_stable_sigmoid(self, node):
+        self.generate_unary_op(node, 'Sigmoid')
+
+    def generate_tanh(self, node):
+        self.generate_unary_op(node, 'Tanh')
+
+    def generate_slice(self, node):
+        operand = self.graph.predecessors(node)
+        if len(operand) != 1:
+            raise ValueError('Operation "slice" expects 2 operands')
+        operand = operand[0]
+        if len(operand.shape) == 1:
+            begin = node.attributes['beginIndex']
+            end = node.attributes['endIndex']
+            stride = node.attributes['sliceStrides']
+            if stride != 1:
+                raise ValueError('Unexpected stride "%s", only stride of 1 is currently supported' % str(stride))
+            exp = '%s = ((%s)(%d, %d))' % (node.uid, operand.uid, begin, end)
+        else:
+            raise ValueError('Slice is not supported on node of shape %s' % str(node.shape)) 
+        self.listing += exp + '\n'
 
 #####################################################################################################################################
 #####################################################################################################################################
@@ -330,7 +423,7 @@ class HalideExpressionGenerator(ExpressionGenerator):
 
 model = Function.load(model_path)
 
-pdb.set_trace()
+set_trace()
 c = ModelToGraphConverter()
 g = c.convert(model)
 
@@ -353,8 +446,13 @@ nodes_sorted_for_generation = nx.topological_sort(g)
 for node in nodes_sorted_for_generation:
     print('Node name %s, uid %s' % (node.name, node.uid))
 
-generator = HalideExpressionGenerator()
+generator = HalideExpressionGenerator(g)
 generator.generate(nodes_sorted_for_generation)
+
+listing = generator.listing
+
+with open('result', 'w') as f:
+    f.write(listing)
 
 #for node in g.nodes():
 #    print('Node id %s' % node.uid)
@@ -368,7 +466,7 @@ generator.generate(nodes_sorted_for_generation)
 
 
 #for v in vars_in_eval_order:
-#    import pdb; pdb.set_trace()
+#    set_trace()
 #    if v.is_parameter:
 #        print('Need to evaluate Parameter %s' % v.uid)
 #    elif v.is_constant:
@@ -380,7 +478,7 @@ generator.generate(nodes_sorted_for_generation)
 
 #myinput = find_by_name(model, "myinput", depth=-1)
 #data = np.arange(165, dtype=np.float32).reshape((165,))
-#import pdb; pdb.set_trace()
+#set_trace()
 
 #g = ExpressionGenerator()
 #g.generate(model, set(), None)
