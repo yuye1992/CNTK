@@ -22,6 +22,7 @@ static void operator||(cudaError_t rc, const char *msg)
 NcclComm::NcclComm(int deviceId, const MPIWrapperPtr& mpi)
     : m_ncclComm(nullptr), m_stream(nullptr)
 {
+    cudaDeviceSynchronize();
     size_t numRanks = mpi->NumNodesInUse();
     std::vector<int> allDevs(numRanks);
     std::vector<std::array<char, MPI_MAX_PROCESSOR_NAME>> allHosts(numRanks);
