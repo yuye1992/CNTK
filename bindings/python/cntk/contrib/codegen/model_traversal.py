@@ -7,12 +7,20 @@ import networkx as nx
 import matplotlib.pyplot as plt
 from pdb import set_trace
 import itertools
+import functools
 
 model_path = r'c:\repo\halide_playground\my_super.model'
+#model_path = r'c:\repo\halide_playground\test_simple_model'
 
 #####################################################################################################################################
 #####################################################################################################################################
 #####################################################################################################################################
+
+def get_predecessors(graph, node):
+    predecessors = g.predecessors(node)     
+    ordered = [(p, graph.get_edge_data(p, node)['order']) for p in predecessors]
+    ordered = sorted(ordered, key=lambda t: t[1])
+    return [o[0] for o in ordered]
 
 # Utility function for NX Graph visualization
 def nx_plot(g, filename):
@@ -161,10 +169,10 @@ class ModelToGraphConverter:
         g = nx.OrderedDiGraph()
         visited = {}
         for output in model.outputs:
-            self._convert(g, output, None, set(), {})
+            self._convert(g, output, None, 0, set(), {})
         return g
 
-    def _convert(self, g, node, child, visited, placeholder_mapping):
+    def _convert(self, g, node, child, order, visited, placeholder_mapping):
         from cntk import cntk_py
         is_function = isinstance(node, cntk_py.Function)
 
@@ -177,7 +185,7 @@ class ModelToGraphConverter:
             cur = dict(node.block_outputs_mapping)[child] if is_function and node.is_block else node
             if not g.has_node(cur.uid):
                 g.add_node(cur.uid, data=cur)
-            g.add_edge(cur.uid, child.uid)
+            g.add_edge(cur.uid, child.uid, order=order)
 
         if node.uid in visited:
             return
@@ -188,11 +196,11 @@ class ModelToGraphConverter:
                 placeholder_mapping.update(node.block_arguments_mapping)
                 outputs_mapping = dict(node.block_outputs_mapping)
                 inner_output_variable = outputs_mapping[child]
-                self._convert(g, inner_output_variable, child, visited, placeholder_mapping)
+                self._convert(g, inner_output_variable, child, order, visited, placeholder_mapping)
             elif node.is_primitive:
-                for i in node.inputs:
+                for order, i in enumerate(node.inputs):
                     i = placeholder_mapping[i] if i.is_placeholder else i
-                    self._convert(g, i, node, visited, placeholder_mapping)
+                    self._convert(g, i, node, order, visited, placeholder_mapping)
             else:
                 set_trace()
                 raise ValueError("Unexpected function node type %s" % node)
@@ -200,10 +208,10 @@ class ModelToGraphConverter:
         elif node.is_parameter or node.is_constant or node.is_input:
             pass
         elif node.is_output:
-            self._convert(g, node.owner, node, visited, placeholder_mapping)
+            self._convert(g, node.owner, node, order, visited, placeholder_mapping)
         elif node.is_placeholder:
             actual_node = placeholder_mapping[node]
-            self._convert(g, actual_node, visited, placeholder_mapping)
+            self._convert(g, actual_node, order, visited, placeholder_mapping)
         else:
             set_trace()
             raise ValueError("Unexpected node type %s" % node)
@@ -229,12 +237,13 @@ def remove_output_nodes(g):
             if len(successors) == 0:
                 continue
      
-            predecessors = g.predecessors(n)      
-            if len(predecessors) == 0:
+            predecessors = get_predecessors(g, n)      
+            if len(predecessors) != 1:
                 raise ValueError("Unexpected output node with no ancestors")
-     
-            for p, s in itertools.product(predecessors, successors):
-                g.add_edge(p, s, data = g.node[n]['data'], label = g.node[n]['data'].uid)
+
+            p = predecessors[0] 
+            for s in successors:
+                g.add_edge(p, s, data = g.node[n]['data'], label = g.node[n]['data'].uid, order=g.get_edge_data(n, s)['order'])
      
             g.remove_node(n)
             removed = True
@@ -254,10 +263,10 @@ def split_past_values(g):
         g.add_node(external_output.uid, data=external_output, original=node)
 
         for successor in g.successors(n):
-            g.add_edge(external_input.uid, successor)
+            g.add_edge(external_input.uid, successor, order = g.get_edge_data(n, successor)['order'])
 
-        for predecessor in g.predecessors(n):
-            g.add_edge(predecessor, external_output.uid)
+        for predecessor in get_predecessors(g, n):
+            g.add_edge(predecessor, external_output.uid, order = g.get_edge_data(predecessor, n)['order'])
 
         g.remove_node(n)
 
@@ -312,6 +321,47 @@ class HalideExpressionGenerator(ExpressionGenerator):
         self.uid_to_exp = {}
         self.graph = g
         self.listing = ''
+        self.outputs = []
+
+    def generate_eval_graph(self, nodes):
+        self.generate(nodes)
+        inputs = []
+        outputs = []
+        for n in self.graph.nodes():
+            n = self.graph.node[n]
+            node = n['data']
+            if not isinstance(node, cntk_py.Variable):
+                continue
+
+            if node.is_input:
+               inputs += [node.name if 'original' in n else node.uid]
+            elif node.is_output:
+               outputs += [node.name if 'original' in n else node.uid]
+        inputs = ['const ImageParam& i_' + i for i in inputs]
+
+        all_params = ', '.join(inputs)
+        headers = '#pragma once\n'
+        headers += '#include "TestCommon.h"\n'
+        function = 'Func eval_graph(%s)\n {\n %s \n %s \n %s \n }\n' % (all_params, 'Var var1, var2;', self.listing, self.generate_return_value())
+        return headers + function
+
+    def generate_return_value(self):
+        if len(self.outputs) == 1:
+            return 'return %s;' % self.outputs[0]
+        output_vars = ' '.join(['Var var_%d;' % i for i, _ in enumerate(self.outputs)])
+        result_params = ', ' .join(['var_%d' %i for i, _ in enumerate(self.outputs)])
+        outputs = ', '.join(['%s(var_%s)' % (o, i) for i, o, in enumerate(self.outputs)])
+        return '{ %s; Func __result; __result(%s) = Tuple(%s); return __result; }' % (output_vars, result_params, outputs)
+
+    def data_type(self, node):
+        return 'float' if node.dtype == np.float32 else 'double'
+
+    def total_num_elements(self, shape):
+        if len(shape) == 0:
+            return 1
+        if len(shape) == 1:
+            return shape[0]
+        return shape[0] if len(shape) == 1 else 1 if len(shape) == 0 else functools.reduce(lambda x, y: x*y, shape)
 
     def generate_value(self, node):
         if node.dtype == np.float32:
@@ -319,56 +369,72 @@ class HalideExpressionGenerator(ExpressionGenerator):
         else:
             assert node.dtype == np.float64
             data_type = 'double'
-        expression = 'const %s* c_%s = {' % (data_type, node.uid)        
-        for value in node.value.flatten():
-            expression += ('%f' % value) + ', '
+        expression = 'const %s c_%s[%d]= {' % (data_type, node.uid, self.total_num_elements(node.shape))        
+        for i, value in enumerate(node.value.flatten()):
+            if i % 100 == 0:
+                expression += '\n'
+            expression += ('%ff' % value) + ', '
+            # BUGBUG - c++ compiler cannot handle such huge arrays
+            if i > 1000:
+                break
         expression += '};\n'
         if len(node.shape) == 2:
-            expression += 'Buffer<%s> %s = Buffer<%s>(c_%s, %s, %s, "%s");' % (data_type, node.uid, data_type, node.uid, node.shape[0], node.shape[1], node.uid)
+            expression += 'auto b_%s = Halide::Buffer<%s>((%s*)c_%s, %s, %s, "%s");\n' % (node.uid, data_type, data_type, node.uid, node.shape[0], node.shape[1], node.uid)
         elif len(node.shape) == 1:
-            expression += 'Buffer<%s> %s = Buffer<%s>(c_%s, %s, "%s");' % (data_type, node.uid, data_type, node.uid, node.shape[0], node.uid)
+            expression += 'auto b_%s = Halide::Buffer<%s>((%s*)c_%s, %s, "%s");\n' % (node.uid, data_type, data_type, node.uid, node.shape[0], node.uid)
+        elif len(node.shape) == 0: # Scalar represent as array
+            expression += 'auto b_%s = Halide::Buffer<%s>((%s*)c_%s, %s, "%s");\n' % (node.uid, data_type, data_type, node.uid, 1, node.uid)
         else:
-            raise ValueError('Unexpected shape encoutered, only 1 and 2D are currently supported %s' % node)
+            set_trace()
+            raise ValueError('Unexpected shape encountered, only 1 and 2D are currently supported %s' % node)
+
+        expression += 'Func %s("%s"); %s(%s) = b_%s(%s);' % (node.uid, node.uid, node.uid, self.index_vars(node), node.uid, self.index_vars(node))
         return expression
 
     def generate_parameter(self, node):
         node = node.as_parameter()
         exp = self.generate_value(node)
-        self.listing += exp + '\n'
+        self.listing += exp + '\n\n'
         self.uid_to_exp[node.uid] = '%s' % node.uid
 
     def generate_constant(self, node):
         node = node.as_constant()
         exp = self.generate_value(node)
-        self.listing += exp + '\n'
+        self.listing += exp + '\n\n'
         self.uid_to_exp[node.uid] = '%s' % node.uid
 
     def generate_input(self, node):
         input = self.graph.node[node.uid]
         if 'original' in input:
             original = input['original']
-            exp = '%s(%d)' % (node.name, original.attributes['offset'])
+            input_name = '%s' % (node.name)
         else:
-            exp = '%s()' % (node.uid)
-        self.uid_to_exp[node.uid] = '%s' % exp
+            input_name = '%s' % (node.uid)
+
+        exp = 'Func %s("%s"); %s(%s) = i_%s(%s);' % (input_name, input_name, input_name, self.index_vars(node), input_name, self.index_vars(node))
+        self.listing += exp + '\n\n'
+        self.uid_to_exp[node.uid] = '%s' % input_name
 
     def generate_output(self, node):
         output = self.graph.node[node.uid]
-        operands = self.graph.predecessors(node.uid)
+        operands = get_predecessors(self.graph, node.uid)
         if 'original' in output:
             original = output['original']
             if len(operands) != 2:
                 raise ValueError('Past Value value is expected to have 2 operands, given %s' % str(operands))
-            arguments = '%s' % operands[0]
-            for o in operands[1:]:
-                arguments += ', %s' % o
-            exp = '%s(%s)' % (node.name, arguments)
         else:
             if len(operands) != 1:
                 raise ValueError('Output value is expected to have a single operand, given %s' % str(operands))
-            arguments = '%s' % operands[0]
-            exp = '%s(%s)' % (node.uid, operands[0])
-        self.listing += exp + ';\n';
+        self.outputs.append(operands[0])
+
+    def index_vars(self, node):
+        if len(node.shape) == 1 or len(node.shape) == 0:
+            return 'var1'
+        elif len(node.shape) == 2:
+            return 'var1, var2'
+        else:
+            set_trace()
+            raise ValueError("Shape is not supported %s" % str(node.shape))
 
     def generate_primitive_function(self, node):
         op_name = node.op_name
@@ -390,43 +456,44 @@ class HalideExpressionGenerator(ExpressionGenerator):
         self.uid_to_exp[node.uid] = '%s' % node.uid
 
     def generate_binary_call(self, node, op_name):
-        operands = self.graph.predecessors(node.uid)
+        operands = get_predecessors(self.graph, node.uid)
         if len(operands) != 2:
             raise ValueError('Operation "%s" expects 2 operands, given %s', op_name, str(operands))
-        exp = '%s = %s(%s, %s)' % tuple([node.uid, op_name] + [self.uid_to_exp[o] for o in operands])
+        exp = 'Func %s("%s"); %s = %s(%s, %s)' % tuple([node.uid, node.uid, node.uid, op_name] + [self.uid_to_exp[o] for o in operands])
         self.listing += exp + ';\n'
 
-    def generate_binary_op(self, node, op_name):
-        operands = self.graph.predecessors(node.uid)
-        if len(operands) != 2:
-            raise ValueError('Operation "%s" expects 2 operands, given %s', op_name, str(operands))
-        exp = '%s = %s %s %s' % tuple([node.uid, self.uid_to_exp[operands[0]], op_name, self.uid_to_exp[operands[1]]])
-        self.listing += exp + ';\n'
-
-    def generate_unary_op(self, node, op_name):
-        operands = self.graph.predecessors(node.uid)
+    def generate_unary_call(self, node, op_name):
+        operands = get_predecessors(self.graph, node.uid)
         if len(operands) != 1:
             raise ValueError('Operation "%s" expects 1 operand, given %s', op_name, str(operands))
-        exp = '%s = %s(%s)' % tuple([node.uid, op_name, self.uid_to_exp[operands[0]]])
+        exp = 'Func %s("%s"); %s = %s(%s)' % tuple([node.uid, node.uid, node.uid, op_name, self.uid_to_exp[operands[0]]])
         self.listing += exp + ';\n'
 
     def generate_times(self, node):
-        self.generate_binary_call(node, 'Times')
+        operands = get_predecessors(self.graph, node.uid)
+        if len(operands) != 2:
+            raise ValueError('Expecting 2 operands')
+        operand = self.graph.node[operands[0]]['data']
+        if len(operand.shape) != 0 and len(operand.shape) != 1:
+            set_trace()
+            raise ValueError("Times is currently supported only for 1D * 2D, given %s" % str(operand.shape))
+        shape = operand.shape if len(operand.shape) == 1 else (1,)        
+        self.generate_binary_call(node, 'VectorByMatrixTimes<%s, %s>' % (shape[0], node.shape[0 if len(node.shape) == 1 else 1]))
 
     def generate_element_times(self, node):
-        self.generate_binary_op(node, '*')
+        self.generate_binary_call(node, 'ElementTimes')
 
     def generate_plus(self, node):
-        self.generate_binary_op(node, '+')
+        self.generate_binary_call(node, 'Plus')
 
     def generate_stable_sigmoid(self, node):
-        self.generate_unary_op(node, 'Sigmoid')
+        self.generate_unary_call(node, 'Sigmoid<%s>' % self.data_type(node))
 
     def generate_tanh(self, node):
-        self.generate_unary_op(node, 'Tanh')
+        self.generate_unary_call(node, 'Tanh')
 
     def generate_slice(self, node):
-        operand = self.graph.predecessors(node.uid)
+        operand = get_predecessors(self.graph, node.uid)
         if len(operand) != 1:
             raise ValueError('Operation "slice" expects 2 operands')
         operand = self.graph.node[operand[0]]['data']
@@ -436,7 +503,7 @@ class HalideExpressionGenerator(ExpressionGenerator):
             stride = node.attributes['sliceStrides']
             if stride != 1:
                 raise ValueError('Unexpected stride "%s", only stride of 1 is currently supported' % str(stride))
-            exp = '%s = ((%s)(%d, %d))' % (node.uid, self.uid_to_exp[operand.uid], begin, end)
+            exp = 'Func %s("%s"); %s = Slice<%d, %d>(%s)' % (node.uid, node.uid, node.uid, begin, end, self.uid_to_exp[operand.uid])
         else:
             raise ValueError('Slice is not supported on node of shape %s' % str(node.shape)) 
         self.listing += exp + ';\n'
@@ -449,7 +516,6 @@ class HalideExpressionGenerator(ExpressionGenerator):
 
 model = Function.load(model_path)
 
-set_trace()
 c = ModelToGraphConverter()
 g = c.convert(model)
 
@@ -473,12 +539,10 @@ for node in nodes_sorted_for_generation:
     print('Node name %s, uid %s' % (g.node[node]['data'].name, node))
 
 generator = HalideExpressionGenerator(g)
-generator.generate(nodes_sorted_for_generation)
+generated = generator.generate_eval_graph(nodes_sorted_for_generation)
 
-listing = generator.listing
-
-with open('result', 'w') as f:
-    f.write(listing)
+with open(r'..\amitlstm\LSTM\execution_graph.h', 'w') as f:
+    f.write(generated)
 
 #for node in g.nodes():
 #    print('Node id %s' % node.uid)
