@@ -8,8 +8,10 @@ import matplotlib.pyplot as plt
 from pdb import set_trace
 import itertools
 import functools
+import json
 
 model_path = r'c:\repo\halide_playground\my_super.model'
+weights_path =r'..\amitlstm\LSTM\weights.json'
 #model_path = r'c:\repo\halide_playground\test_simple_model'
 
 #####################################################################################################################################
@@ -314,6 +316,32 @@ class ExpressionGenerator:
     def generate_primitive_function(self, node):
         raise NotImplemented()
 
+class ClassGen:
+    def __init__(self, name):
+        self.public = []
+        self.private = []
+        self.name = name
+
+    def add_private_member(self, m):
+        self.private.append(m)
+
+    def add_public_member(self, m):
+        self.public.append(m)
+
+    def __str__(self):
+        result = []
+        result.append('class %s final' % self.name)
+        result.append('{')
+        if len(self.public) > 0:
+            result.append('public:')
+            for m in self.public:
+                result.append(str(m))
+        if len(self.private) > 0:
+            result.append('private:')
+            for m in self.private:
+                result.append(str(m))
+        result.append('};')
+        return '\n'.join(result)
 
 class HalideExpressionGenerator(ExpressionGenerator):
     def __init__(self, g):
@@ -322,6 +350,7 @@ class HalideExpressionGenerator(ExpressionGenerator):
         self.graph = g
         self.listing = ''
         self.outputs = []
+        self.values = []
 
     def generate_eval_graph(self, nodes):
         self.generate(nodes)
@@ -337,13 +366,32 @@ class HalideExpressionGenerator(ExpressionGenerator):
                inputs += [node.name if 'original' in n else node.uid]
             elif node.is_output:
                outputs += [node.name if 'original' in n else node.uid]
-        inputs = ['const ImageParam& i_' + i for i in inputs]
+        inputs = ['const ImageParam& %s' % i for i in inputs]
 
         all_params = ', '.join(inputs)
+
+        json.encoder.FLOAT_REPR = lambda o: format(o, '.9f')
+    
+        weights = {}
+        for node in self.values:
+            weights[node.uid] = [float(f) for f in node.value.flatten()]
+        with open(weights_path, "w") as f:
+            json.dump(weights, f)
+
+        eval_graph_function = 'inline Pipeline eval_graph(%s)\n {\n %s \n %s \n %s \n }\n' % (all_params, 'Var var1, var2;', self.listing, self.generate_return_value())
+     
         headers = '#pragma once\n'
         headers += '#include "TestCommon.h"\n'
-        function = 'Pipeline eval_graph(%s)\n {\n %s \n %s \n %s \n }\n' % (all_params, 'Var var1, var2;', self.listing, self.generate_return_value())
-        return headers + function
+
+        evaluator = ClassGen('evaluator')
+        evaluator.add_public_member(eval_graph_function)
+
+        for node in self.values:
+            evaluator.add_private_member('std::vector<%s> m_%s;' % (self.data_type(node), node.uid))       
+            evaluator.add_public_member('const std::vector<%s> get_%s() const { return m_%s; }' % (self.data_type(node), node.uid.lower(), node.uid))
+            evaluator.add_public_member('void set_%s(const std::vector<%s>&& v) { m_%s = std::move(v); };' % (node.uid.lower(), self.data_type(node), node.uid))
+
+        return headers + str(evaluator)
 
     def generate_return_value(self):
         return 'return Pipeline({ %s });' % ', '.join(self.outputs)
@@ -364,26 +412,18 @@ class HalideExpressionGenerator(ExpressionGenerator):
         else:
             assert node.dtype == np.float64
             data_type = 'double'
-        expression = 'const %s c_%s[%d]= {' % (data_type, node.uid, self.total_num_elements(node.shape))        
-        for i, value in enumerate(node.value.flatten()):
-            if i % 100 == 0:
-                expression += '\n'
-            expression += ('%ff' % value) + ', '
-            # BUGBUG - c++ compiler cannot handle such huge arrays
-            if i > 1000:
-                break
-        expression += '};\n'
         if len(node.shape) == 2:
-            expression += 'auto b_%s = Halide::Buffer<%s>((%s*)c_%s, %s, %s, "%s");\n' % (node.uid, data_type, data_type, node.uid, node.shape[0], node.shape[1], node.uid)
+            expression = 'auto b_%s = Halide::Buffer<%s>(m_%s.data(), %s, %s, "%s");\n' % (node.uid, data_type, node.uid, node.shape[0], node.shape[1], node.uid)
         elif len(node.shape) == 1:
-            expression += 'auto b_%s = Halide::Buffer<%s>((%s*)c_%s, %s, "%s");\n' % (node.uid, data_type, data_type, node.uid, node.shape[0], node.uid)
+            expression = 'auto b_%s = Halide::Buffer<%s>(m_%s.data(), %s, "%s");\n' % (node.uid, data_type, node.uid, node.shape[0], node.uid)
         elif len(node.shape) == 0: # Scalar represent as array
-            expression += 'auto b_%s = Halide::Buffer<%s>((%s*)c_%s, %s, "%s");\n' % (node.uid, data_type, data_type, node.uid, 1, node.uid)
+            expression = 'auto b_%s = Halide::Buffer<%s>(m_%s.data(), %s, "%s");\n' % (node.uid, data_type, node.uid, 1, node.uid)
         else:
             set_trace()
             raise ValueError('Unexpected shape encountered, only 1 and 2D are currently supported %s' % node)
 
         expression += 'Func %s("%s"); %s(%s) = b_%s(%s);' % (node.uid, node.uid, node.uid, self.index_vars(node), node.uid, self.index_vars(node))
+        self.values.append(node)
         return expression
 
     def generate_parameter(self, node):
@@ -405,9 +445,6 @@ class HalideExpressionGenerator(ExpressionGenerator):
             input_name = '%s' % (node.name)
         else:
             input_name = '%s' % (node.uid)
-
-        exp = 'Func %s("%s"); %s(%s) = i_%s(%s);' % (input_name, input_name, input_name, self.index_vars(node), input_name, self.index_vars(node))
-        self.listing += exp + '\n\n'
         self.uid_to_exp[node.uid] = '%s' % input_name
 
     def generate_output(self, node):
