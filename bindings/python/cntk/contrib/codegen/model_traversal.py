@@ -342,16 +342,11 @@ class HalideExpressionGenerator(ExpressionGenerator):
         all_params = ', '.join(inputs)
         headers = '#pragma once\n'
         headers += '#include "TestCommon.h"\n'
-        function = 'Func eval_graph(%s)\n {\n %s \n %s \n %s \n }\n' % (all_params, 'Var var1, var2;', self.listing, self.generate_return_value())
+        function = 'Pipeline eval_graph(%s)\n {\n %s \n %s \n %s \n }\n' % (all_params, 'Var var1, var2;', self.listing, self.generate_return_value())
         return headers + function
 
     def generate_return_value(self):
-        if len(self.outputs) == 1:
-            return 'return %s;' % self.outputs[0]
-        output_vars = ' '.join(['Var var_%d;' % i for i, _ in enumerate(self.outputs)])
-        result_params = ', ' .join(['var_%d' %i for i, _ in enumerate(self.outputs)])
-        outputs = ', '.join(['%s(var_%s)' % (o, i) for i, o, in enumerate(self.outputs)])
-        return '{ %s; Func __result; __result(%s) = Tuple(%s); return __result; }' % (output_vars, result_params, outputs)
+        return 'return Pipeline({ %s });' % ', '.join(self.outputs)
 
     def data_type(self, node):
         return 'float' if node.dtype == np.float32 else 'double'
@@ -460,6 +455,8 @@ class HalideExpressionGenerator(ExpressionGenerator):
         if len(operands) != 2:
             raise ValueError('Operation "%s" expects 2 operands, given %s', op_name, str(operands))
         exp = 'Func %s("%s"); %s = %s(%s, %s)' % tuple([node.uid, node.uid, node.uid, op_name] + [self.uid_to_exp[o] for o in operands])
+        if len(self.graph.successors(node.uid)) > 1: # Make sure we do not recalculate the same values twice.
+            exp += ';\n%s.compute_root()' % node.uid
         self.listing += exp + ';\n'
 
     def generate_unary_call(self, node, op_name):
