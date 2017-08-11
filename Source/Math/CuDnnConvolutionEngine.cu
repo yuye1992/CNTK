@@ -508,8 +508,7 @@ private:
                 CUDNN_CALL(staticFinder(algo.selectedAlgo, true));
                 algo.maxMBSizeSeen = batchSize;
                 algo.autotuningState = AutotuningState::PendingTuning;
-                // only need to record the new batchSize, will check on workspace size later
-                algo.MBSizeForCurrentAlgo = batchSize;
+                algo.RecordBatchSizeAndWorkspaceSize(batchSize, true, 0);
             }
             return;
         }
@@ -637,7 +636,7 @@ private:
         {
             if (newAlgo)
                 AlgoWorkspaceSize = workspaceSize;
-            else if (AlgoWorkspaceSize < workspaceSize)
+            else if (AlgoWorkspaceSize > workspaceSize)
                 LogicError("CuDnnConvolutionEngine: Not enough workspace for selected algorithm.");
 
             LastBatchAlgoWorkspaceSize = workspaceSize;
