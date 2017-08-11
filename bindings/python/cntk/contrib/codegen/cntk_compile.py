@@ -9,11 +9,12 @@ Generator of the eval graph for a given CNTK model.
 
 from cntk import *
 from cntk import cntk_py
-from .util import *
-from .model_transforms import *
-from .expression_generator import *
+from util import *
+from model_transforms import *
+from expression_generator import *
 import networkx as nx
 import matplotlib.pyplot as plt
+import argparse
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -39,18 +40,18 @@ if __name__ == '__main__':
     if args['plot']:
         nx_plot(graph, args['plot'])
 
-    if not nx.is_directed_acyclic_graph(g):
+    if not nx.is_directed_acyclic_graph(graph):
         raise ValueError('Unsupported type of graph: please make sure there are no loops or non connected components')
 
     # Perform topological sort for evaluation
     nodes_sorted_for_eval = nx.topological_sort(graph)
 
     # Now generate the actual C++ file with the evaluator inside
-    listing = HalideExpressionGenerator(g).generate(nodes_sorted_for_eval, args['classname'])
+    listing = HalideExpressionGenerator(graph).generate(nodes_sorted_for_eval, args['classname'])
 
     with open(args['output'], 'w') as f:
         f.write(listing)
 
     # Also make sure we generate the json weights/constants for now.
     # There should be taken by C++ directly from the model though.
-    WeigthExtractor(graph).dump(args['weights'])
+    WeightsExtractor(graph).dump(args['weights'])

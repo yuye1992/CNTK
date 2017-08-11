@@ -24,7 +24,7 @@ def get_predecessors(graph, node):
     Returns:
         list of predecessor nodes in the order according to the 'order' attribute of the edges.
     '''
-    predecessors = g.predecessors(node)     
+    predecessors = graph.predecessors(node)     
     ordered = [(p, graph.get_edge_data(p, node)['order']) for p in predecessors]
     ordered = sorted(ordered, key=lambda t: t[1])
     return [o[0] for o in ordered]
@@ -167,7 +167,7 @@ def split_past_values(graph):
         for successor in graph.successors(n):
             graph.add_edge(external_input.uid, successor, order = graph.get_edge_data(n, successor)['order'])
 
-        for predecessor in get_predecessors(g, n):
+        for predecessor in get_predecessors(graph, n):
             graph.add_edge(predecessor, external_output.uid, order = graph.get_edge_data(predecessor, n)['order'])
 
         graph.remove_node(n)

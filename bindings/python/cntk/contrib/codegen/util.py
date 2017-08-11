@@ -11,6 +11,7 @@ from cntk import *
 from cntk import cntk_py
 import networkx as nx
 import matplotlib.pyplot as plt
+import os
 
 def nx_plot(g, filename):
     '''

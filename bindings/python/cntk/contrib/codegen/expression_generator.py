@@ -6,7 +6,7 @@
 """
 Classes and functions for expression generation from a CNTK model.
 """
-from .model_transforms import *
+from model_transforms import *
 from cntk import *
 from cntk import cntk_py
 from pdb import set_trace
@@ -14,6 +14,7 @@ import cntk.variables
 import networkx as nx
 import itertools
 import functools
+import json
 
 class NodeVisitor:
     '''
@@ -100,19 +101,49 @@ class WeightsExtractor(EmptyNodeVisitor):
     '''
     def __init__(self, graph):
         super(EmptyNodeVisitor, self).__init__(graph)
-        self.weights = {}
 
     def dump(self, filepath):
-        self.visit(self.nodes)
+        self.weights = {}
+        self.visit(self.graph.nodes())
         json.encoder.FLOAT_REPR = lambda o: format(o, '.9f')
         with open(filepath, "w") as f:
-            json.dump(weights, f)
+            json.dump(self.weights, f)
 
     def visit_parameter(self, node):
-        weights[node.uid] = [float(f) for f in node.value.flatten()]
+        self.weights[node.uid] = [float(f) for f in np.transpose(node.as_parameter().value).flatten()]
 
     def visit_constant(self, node):
-        weights[node.uid] = [float(f) for f in node.value.flatten()]
+        self.weights[node.uid] = [float(f) for f in np.transpose(node.as_constant().value).flatten()]
+
+class CppNamespaceGen:
+    '''
+    Helper class for generation of C++ namespace.
+    '''
+    def __init__(self, name):
+        '''
+        Constructor.
+        Args:
+            name(str): name of the namespace.
+        '''
+        self.name = name
+        self.members = []
+
+
+    def add_member(self, member_definition):
+        '''
+        Adds a member with the provided definition.
+        Args:
+            member_definition(str): member definition/body.
+        ''' 
+        self.members.append(member_definition)
+
+    def __str__(self):
+        result = []
+        result.append('namespace %s' % self.name)
+        result.append('{')
+        result.extend(self.members)
+        result.append('};')
+        return '\n'.join(result)
 
 class CppClassGen:
     '''
@@ -173,7 +204,7 @@ class HalideExpressionGenerator(NodeVisitor):
 
     def generate(self, nodes, class_name='evaluator'):
         self.visit(nodes)
-        all_params = ', '.join(self.inputs)
+        all_params = ', '.join(['const Halide::ImageParam& %s' % i for i in self.inputs])
         
         # Generating the class with setters for weights and constants. 
         evaluator = CppClassGen(class_name)
@@ -183,59 +214,26 @@ class HalideExpressionGenerator(NodeVisitor):
             evaluator.add_public_member('void set_%s(const std::vector<%s>&& v) { m_%s = std::move(v); };' % (node.uid.lower(), self.data_type(node), node.uid))
 
         # Actually generating the function that will create the computation graph.
-        eval_graph = 'Pipeline create_eval_graph(%s)\n {\n %s \n %s \n %s \n }\n' % 
-                      (all_params, 'Var var1, var2;', self.listing, self.generate_return_value())
+        eval_graph = 'Halide::Pipeline create_eval_graph(%s)\n {\n %s \n %s \n %s \n }\n' % (all_params, 'Halide::Var var1, var2;', self.listing, self.generate_return_value())
         evaluator.add_public_member(eval_graph)
 
-        return self.generate_file_header() + str(evaluator);
+        nspace = CppNamespaceGen('CNTK')
+        nspace.add_member(str(evaluator))
+        return self.generate_file_header() + str(nspace);
 
-    def generate_file_header(self):
-        header  = '#pragma once\n'
-        header += '#include "HalideDNNLib.h"\n\n'
-        return header;
-
-    def generate_return_value(self):
-        return 'return Pipeline({ %s });' % ', '.join(self.outputs)
-
-    def data_type(self, node):
-        return 'float' if node.dtype == np.float32 else 'double'
-
-    def total_num_elements(self, shape):
-        return shape[0] if len(shape) == 1 else 1 if len(shape) == 0 else functools.reduce(lambda x, y: x*y, shape)
-
-    def generate_value(self, node):
-        if node.dtype == np.float32:
-            data_type = 'float'
-        else:
-            assert node.dtype == np.float64
-            data_type = 'double'
-        if len(node.shape) == 2:
-            expression = 'auto b_%s = Halide::Buffer<%s>(m_%s.data(), %s, %s, "%s");\n' % (node.uid, data_type, node.uid, node.shape[0], node.shape[1], node.uid)
-        elif len(node.shape) == 1:
-            expression = 'auto b_%s = Halide::Buffer<%s>(m_%s.data(), %s, "%s");\n' % (node.uid, data_type, node.uid, node.shape[0], node.uid)
-        elif len(node.shape) == 0: # Scalar represent as array
-            expression = 'auto b_%s = Halide::Buffer<%s>(m_%s.data(), %s, "%s");\n' % (node.uid, data_type, node.uid, 1, node.uid)
-        else:
-            set_trace()
-            raise ValueError('Unexpected shape encountered, only 1 and 2D are currently supported %s' % node)
-
-        expression += 'Func %s("%s"); %s(%s) = b_%s(%s);' % (node.uid, node.uid, node.uid, self.index_vars(node), node.uid, self.index_vars(node))
-        self.values.append(node)
-        return expression
-
-    def generate_parameter(self, node):
+    def visit_parameter(self, node):
         node = node.as_parameter()
         exp = self.generate_value(node)
         self.listing += exp + '\n\n'
         self.uid_to_exp[node.uid] = '%s' % node.uid
 
-    def generate_constant(self, node):
+    def visit_constant(self, node):
         node = node.as_constant()
         exp = self.generate_value(node)
         self.listing += exp + '\n\n'
         self.uid_to_exp[node.uid] = '%s' % node.uid
 
-    def generate_input(self, node):
+    def visit_input(self, node):
         input = self.graph.node[node.uid]
         if 'original' in input:
             original = input['original']
@@ -245,7 +243,7 @@ class HalideExpressionGenerator(NodeVisitor):
         self.uid_to_exp[node.uid] = '%s' % input_name
         self.inputs.append(input_name)
 
-    def generate_output(self, node):
+    def visit_output(self, node):
         output = self.graph.node[node.uid]
         operands = get_predecessors(self.graph, node.uid)
         if 'original' in output:
@@ -266,7 +264,7 @@ class HalideExpressionGenerator(NodeVisitor):
             set_trace()
             raise ValueError("Shape is not supported %s" % str(node.shape))
 
-    def generate_primitive_function(self, node):
+    def visit_primitive_function(self, node):
         op_name = node.op_name
         if op_name == 'Times':
             self.generate_times(node)
@@ -289,7 +287,7 @@ class HalideExpressionGenerator(NodeVisitor):
         operands = get_predecessors(self.graph, node.uid)
         if len(operands) != 2:
             raise ValueError('Operation "%s" expects 2 operands, given %s', op_name, str(operands))
-        exp = 'Func %s("%s"); %s = %s(%s, %s)' % tuple([node.uid, node.uid, node.uid, op_name] + [self.uid_to_exp[o] for o in operands])
+        exp = 'Halide::Func %s("%s"); %s = %s(%s, %s)' % tuple([node.uid, node.uid, node.uid, op_name] + [self.uid_to_exp[o] for o in operands])
         if len(self.graph.successors(node.uid)) > 1: # Make sure we do not recalculate the same values twice.
             exp += ';\n%s.compute_root()' % node.uid
         self.listing += exp + ';\n'
@@ -298,7 +296,7 @@ class HalideExpressionGenerator(NodeVisitor):
         operands = get_predecessors(self.graph, node.uid)
         if len(operands) != 1:
             raise ValueError('Operation "%s" expects 1 operand, given %s', op_name, str(operands))
-        exp = 'Func %s("%s"); %s = %s(%s)' % tuple([node.uid, node.uid, node.uid, op_name, self.uid_to_exp[operands[0]]])
+        exp = 'Halide::Func %s("%s"); %s = %s(%s)' % tuple([node.uid, node.uid, node.uid, op_name, self.uid_to_exp[operands[0]]])
         self.listing += exp + ';\n'
 
     def generate_times(self, node):
@@ -335,7 +333,41 @@ class HalideExpressionGenerator(NodeVisitor):
             stride = node.attributes['sliceStrides']
             if stride != 1:
                 raise ValueError('Unexpected stride "%s", only stride of 1 is currently supported' % str(stride))
-            exp = 'Func %s("%s"); %s = Slice<%d, %d>(%s)' % (node.uid, node.uid, node.uid, begin, end, self.uid_to_exp[operand.uid])
+            exp = 'Halide::Func %s("%s"); %s = Slice<%d, %d>(%s)' % (node.uid, node.uid, node.uid, begin, end, self.uid_to_exp[operand.uid])
         else:
             raise ValueError('Slice is not supported on node of shape %s' % str(node.shape)) 
         self.listing += exp + ';\n'
+
+    def generate_file_header(self):
+        header  = '#pragma once\n'
+        header += '#include "HalideDNNLib.h"\n\n'
+        return header;
+
+    def generate_return_value(self):
+        return 'return Halide::Pipeline({ %s });' % ', '.join(self.outputs)
+
+    def data_type(self, node):
+        return 'float' if node.dtype == np.float32 else 'double'
+
+    def total_num_elements(self, shape):
+        return shape[0] if len(shape) == 1 else 1 if len(shape) == 0 else functools.reduce(lambda x, y: x*y, shape)
+
+    def generate_value(self, node):
+        if node.dtype == np.float32:
+            data_type = 'float'
+        else:
+            assert node.dtype == np.float64
+            data_type = 'double'
+        if len(node.shape) == 2:
+            expression = 'auto b_%s = Halide::Buffer<%s>(m_%s.data(), %s, %s, "%s");\n' % (node.uid, data_type, node.uid, node.shape[0], node.shape[1], node.uid)
+        elif len(node.shape) == 1:
+            expression = 'auto b_%s = Halide::Buffer<%s>(m_%s.data(), %s, "%s");\n' % (node.uid, data_type, node.uid, node.shape[0], node.uid)
+        elif len(node.shape) == 0: # Scalar represent as array
+            expression = 'auto b_%s = Halide::Buffer<%s>(m_%s.data(), %s, "%s");\n' % (node.uid, data_type, node.uid, 1, node.uid)
+        else:
+            set_trace()
+            raise ValueError('Unexpected shape encountered, only 1 and 2D are currently supported %s' % node)
+
+        expression += 'Halide::Func %s("%s"); %s(%s) = b_%s(%s);' % (node.uid, node.uid, node.uid, self.index_vars(node), node.uid, self.index_vars(node))
+        self.values.append(node)
+        return expression
