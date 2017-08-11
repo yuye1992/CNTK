@@ -568,7 +568,6 @@ def test_conv_cudnn_batch_size_change(device_id):
     num_batches = 100 # change to greater value for a more thorough test
     batch_size = 1
     max_seq_len = [100, 10]
-    import pdb;pdb.set_trace()
     for batch in range(num_batches):
         seq_lens = [[int(x*msl+1) for x in np.random.random((batch_size))] for msl in max_seq_len]
         output.grad({input1:[np.random.random((sl,) + input_shape).astype(np.float32) for sl in seq_lens[0]],
