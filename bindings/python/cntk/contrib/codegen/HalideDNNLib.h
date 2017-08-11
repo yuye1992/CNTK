@@ -1,6 +1,9 @@
 #pragma once
 
-#include "Common.h"
+#include "Halide.h"
+
+const int c_VectorizationWidth = 4;
+
 
 template <int inputDimension, int outputDimension>
 inline Func VectorByMatrixTimes(Func vec, Func matrix)
@@ -9,25 +12,25 @@ inline Func VectorByMatrixTimes(Func vec, Func matrix)
     Var vectorizedInnerIndex;
     Var outerIndex;
     RDom k1(0, inputDimension / vectorizationWidth);
-    partial(vectorizedInnerIndex, outerIndex) = sum(vec(vectorizedInnerIndex + (k1 * vectorizationWidth)) * matrix(vectorizedInnerIndex + (k1 * vectorizationWidth), outerIndex));
+    partial(vectorizedInnerIndex, outerIndex) = sum(vec(vectorizedInnerIndex + (k1 * c_VectorizationWidth)) * matrix(vectorizedInnerIndex + (k1 * c_VectorizationWidth), outerIndex));
 
     Func vectorized("VectorByMatrixTimesVectorized");
     Var index;
-    RDom k2(0, vectorizationWidth);
+    RDom k2(0, c_VectorizationWidth);
     vectorized(index) = sum(partial(k2, index));
 
     Func residual("VectorByMatrixTimesResidual");
-    RDom k3((inputDimension / vectorizationWidth) * vectorizationWidth, inputDimension % vectorizationWidth);
+    RDom k3((inputDimension / c_VectorizationWidth) * c_VectorizationWidth, inputDimension % c_VectorizationWidth);
     residual(index) = sum(vec(k3) * matrix(k3, index));
 
     Func output("VectorByMatrixTimes");
     output(index) = vectorized(index) + residual(index);
 
-    partial.bound(vectorizedInnerIndex, 0, vectorizationWidth);
-    partial.compute_at(output, index).vectorize(vectorizedInnerIndex, vectorizationWidth);
+    partial.bound(vectorizedInnerIndex, 0, c_VectorizationWidth);
+    partial.compute_at(output, index).vectorize(vectorizedInnerIndex, c_VectorizationWidth);
 
     output.bound(index, 0, outputDimension);
-    output.compute_root().vectorize(index, vectorizationWidth);
+    output.compute_root().vectorize(index, c_VectorizationWidth);
 
     return output;
 }
