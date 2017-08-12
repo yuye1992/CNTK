@@ -104,7 +104,7 @@ private:
     bool m_seekable;     // this stream is seekable
     int m_options;       // FileOptions ored togther
     void Init(const wchar_t* filename, int fileOptions);
-    hdfsFile* m_hdfsFile; // handle for hdfs file
+    hdfs_File* m_hdfsFile; // handle for hdfs file
 
 public:
     File(const std::wstring& filename, int fileOptions);
