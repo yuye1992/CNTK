@@ -115,7 +115,7 @@ namespace CNTK
     }
 
     DataParallelDistributedLearner::DataParallelDistributedLearner(DistributedCommunicatorPtr communicator, LearnerPtr learner, size_t distributedAfterSamples, bool useAsyncBufferedParameterUpdate)
-        : DistributedLearnerBase(communicator, learner, distributedAfterSamples)
+        : DistributedLearnerBase(communicator, learner, distributedAfterSamples, !Internal::ShouldUseSparseGradientAggregationInDataParallelSGD())
     {
         if (useAsyncBufferedParameterUpdate)
             LogicError("Asynchronous parameter update is not yet supported for the DataParallelDistributedLearner.");
@@ -133,8 +133,22 @@ namespace CNTK
             ConvertToOrdered(gradientValues, m_gradientBuffer);
 
             std::vector<NDArrayViewPtr> valuesToAggregate;
-            for (const auto& i : m_gradientBuffer)
-                valuesToAggregate.push_back(i.second);
+			std::vector<NDArrayViewPtr> sparseValuesToAggregate;
+			for (const auto& i : m_gradientBuffer)
+			{
+				auto storageFormat = i.second->GetStorageFormat();
+				if (storageFormat == StorageFormat::Dense)
+				{
+					valuesToAggregate.push_back(i.second);
+				}
+				else
+				{
+					if (storageFormat != StorageFormat::SparseBlockCol)
+						LogicError("Unsupported sparse gradient format");
+
+					sparseValuesToAggregate.push_back(i.second);
+				}
+			}
             valuesToAggregate.push_back(info.evalCriterionValue);
             valuesToAggregate.push_back(info.trainingLossValue);
 
@@ -143,6 +157,14 @@ namespace CNTK
 
             m_communicator->AggregateInPlace(valuesToAggregate, m_communicator->Workers());
             info.numberOfSamples = static_cast<size_t>(*valuesToAggregate.back()->WritableDataBuffer<double>());
+
+			if (!sparseValuesToAggregate.empty())
+			{
+				// all_reduce max to compute the non-zero columns
+				// estimate receive buffer size
+				// all_gather to broadcast non-zero gradients
+				// aggregate the gradients
+			}
         }
 
 #ifndef  CNTK_UWP

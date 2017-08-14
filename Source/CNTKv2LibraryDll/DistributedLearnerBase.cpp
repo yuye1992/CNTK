@@ -9,8 +9,9 @@
 
 namespace CNTK
 {
-    DistributedLearnerBase::DistributedLearnerBase(DistributedCommunicatorPtr communicator, LearnerPtr learner, size_t distributeAfterSamples)
-        : DistributedLearner(communicator, learner, distributeAfterSamples)
+    DistributedLearnerBase::DistributedLearnerBase(DistributedCommunicatorPtr communicator, LearnerPtr learner, size_t distributeAfterSamples, bool convertSparseToDense)
+        : DistributedLearner(communicator, learner, distributeAfterSamples),
+		  m_convertSparseToDense(convertSparseToDense)
     {
         if (!m_learner)
             InvalidArgument("Learner cannot be null.");
@@ -57,7 +58,7 @@ namespace CNTK
         {
             NDArrayViewPtr p = g.second;
             // convert sparse gradient to dense for accumulation
-            if (p->GetStorageFormat() != StorageFormat::Dense)
+            if (m_convertSparseToDense && p->GetStorageFormat() != StorageFormat::Dense)
             {
                 NDArrayViewPtr pDense = MakeSharedObject<NDArrayView>(0, p->GetDataType(), p->Shape(), p->Device());
                 pDense->CopyFrom(*p);
