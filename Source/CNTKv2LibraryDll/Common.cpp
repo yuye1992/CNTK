@@ -571,12 +571,12 @@ namespace CNTK
 
 		void UseSparseGradientAggregationInDataParallelSGD(bool enable)
 		{
-			s_useSparseGradientAggregationInDataParallelSGD.store(enable);
+			s_useSparseGradientAggregationInDataParallelSGD = enable;
 		}
 
 		bool ShouldUseSparseGradientAggregationInDataParallelSGD()
 		{
-			return s_useSparseGradientAggregationInDataParallelSGD.load();
+			return s_useSparseGradientAggregationInDataParallelSGD;
 		}
 
         static std::atomic<bool> s_threadsAreSet(false);
