@@ -160,10 +160,15 @@ namespace CNTK
 
 			if (!sparseValuesToAggregate.empty())
 			{
-				// all_reduce max to compute the non-zero columns
-				// estimate receive buffer size
-				// all_gather to broadcast non-zero gradients
-				// aggregate the gradients
+				for (auto sparseValue : sparseValuesToAggregate)
+				{
+					// all_reduce max to compute the non-zero columns
+
+
+					// estimate receive buffer size
+					// all_gather to broadcast non-zero gradients
+					// aggregate the gradients
+				}
 			}
         }
 

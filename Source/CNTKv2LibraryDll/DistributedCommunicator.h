@@ -51,12 +51,14 @@ namespace CNTK
         // A collective communication API to aggregate values across each worker of this communicator. The aggregated values are only sent to the specified workers; for all others the returned Values are null
         virtual void AggregateInPlace(
             const std::vector<NDArrayViewPtr>& values,
-            const std::unordered_set<DistributedWorkerDescriptor>& sendToWorkers) override;
+            const std::unordered_set<DistributedWorkerDescriptor>& sendToWorkers,
+			AggregateOp op = AggregateOp::Sum) override;
 
         virtual void Aggregate(
             const std::vector<NDArrayViewPtr>& inValues,
             std::vector<NDArrayViewPtr>& outValues,
-            const std::unordered_set<DistributedWorkerDescriptor>& sendToWorkers) override;
+            const std::unordered_set<DistributedWorkerDescriptor>& sendToWorkers,
+			AggregateOp op = AggregateOp::Sum) override;
 
         virtual void Barrier() override;
 
@@ -68,7 +70,16 @@ namespace CNTK
         void AggregateImpl(
             const std::vector<NDArrayViewPtr>& inputValues,
             const std::vector<NDArrayViewPtr>& outputValues,
-            const std::unordered_set<DistributedWorkerDescriptor>& sendToWorkers);
+            const std::unordered_set<DistributedWorkerDescriptor>& sendToWorkers,
+            std::function<std::pair<std::vector<NDArrayViewPtr>, std::vector<NDArrayViewPtr>>(const std::vector<NDArrayViewPtr>&, const std::vector<NDArrayViewPtr>&)> preAction,
+            std::function<std::pair<std::vector<NDArrayViewPtr>, std::vector<NDArrayViewPtr>>(const std::vector<NDArrayViewPtr>&, const std::vector<NDArrayViewPtr>&)> postAction,
+            AggregateOp op = AggregateOp::Sum);
+
+        void MPICommunicatorImpl::AggregateImplWithPacking(
+            const std::vector<NDArrayViewPtr>& inputValues,
+            const std::vector<NDArrayViewPtr>& outputValues,
+            const std::unordered_set<DistributedWorkerDescriptor>& sendToWorkers,
+            AggregateOp op);
 
         struct Buffer
         {
@@ -89,6 +100,9 @@ namespace CNTK
         size_t m_packThresholdSizeInBytes;
         std::unique_ptr<Microsoft::MSR::CNTK::Matrix<float>> m_aggregationBufferFloat;
         std::unique_ptr<Microsoft::MSR::CNTK::Matrix<double>> m_aggregationBufferDouble;
+
+        std::vector<size_t> m_packedFloatGradientsIndex;
+        std::vector<size_t> m_packedDoubleGradientsIndex;
 
         // NcclComm
         std::unique_ptr<Microsoft::MSR::CNTK::NcclComm> m_nccl;
@@ -137,6 +151,6 @@ namespace CNTK
         void UnpackFromContinuousBuffer(Microsoft::MSR::CNTK::Matrix<ElemType>* aggregationBuffer, const std::vector<NDArrayViewPtr>& outputValues, std::vector<size_t>& packedGradientsIndex);
 
         template <typename ElemType>
-        void AllReduceGradients(ElemType* inputData, ElemType* outputData, size_t numElements, std::vector<MPI_Request> &allReduceRequests, bool dataOnCPU);
+        void AllReduceData(ElemType* inputData, ElemType* outputData, size_t numElements, std::vector<MPI_Request> &allReduceRequests, bool dataOnCPU, AggregateOp op);
     };
 }

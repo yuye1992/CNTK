@@ -19,6 +19,19 @@ static void operator||(cudaError_t rc, const char *msg)
         RuntimeError("%s: %s (cuda error %d)", msg, cudaGetErrorString(rc), (int) rc);
 }
 
+ncclRedOp_t ncclRedOpFromMpiOp(MPI_Op op)
+{
+    switch (op)
+    {
+    case MPI_SUM: return ncclSum;
+    case MPI_MAX: return ncclMax;
+    case MPI_MIN: return ncclMin;
+    case MPI_PROD: return ncclProd;
+    default:
+        RuntimeError("Invalid MPI_Op %d", op);
+    }
+}
+
 NcclComm::NcclComm(int deviceId, const MPIWrapperPtr& mpi)
     : m_ncclComm(nullptr), m_stream(nullptr)
 {
@@ -76,17 +89,17 @@ bool NcclComm::IsSupported()
     return m_ncclComm != nullptr;
 }
 
-void NcclComm::AllReduceImpl(void* inputbuffer, void *outputbuffer, size_t count, DataType dtype)
+void NcclComm::AllReduceImpl(void* inputbuffer, void *outputbuffer, size_t count, DataType dtype, MPI_Op op)
 {
     ncclResult_t res;
     if (dtype == DataType::FLOAT)
     {
-        res = ncclAllReduce(inputbuffer, outputbuffer, count, ncclFloat, ncclSum, m_ncclComm, m_stream);
+        res = ncclAllReduce(inputbuffer, outputbuffer, count, ncclFloat, ncclRedOpFromMpiOp(op), m_ncclComm, m_stream);
     }
     else
     {
         assert(dtype == DataType::DOUBLE);
-        res = ncclAllReduce(inputbuffer, outputbuffer, count, ncclDouble, ncclSum, m_ncclComm, m_stream);
+        res = ncclAllReduce(inputbuffer, outputbuffer, count, ncclDouble, ncclRedOpFromMpiOp(op), m_ncclComm, m_stream);
     }
 
     if (res != ncclSuccess)

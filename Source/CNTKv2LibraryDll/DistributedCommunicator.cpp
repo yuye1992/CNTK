@@ -19,6 +19,22 @@ using namespace Microsoft::MSR::CNTK;
 
 namespace CNTK
 {
+    static MPI_Op GetMpiOp(DistributedCommunicator::AggregateOp op)
+    {
+        static MPI_Op table[] =
+        {
+            MPI_SUM,  // Sum = 0,
+            MPI_PROD, // Product,
+            MPI_MAX,  // Max,
+            MPI_MIN,  // Min
+        };
+
+        if ((int)op < 0 || (int)op >= ARRAYSIZE(table))
+            LogicError("Invalid AggregateOp %d", op);
+
+        return table[(int)op];
+    }
+
     void Recreate(const std::vector<NDArrayViewPtr>& values, std::vector<NDArrayViewPtr>& output)
     {
         output.resize(values.size());
@@ -148,7 +164,8 @@ namespace CNTK
 
     void MPICommunicatorImpl::Aggregate(const std::vector<NDArrayViewPtr>& values,
         std::vector<NDArrayViewPtr>& outputValues,
-        const std::unordered_set<DistributedWorkerDescriptor>& sendToWorkers)
+        const std::unordered_set<DistributedWorkerDescriptor>& sendToWorkers,
+        AggregateOp op)
     {
         if (outputValues.empty())
         {
@@ -174,7 +191,7 @@ namespace CNTK
         {
             LogicError("Invalid device type (%u).", (unsigned int)device.Type());
         }
-        AggregateImpl(values, outputValues, sendToWorkers);
+        AggregateImpl(values, outputValues, sendToWorkers, op);
     }
 
     DistributedCommunicatorPtr MPICommunicatorImpl::SubGroup(const std::unordered_set<DistributedWorkerDescriptor>&) const
@@ -282,15 +299,81 @@ namespace CNTK
 
     void MPICommunicatorImpl::AggregateInPlace(
         const std::vector<NDArrayViewPtr>& values,
-        const std::unordered_set<DistributedWorkerDescriptor>& sendToWorkers)
+        const std::unordered_set<DistributedWorkerDescriptor>& sendToWorkers,
+        AggregateOp op)
     {
-        AggregateImpl(values, values, sendToWorkers);
+        AggregateImplWithPacking(values, values, sendToWorkers, op);
+    }
+
+    void MPICommunicatorImpl::AggregateImplWithPacking(
+        const std::vector<NDArrayViewPtr>& inputValues,
+        const std::vector<NDArrayViewPtr>& outputValues,
+        const std::unordered_set<DistributedWorkerDescriptor>& sendToWorkers,
+        AggregateOp op)
+    {
+        AggregateImpl(
+            inputValues,
+            outputValues,
+            sendToWorkers,
+            //pre-aggragation work
+            [this](const std::vector<NDArrayViewPtr>& inputValues, const std::vector<NDArrayViewPtr>& outputValues) ->std::pair<std::vector<NDArrayViewPtr>, std::vector<NDArrayViewPtr>>
+            {
+                std::vector<NDArrayViewPtr> valuesToAggregate; // Corresponding to inputValues
+                std::vector<NDArrayViewPtr> valuesAfterAggregate; // Corresponding to outputValues
+
+                auto numValues = inputValues.size();
+
+                size_t packedFloatGradientsSizeInBytes = 0;
+                size_t packedDoubleGradientsSizeInBytes = 0;
+                m_packedFloatGradientsIndex.clear();
+                m_packedDoubleGradientsIndex.clear();
+                for (auto i = 0; i < numValues; i++)
+                {
+                    // Push index to packing queue if the gradient's size is less than threshold size
+                    if (GetBufferSize(inputValues[i]) < m_packThresholdSizeInBytes && (inputValues[i]->GetDataType() == DataType::Float))
+                    {
+                        packedFloatGradientsSizeInBytes += GetBufferSize(inputValues[i]);
+                        m_packedFloatGradientsIndex.push_back(i);
+                    }
+                    else if (GetBufferSize(inputValues[i]) < m_packThresholdSizeInBytes && (inputValues[i]->GetDataType() == DataType::Double))
+                    {
+                        packedDoubleGradientsSizeInBytes += GetBufferSize(inputValues[i]);
+                        m_packedDoubleGradientsIndex.push_back(i);
+                    }
+                    else
+                    {
+                        valuesToAggregate.push_back(inputValues[i]);
+                        valuesAfterAggregate.push_back(outputValues[i]);
+                    }
+                }
+
+                // Do the packing to reduce the number of MPI requests.
+                // Do not re-allocating the continous buffer if existing buffer size equals to required one.
+                m_aggregationBufferFloat = SetContinuousBuffer<float>(m_packedFloatGradientsIndex, packedFloatGradientsSizeInBytes, inputValues, outputValues,
+                    valuesToAggregate, valuesAfterAggregate);
+                m_aggregationBufferDouble = SetContinuousBuffer<double>(m_packedDoubleGradientsIndex, packedDoubleGradientsSizeInBytes, inputValues, outputValues,
+                    valuesToAggregate, valuesAfterAggregate);
+
+                PackToContinuousBuffer(m_aggregationBufferFloat.get(), m_packedFloatGradientsIndex, inputValues, outputValues, valuesToAggregate, valuesAfterAggregate);
+                PackToContinuousBuffer(m_aggregationBufferDouble.get(), m_packedDoubleGradientsIndex, inputValues, outputValues, valuesToAggregate, valuesAfterAggregate);
+
+                return std::make_pair(valuesToAggregate, valuesAfterAggregate);
+            },
+            //post-aggragation work
+            [this](const std::vector<NDArrayViewPtr>&, const std::vector<NDArrayViewPtr>&) ->std::pair<std::vector<NDArrayViewPtr>, std::vector<NDArrayViewPtr>>
+            {
+
+            },
+            op);
     }
 
     void  MPICommunicatorImpl::AggregateImpl(
         const std::vector<NDArrayViewPtr>& inputValues,
         const std::vector<NDArrayViewPtr>& outputValues,
-        const std::unordered_set<DistributedWorkerDescriptor>& sendToWorkers)
+        const std::unordered_set<DistributedWorkerDescriptor>& sendToWorkers,
+        std::function<std::pair<std::vector<NDArrayViewPtr>, std::vector<NDArrayViewPtr>>(const std::vector<NDArrayViewPtr>&, const std::vector<NDArrayViewPtr>&)> preAction,
+        std::function<std::pair<std::vector<NDArrayViewPtr>, std::vector<NDArrayViewPtr>>(const std::vector<NDArrayViewPtr>&, const std::vector<NDArrayViewPtr>&)> postAction,
+        AggregateOp op)
     {
         CheckWorkers(sendToWorkers);
 
@@ -303,41 +386,10 @@ namespace CNTK
         if (numValues == 0)
             return;
 
-        std::vector<NDArrayViewPtr> valuesToAggregate; // Corresponding to inputValues
-        std::vector<NDArrayViewPtr> valuesAfterAggregate; // Corresponding to outputValues
-        size_t packedFloatGradientsSizeInBytes = 0;
-        size_t packedDoubleGradientsSizeInBytes = 0;
-        std::vector<size_t> packedFloatGradientsIndex;
-        std::vector<size_t> packedDoubleGradientsIndex;
-        for (auto i = 0; i < numValues; i++)
-        {
-            // Push index to packing queue if the gradient's size is less than threshold size
-            if (GetBufferSize(inputValues[i]) < m_packThresholdSizeInBytes && (inputValues[i]->GetDataType() == DataType::Float))
-            {
-                packedFloatGradientsSizeInBytes += GetBufferSize(inputValues[i]);
-                packedFloatGradientsIndex.push_back(i);
-            }
-            else if (GetBufferSize(inputValues[i]) < m_packThresholdSizeInBytes && (inputValues[i]->GetDataType() == DataType::Double))
-            {
-                packedDoubleGradientsSizeInBytes += GetBufferSize(inputValues[i]);
-                packedDoubleGradientsIndex.push_back(i);
-            }
-            else
-            {
-                valuesToAggregate.push_back(inputValues[i]);
-                valuesAfterAggregate.push_back(outputValues[i]);
-            }
-        }
+        auto preAggOutputs = preAction(inputValues, outputValues);
 
-        // Do the packing to reduce the number of MPI requests.
-        // Do not re-allocating the continous buffer if existing buffer size equals to required one.
-        m_aggregationBufferFloat = SetContinuousBuffer<float>(packedFloatGradientsIndex, packedFloatGradientsSizeInBytes, inputValues, outputValues,
-            valuesToAggregate, valuesAfterAggregate);
-        m_aggregationBufferDouble = SetContinuousBuffer<double>(packedDoubleGradientsIndex, packedDoubleGradientsSizeInBytes, inputValues, outputValues,
-            valuesToAggregate, valuesAfterAggregate);
-
-        PackToContinuousBuffer(m_aggregationBufferFloat.get(), packedFloatGradientsIndex, inputValues, outputValues, valuesToAggregate, valuesAfterAggregate);
-        PackToContinuousBuffer(m_aggregationBufferDouble.get(), packedDoubleGradientsIndex, inputValues, outputValues, valuesToAggregate, valuesAfterAggregate);
+        std::vector<NDArrayViewPtr>& valuesToAggregate = preAggOutputs.first; // Corresponding to inputValues
+        std::vector<NDArrayViewPtr>& valuesAfterAggregate = preAggOutputs.second; // Corresponding to outputValues
 
         numValues = valuesToAggregate.size();
 
@@ -390,13 +442,13 @@ namespace CNTK
 
             if (dataType == DataType::Float)
             {
-                AllReduceGradients(static_cast<float*>(inputData), static_cast<float*>(outputData), numElements,
-                    allReduceRequests, (inputValue->Device() == DeviceDescriptor::CPUDevice()));
+                AllReduceData(static_cast<float*>(inputData), static_cast<float*>(outputData), numElements,
+                    allReduceRequests, (inputValue->Device() == DeviceDescriptor::CPUDevice()), op);
             }
             else if (dataType == DataType::Double)
             {
-                AllReduceGradients(static_cast<double*>(inputData), static_cast<double*>(outputData), numElements,
-                    allReduceRequests, (inputValue->Device() == DeviceDescriptor::CPUDevice()));
+                AllReduceData(static_cast<double*>(inputData), static_cast<double*>(outputData), numElements,
+                    allReduceRequests, (inputValue->Device() == DeviceDescriptor::CPUDevice()), op);
             }
             else
                 LogicError("MPICommunicator: Unknown DataType.");
@@ -546,11 +598,11 @@ namespace CNTK
     }
 
     template <typename ElemType>
-    void MPICommunicatorImpl::AllReduceGradients(ElemType* inputData, ElemType* outputData, size_t numElements, std::vector<MPI_Request> &allReduceRequests, bool dataOnCPU)
+    void MPICommunicatorImpl::AllReduceData(ElemType* inputData, ElemType* outputData, size_t numElements, std::vector<MPI_Request> &allReduceRequests, bool dataOnCPU, AggregateOp op)
     {
         if (m_nccl->IsSupported() && !dataOnCPU)
         {
-            m_nccl->AllReduce(inputData, outputData, numElements);
+            m_nccl->AllReduce(inputData, outputData, numElements, GetMpiOp(op));
 
             return;
         }
@@ -558,17 +610,17 @@ namespace CNTK
         if (m_mpi->UseGpuGdr())
         {
             if (inputData == outputData)
-                m_mpi->AllReduce(outputData, numElements);
+                m_mpi->AllReduce(outputData, numElements, GetMpiOp(op));
             else
-                m_mpi->AllReduce(inputData, outputData, numElements);
+                m_mpi->AllReduce(inputData, outputData, numElements, GetMpiOp(op));
 
             return;
         }
 
         allReduceRequests.push_back(MPI_Request());
         if (inputData == outputData)
-            m_mpi->AllReduceAsync(outputData, numElements, &allReduceRequests.back());
+            m_mpi->AllReduceAsync(outputData, numElements, &allReduceRequests.back(), GetMpiOp(op));
         else
-            m_mpi->AllReduceAsync(inputData, outputData, numElements, &allReduceRequests.back());
+            m_mpi->AllReduceAsync(inputData, outputData, numElements, &allReduceRequests.back(), GetMpiOp(op));
     }
 }

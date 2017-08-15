@@ -25,7 +25,7 @@ class NcclComm
 #ifdef USE_NCCL
 private:
     enum class DataType : int {FLOAT, DOUBLE};
-    void AllReduceImpl(void* inputbuffer, void* outputbuffer, size_t count, DataType dtype);
+    void AllReduceImpl(void* inputbuffer, void* outputbuffer, size_t count, DataType dtype, MPI_Op op);
     void BroadcastImpl(void* buffer, size_t count, MPI_Datatype dtype, int root);
     cudaStream_t m_stream;
     ncclComm_t m_ncclComm;
@@ -38,7 +38,7 @@ public:
     void Sync(); // waits for outstanding reductions to complete
     
     template <typename ElemType>
-    void AllReduce(ElemType* inputBuffer, ElemType* outputBuffer, size_t count)
+    void AllReduce(ElemType* inputBuffer, ElemType* outputBuffer, size_t count, MPI_Op op)
     {
 #ifdef USE_NCCL
         DataType dtype = DataType::FLOAT;
@@ -47,14 +47,14 @@ public:
         else if (!std::is_same<ElemType, float>::value)
             RuntimeError("NcclComm Unsupported reduction type");
 
-        AllReduceImpl(inputBuffer, outputBuffer, count, dtype);
+        AllReduceImpl(inputBuffer, outputBuffer, count, dtype, op);
 #else
         RuntimeError("NcclComm: CNTK was built without NCCL support.");
 #endif
     }
 
     template <typename ElemType>
-    void AllReduce(const std::vector<Matrix<ElemType>*>& grads)
+    void AllReduce(const std::vector<Matrix<ElemType>*>& grads, MPI_Op op)
     {
 #ifdef USE_NCCL
         DataType dtype = DataType::FLOAT;
@@ -67,7 +67,7 @@ public:
         {
             if (grads[i]->Data() == nullptr) // Hack in case of eval
                 continue;
-            AllReduceImpl(grads[i]->Data(), grads[i]->Data(), grads[i]->GetNumElements(), dtype);
+            AllReduceImpl(grads[i]->Data(), grads[i]->Data(), grads[i]->GetNumElements(), dtype, op);
         }
 #else
         RuntimeError("NcclComm: CNTK was built without NCCL support.");
