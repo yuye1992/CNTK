@@ -12,7 +12,8 @@ if NOT "%PAPER%" == "" (
     set ALLSPHINXOPTS=-D latex_paper_size=%PAPER% %ALLSPHINXOPTS%
     set I18NSPHINXOPTS=-D latex_paper_size=%PAPER% %I18NSPHINXOPTS%
 )
-set TUTORIALFILE="CNTK_*.ipynb"
+set TUTORIALSOURCEDIR=..\..\..\Tutorials\
+set TUTORIALSOURCEFILE=CNTK_*.ipynb
 
 if "%1" == "" goto help
 
@@ -74,8 +75,11 @@ if errorlevel 9009 (
 
 
 if "%1" == "html" (
+    echo Copying jupyter notebooks to build directory  
+    xcopy %TUTORIALSOURCEDIR%%TUTORIALSOURCEFILE% .
     %SPHINXBUILD% -b html %ALLSPHINXOPTS% %BUILDDIR%/html
-    del %TUTORIALFILE%
+    echo Removing jupyter notebooks from local directory
+    del %TUTORIALSOURCEFILE%
     if errorlevel 1 exit /b 1
     echo.
     echo.Build finished. The HTML pages are in %BUILDDIR%/html.

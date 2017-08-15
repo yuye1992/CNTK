@@ -1,7 +1,4 @@
 import re
-import os
-import sys
-import shutil
 
 try:
     import cntk
@@ -10,21 +7,6 @@ except ImportError:
                       "and importable to generate documentation")
 
 from cntk.sample_installer import module_is_unreleased
-
-from shutil import copyfile
-
-tutorial_root = "..\..\..\Tutorials"
-tutdoc_source_root = "."
-
-tutorial_filename = os.path.join(os.path.abspath('.'), 'tutlist.txt')
-filelist = [item.rstrip('\n') for item in list(open(tutorial_filename))]
-
-print(os.path.abspath(tutorial_root))
-for filename in filelist:
-    src = os.path.join(os.path.abspath(tutorial_root), filename)
-    dst = os.path.join(os.path.abspath(tutdoc_source_root), filename)
-    print(dst)
-    copyfile(src, dst)
 
 try:
     import sphinx_rtd_theme
@@ -56,6 +38,7 @@ exclude_patterns = [
     '_build',
     'images',
     'test',
+    '*.ipynb',
 ]
 
 autodoc_mock_imports = [
