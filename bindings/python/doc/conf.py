@@ -1,4 +1,7 @@
 import re
+import os
+import sys
+import shutil
 
 try:
     import cntk
@@ -8,12 +11,31 @@ except ImportError:
 
 from cntk.sample_installer import module_is_unreleased
 
+from shutil import copyfile
+
+tutorial_root = "..\..\..\Tutorials"
+tutdoc_source_root = "."
+
+tutorial_filename = os.path.join(os.path.abspath('.'), 'tutlist.txt')
+filelist = [item.rstrip('\n') for item in list(open(tutorial_filename))]
+
+print(os.path.abspath(tutorial_root))
+for filename in filelist:
+    src = os.path.join(os.path.abspath(tutorial_root), filename)
+    dst = os.path.join(os.path.abspath(tutdoc_source_root), filename)
+    print(dst)
+    copyfile(src, dst)
+
 try:
     import sphinx_rtd_theme
 except ImportError:
     raise ImportError("Unable to import sphinx_rtd_theme, please install via "
                       "'pip install sphinx_rtd_theme'")
 
+                      
+import sphinx.environment
+from docutils.utils import get_source_line
+                      
 extensions = [
     'sphinx.ext.autodoc',
     'sphinx.ext.extlinks',
@@ -21,7 +43,12 @@ extensions = [
     'sphinx.ext.napoleon',
     'sphinx.ext.todo',
     'sphinx.ext.viewcode',
+    'nbsphinx',
+    'IPython.sphinxext.ipython_console_highlighting'
 ]
+
+# Suppress warnings
+suppress_warnings = ['image.nonlocal_uri']
 
 master_doc = 'index'
 

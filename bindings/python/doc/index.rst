@@ -22,6 +22,7 @@ them on sample data in real time. Please give feedback through these :cntkwiki:`
    Getting Started <gettingstarted>
    Working with Sequences <sequence>
    Tutorials <tutorials>
+   Tutorials with HTML <tuthtml.rst>
    Examples <examples>
    Layers Library Reference  <layerref>
    Python API Reference <cntk>
