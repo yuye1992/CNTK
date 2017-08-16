@@ -78,7 +78,7 @@ if "%1" == "html" (
     echo Copying jupyter notebooks to build directory  
     xcopy %TUTORIALSOURCEDIR%%TUTORIALSOURCEFILE% .
     %SPHINXBUILD% -b html %ALLSPHINXOPTS% %BUILDDIR%/html
-    echo Removing jupyter notebooks from local directory
+    echo Removing jupyter notebooks from build directory
     del %TUTORIALSOURCEFILE%
     if errorlevel 1 exit /b 1
     echo.

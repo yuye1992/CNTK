@@ -3,6 +3,8 @@
 ## Documentation
 
 ### Add HTML version of tutorials and manuals so that they can be searchable
+We have added HTML versions of the tutorials with the python documentation. This makes the notebooks searchable as well.
+
 ### Add missing evaluation documents
 
 ## System 
