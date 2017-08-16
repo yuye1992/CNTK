@@ -493,8 +493,8 @@ namespace CNTK
         }
 
         // Unpack the continuous buffer
-        UnpackFromContinuousBuffer(m_aggregationBufferFloat.get(), outputValues, packedFloatGradientsIndex);
-        UnpackFromContinuousBuffer(m_aggregationBufferDouble.get(), outputValues, packedDoubleGradientsIndex);
+        UnpackFromContinuousBuffer(m_aggregationBufferFloat.get(), outputValues, m_packedFloatGradientsIndex);
+        UnpackFromContinuousBuffer(m_aggregationBufferDouble.get(), outputValues, m_packedDoubleGradientsIndex);
     }
 
     void  MPICommunicatorImpl::Barrier()
