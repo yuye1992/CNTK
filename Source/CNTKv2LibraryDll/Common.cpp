@@ -567,7 +567,7 @@ namespace CNTK
             return SyncGuard::IsSyncEnabled();
         }
 
-		std::atomic<int> s_useSparseGradientAggregationInDataParallelSGD(true);
+		std::atomic<bool> s_useSparseGradientAggregationInDataParallelSGD(true);
 
 		void UseSparseGradientAggregationInDataParallelSGD(bool enable)
 		{

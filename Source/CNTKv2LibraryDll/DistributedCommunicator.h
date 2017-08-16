@@ -71,15 +71,7 @@ namespace CNTK
             const std::vector<NDArrayViewPtr>& inputValues,
             const std::vector<NDArrayViewPtr>& outputValues,
             const std::unordered_set<DistributedWorkerDescriptor>& sendToWorkers,
-            std::function<std::pair<std::vector<NDArrayViewPtr>, std::vector<NDArrayViewPtr>>(const std::vector<NDArrayViewPtr>&, const std::vector<NDArrayViewPtr>&)> preAction,
-            std::function<std::pair<std::vector<NDArrayViewPtr>, std::vector<NDArrayViewPtr>>(const std::vector<NDArrayViewPtr>&, const std::vector<NDArrayViewPtr>&)> postAction,
             AggregateOp op = AggregateOp::Sum);
-
-        void MPICommunicatorImpl::AggregateImplWithPacking(
-            const std::vector<NDArrayViewPtr>& inputValues,
-            const std::vector<NDArrayViewPtr>& outputValues,
-            const std::unordered_set<DistributedWorkerDescriptor>& sendToWorkers,
-            AggregateOp op);
 
         struct Buffer
         {
@@ -100,9 +92,6 @@ namespace CNTK
         size_t m_packThresholdSizeInBytes;
         std::unique_ptr<Microsoft::MSR::CNTK::Matrix<float>> m_aggregationBufferFloat;
         std::unique_ptr<Microsoft::MSR::CNTK::Matrix<double>> m_aggregationBufferDouble;
-
-        std::vector<size_t> m_packedFloatGradientsIndex;
-        std::vector<size_t> m_packedDoubleGradientsIndex;
 
         // NcclComm
         std::unique_ptr<Microsoft::MSR::CNTK::NcclComm> m_nccl;
