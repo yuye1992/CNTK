@@ -38,7 +38,6 @@ exclude_patterns = [
     '_build',
     'images',
     'test',
-    '*.ipynb',
 ]
 
 autodoc_mock_imports = [
@@ -93,7 +92,8 @@ extlinks = {
     'cntk': (source_prefix + '/%s', ''),
     'cntktut': (source_prefix + '/Tutorials/%s.ipynb', ''),
     # CNTK Wiki has moved to a new site:
-    'cntkwiki': ('https://docs.microsoft.com/en-us/cognitive-toolkit/%s', 'CNTK Doc - ')
+    'cntkwiki': ('https://docs.microsoft.com/en-us/cognitive-toolkit/%s', 'CNTK Doc - '),
+    'cntkman': (source_prefix + '/Manual/%s.ipynb', ''),
 }
 
 # sphinx.ext.napoleon options
