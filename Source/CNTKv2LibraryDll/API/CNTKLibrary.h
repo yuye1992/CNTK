@@ -1259,8 +1259,7 @@ namespace CNTK
             Axis,
             Vector,
             Dictionary,
-            NDArrayView,
-            Rate
+            NDArrayView
         };
 
         static const char* TypeName(Type type)
@@ -1291,8 +1290,6 @@ namespace CNTK
                 return "Dictionary";
             case Type::NDArrayView:
                 return "NDArrayView";
-            case Type::Rate:
-                return "Rate";
             default:
                 LogicError("Unknown DictionaryValue::Type.");
             }
@@ -4468,9 +4465,9 @@ namespace CNTK
     public:
         static const size_t UNKNOWN_REFMBSIZE = std::numeric_limits<size_t>::max(); ///< Represent unknown reference size. 
 
-        Rate() : rate(0), reference_mbsize(0) {};
-        Rate(double rate, size_t reference_mbsize) : rate(rate), reference_mbsize(reference_mbsize) {};
-        Rate(const Rate& right) : rate(right.rate), reference_mbsize(right.reference_mbsize) {};
+        CNTK_API Rate() : rate(0), reference_mbsize(0) {};
+        CNTK_API Rate(double rate, size_t reference_mbsize) : rate(rate), reference_mbsize(reference_mbsize) {};
+        CNTK_API Rate(const Rate& right) : rate(right.rate), reference_mbsize(right.reference_mbsize) {};
 
         bool operator ==(const Rate& right) const { return rate == right.rate && reference_mbsize == right.reference_mbsize; };
 
@@ -4488,27 +4485,51 @@ namespace CNTK
             rate = dict[RATEFIELD].Value<double>();
             reference_mbsize = dict[RERERENCEMBSIZEFIELD].Value<size_t>();
         }
-        double Value() const { return rate; }
-        size_t ReferenceMBSize() const { return reference_mbsize; }
+        CNTK_API double Value() const { return rate; }
+        CNTK_API size_t ReferenceMBSize() const { return reference_mbsize; }
+
+        CNTK_API std::wstring AsString() const
+        {
+            std::wstringstream wss;
+            wss << L"Rate(rate=" << rate << L", reference_mbsize=" << reference_mbsize << L")";
+            return wss.str();
+        }
     };
+
     typedef TrainingParameterSchedule<size_t> MinibatchSizeSchedule;
+    typedef TrainingParameterSchedule<Rate> TrainingRateSchedule;
     typedef TrainingParameterSchedule<Rate> LearningRateSchedule;
     typedef TrainingParameterSchedule<Rate> MomentumSchedule;
 
     //
     inline Rate RatePerSample(double rate) { return Rate(rate, 1); }
 
-    ///MomentumAsTimeConstont is for legacy API. TODO: Should be deprecated.
+    ///MomentumAsTimeConstont is for legacy API. 
+    ///This API will be be deprecated in future release.
+    ///The legacy momentum_as_time_constant_schedule is a Rate
+    ///with rate = 1 / e and reference_mbsize = time_constant
+    ///the corresponding adjusted momentum
+    ///  expoential decay rate = (1 / e) ^ (encountered_mbsize / reference_mbsize)
+    ///                        = (1 / e) ^ (encountered_mbsize / time_constant)
     inline Rate MomentumRateAsTimeConstant(size_t time_constant)
     {
         return Rate(exp(-1.0), time_constant);
     }
 
-    inline MomentumSchedule MomentumAsTimeConstantSchedule(size_t time_constant) 
+    inline MomentumSchedule MomentumAsTimeConstantSchedule(size_t time_constant)
     {
         return MomentumSchedule(MomentumRateAsTimeConstant(time_constant));
     }
-    inline LearningRateSchedule LearningRatePerSampleSchedule(double learning_rate)
+
+    inline MomentumSchedule MomentumAsTimeConstantSchedule(const std::vector<size_t>& time_constants)
+    {
+        std::vector<Rate> rates;
+        std::transform(time_constants.begin(), time_constants.end(), std::back_inserter(rates),
+            [](size_t constant) { return MomentumRateAsTimeConstant(constant); });
+        return MomentumSchedule(rates);
+    }
+
+    CNTK_API inline LearningRateSchedule LearningRatePerSampleSchedule(double learning_rate)
     {
         return LearningRateSchedule(RatePerSample(learning_rate));
     }
@@ -4608,7 +4629,25 @@ namespace CNTK
         /// log m2 = [mb2_size / mb_size] log m
         /// m2 = m ^ [mb2_size / mb_size]
         /// 
-        /// The adjustment for unit gain momentum with similar derivation.
+        /// The adjustment for unit gain momentum:
+        ///    sg_t = m * sg_{t-1} + (1 - m ) * lr * \sum_{i \in mb_t} g_{t-1, i} / mb_{t,size}
+        /// (1 - m) should be scaled in a way similar to the learning rate. Let
+        ///    sg_t = m2 * sg_{ t - 1 } + (1 - m2) * lr2 * \sum_{ i \in mb2_t } g_{ t - 1, i } / mb2_{ t,size }
+        /// The learning rate should satisfy:
+        ///     \sum_{ i \in mb2_t } g_{ t - 1, i } * lr2  / mb2_{ t,size } = \sum_{ i \in mb_t } g_{ t - 1, i } * lr / mb_{ t,size }
+        /// will require:
+        ///     lr2  / mb2_{ t,size } = lr / mb_{ t,size }
+        /// therefore the per sample learning rate is lr2  / mb2_{ t,size } and lr / mb_{ t,size } and they should be the same for each sample.
+        ///
+        /// Multiplying the unit gain momumentum term:
+        ///     \sum_{ i \in mb2_t } g_{ t - 1, i } * (1 - m2) * lr2  / mb2_{ t,size } = \sum_{ i \in mb_t } g_{ t - 1, i } * (1 - m1) * lr / mb_{ t,size }
+        /// will require:
+        ///     lr2 / mb2_{ t,size } = lr / mb_{ t,size },
+        ///The corresponding per sample learning rate and unit-gain combined correction will require:
+        ///     (1  - m2) * lr2 / mb2_{ t,size } and (1 - m ) * lr / mb_{ t,size } respectively and they should be the same for each sample.
+        ///If m2 and lr2 are defined for reference mb size mbsize_{m2, t} and mbsize_{lr, t}, the per sample adjustment should be
+        ///     (1 - m2) /  mbsize_{m2, t} * lr2 /  mbsize_{lr, t}
+        ///
         ///                                                 Yuqing Tang
         ///                                                 07/28/2017
         /// 
@@ -4620,6 +4659,15 @@ namespace CNTK
                 return 0.0;
             else
                 return std::pow(rate.Value(), encountered_mbsize / rate.ReferenceMBSize());
+        }
+        static double ExponetialDecay1MinusRateForMinibatch(const Rate& rate, size_t encountered_mbsize)
+        {
+            if (encountered_mbsize == rate.ReferenceMBSize() || rate.ReferenceMBSize() == Rate::UNKNOWN_REFMBSIZE)
+                return rate.Value();
+            else if (rate.ReferenceMBSize() == 0)
+                return 0.0;
+            else
+                return std::pow( (1 - rate.Value()), encountered_mbsize / rate.ReferenceMBSize());
         }
     public:
         //

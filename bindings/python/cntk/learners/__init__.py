@@ -28,7 +28,7 @@ import cntk.internal.utils as utils
 from .. import cntk_py, NDArrayView, asarray
 from cntk.internal import typemap
 from ..internal.swig_helper import map_if_possible
-
+from ..cntk_py import Rate, rate_per_sample
 
 @unique
 class UnitType(Enum):
@@ -48,8 +48,18 @@ class UnitType(Enum):
     Schedule contains per-minibatch values (and need to be re-scaled by the learner
     using the actual minibatch size in samples).
     '''
-
-
+#
+# class Rate(cntk_py.Rate):
+#     def __init__(self, rate, reference_mbsize):
+#         super(Rate, self).__init__(rate, reference_mbsize)
+#
+#     @property
+#     def value(self):
+#         return self.rate()
+#
+#     @property
+#     def reference_mbsize(self):
+#         return self.reference_mbsize()
 
 
 
@@ -226,77 +236,168 @@ class UserLearner(cntk_py.Learner):
         '''
         raise NotImplementedError('UserLearner.update must be overriden')
 
-
 @typemap
-def training_parameter_schedule(schedule, unit, epoch_size=None):
+def training_rate_parameter_schedule(schedule, reference_mb_size_in_samples = None, schedule_unit_in_samples=None):
     '''
     Create a training parameter schedule containing either per-sample (default)
     or per-minibatch values.
 
-    Examples:
-        >>> # Use a fixed value 0.01 for all samples
-        >>> s = training_parameter_schedule(0.01, UnitType.sample)
-        >>> s[0], s[1]
-        (0.01, 0.01)
-
-        >>> # Use 0.01 for the first 1000 samples, then 0.001 for the remaining ones
-        >>> s = training_parameter_schedule([0.01, 0.001], UnitType.sample, 1000)
-        >>> s[0], s[1], s[1000], s[1001]
-        (0.01, 0.01, 0.001, 0.001)
-
-        >>> # Use 0.1 for the first 12 epochs, then 0.01 for the next 15,
-        >>> # followed by 0.001 for the remaining ones, with a 100 samples in an epoch
-        >>> s = training_parameter_schedule([(12, 0.1), (15, 0.01), (1, 0.001)], UnitType.sample, 100)
-        >>> s[0], s[1199], s[1200], s[2699], s[2700], s[5000]
-        (0.1, 0.1, 0.01, 0.01, 0.001, 0.001)
-
     Args:
-        schedule (float or list): if float, is the parameter schedule to be used
+        schedule (:class:`Rate` or list of :class:`Rate`): if float, is the parameter schedule to be used
          for all samples. In case of list, the elements are used as the
-         values for ``epoch_size`` samples. If list contains pair, the second element is
-         used as a value for (``epoch_size`` x first element) samples
-        unit (:class:`UnitType`): one of two
-          * ``sample``: the returned schedule contains per-sample values
-          * ``minibatch``: the returned schedule contains per-minibatch values.
-        epoch_size (optional, int): number of samples as a scheduling unit.
-         Parameters in the schedule change their values every ``epoch_size``
-         samples. If no ``epoch_size`` is provided, this parameter is substituted
+         values for ``schedule_unit_in_samples`` number of samples. If list contains pair,
+         the second element is used as a value for (``schedule_unit_in_samples`` x first element)
+         samples
+        schedule_unit_in_samples (optional, int): number of samples as a scheduling unit.
+         Parameters in the schedule change their values every ``schedule_unit_in_samples``
+         samples. If no ``schedule_unit_in_samples`` is provided, this parameter is substituted
          by the size of the full data sweep, in which case the scheduling unit is
-         the entire data sweep (as indicated by the MinibatchSource) and parameters
+         the entire data sweep (as indicated by the :class:`MinibatchSource`) and parameters
          change their values on the sweep-by-sweep basis specified by the
          ``schedule``.
 
     Returns:
-        training parameter schedule
-
-    See also:
-        :func:`learning_rate_schedule`
+        training parameter schedule of primitive value types
     '''
-    if unit == UnitType.sample:
-        if isinstance(schedule, cntk_py.training_parameter_per_sample_schedule):
-            return schedule
-    else:
-        if isinstance(schedule, cntk_py.training_parameter_per_minibatch_schedule):
-            return schedule
+    effective_ref_mbsize = cntk_py.Rate.unknown_refmbsize if reference_mb_size_in_samples is None else reference_mb_size_in_samples
+    def transform_to_rate(param):
+        if isinstance(param, Rate):
+            return param
+        elif isinstance(param, tuple):
+            sch, r = param
+            return sch, cntk_py.Rate(r, effective_ref_mbsize)
+        else:
+            return cntk_py.Rate(param, effective_ref_mbsize)
 
     if isinstance(schedule, (int, float)):
-        if epoch_size is not None:
+        if schedule_unit_in_samples is not None:
             warnings.warn('When providing the schedule as a number, epoch_size is ignored', RuntimeWarning)
-        if UnitType(unit) is UnitType.sample:
-            return cntk_py.training_parameter_per_sample_schedule(schedule)
-        else:
-            return cntk_py.training_parameter_per_minibatch_schedule(schedule)
+        rate = transform_to_rate(schedule)
+        return cntk_py.training_rate_parameter_schedule(rate)
 
-    args = [schedule] if epoch_size is None else [schedule, epoch_size]
+    if isinstance(schedule, Rate):
+        if schedule_unit_in_samples is not None:
+            warnings.warn('When providing the schedule as a number, epoch_size is ignored', RuntimeWarning)
+        if reference_mb_size_in_samples is not None:
+            warnings.warn('When providing the schedule in a single Rate, reference_mb_size_in_samples is ignored', RuntimeWarning)
+        return cntk_py.training_rate_parameter_schedule(schedule)
 
     if isinstance(schedule, list):
-        if UnitType(unit) is UnitType.sample:
-            return cntk_py.training_parameter_per_sample_schedule(*args)
-        else:
-            return cntk_py.training_parameter_per_minibatch_schedule(*args)
+        schedule_in_rates = [transform_to_rate(r) for r in schedule]
+        args = [schedule_in_rates] if schedule_unit_in_samples is None else [schedule_in_rates, schedule_unit_in_samples]
+        return cntk_py.training_rate_parameter_schedule(*args)
+
+    raise ValueError(
+        'schedule must be either a float, a Rate or a list of floats or Rates, not %s' % type(schedule))
+
+
+@typemap
+def training_double_parameter_schedule(schedule, schedule_unit_in_samples = None):
+    '''
+    Create a training parameter schedule containing either per-sample (default)
+    or per-minibatch values.
+    
+    Args:
+        schedule (float or list): if float, is the parameter schedule to be used
+         for all samples. In case of list, the elements are used as the
+         values for ``schedule_unit_in_samples`` number of samples. If list contains pair,
+         the second element is used as a value for (``schedule_unit_in_samples`` x first element)
+         samples
+        schedule_unit_in_samples (optional, int): number of samples as a scheduling unit.
+         Parameters in the schedule change their values every ``schedule_unit_in_samples``
+         samples. If no ``schedule_unit_in_samples`` is provided, this parameter is substituted
+         by the size of the full data sweep, in which case the scheduling unit is
+         the entire data sweep (as indicated by the :class:`MinibatchSource`) and parameters
+         change their values on the sweep-by-sweep basis specified by the
+         ``schedule``.
+
+    Returns:
+        training parameter schedule of primitive value types
+    '''
+    if isinstance(schedule, (int, float)):
+        if schedule_unit_in_samples is not None:
+            warnings.warn('When providing the schedule as a number, epoch_size is ignored', RuntimeWarning)
+        return cntk_py.training_double_parameter_schedule(schedule)
+
+    args = [schedule] if schedule_unit_in_samples is None else [schedule, schedule_unit_in_samples]
+
+    if isinstance(schedule, list):
+        return cntk_py.training_double_parameter_schedule(*args)
 
     raise ValueError(
         'schedule must be either a float or a list, not %s' % type(schedule))
+
+
+# @typemap
+# def training_parameter_schedule(schedule, unit, epoch_size=None):
+#     '''
+#     Create a training parameter schedule containing either per-sample (default)
+#     or per-minibatch values.
+#
+#     Examples:
+#         >>> # Use a fixed value 0.01 for all samples
+#         >>> s = training_parameter_schedule(0.01, UnitType.sample)
+#         >>> s[0], s[1]
+#         (0.01, 0.01)
+#
+#         >>> # Use 0.01 for the first 1000 samples, then 0.001 for the remaining ones
+#         >>> s = training_rate_parameter_schedule([0.01, 0.001], UnitType.sample, 1000)
+#         >>> s[0], s[1], s[1000], s[1001]
+#         (0.01, 0.01, 0.001, 0.001)
+#
+#         >>> # Use 0.1 for the first 12 epochs, then 0.01 for the next 15,
+#         >>> # followed by 0.001 for the remaining ones, with a 100 samples in an epoch
+#         >>> s = training_rate_parameter_schedule([(12, 0.1), (15, 0.01), (1, 0.001)], UnitType.sample, 100)
+#         >>> s[0], s[1199], s[1200], s[2699], s[2700], s[5000]
+#         (0.1, 0.1, 0.01, 0.01, 0.001, 0.001)
+#
+#     Args:
+#         schedule (float or list): if float, is the parameter schedule to be used
+#          for all samples. In case of list, the elements are used as the
+#          values for ``epoch_size`` samples. If list contains pair, the second element is
+#          used as a value for (``epoch_size`` x first element) samples
+#         unit (:class:`UnitType`): one of two
+#           * ``sample``: the returned schedule contains per-sample values
+#           * ``minibatch``: the returned schedule contains per-minibatch values.
+#         epoch_size (optional, int): number of samples as a scheduling unit.
+#          Parameters in the schedule change their values every ``epoch_size``
+#          samples. If no ``epoch_size`` is provided, this parameter is substituted
+#          by the size of the full data sweep, in which case the scheduling unit is
+#          the entire data sweep (as indicated by the MinibatchSource) and parameters
+#          change their values on the sweep-by-sweep basis specified by the
+#          ``schedule``.
+#
+#     Returns:
+#         training parameter schedule
+#
+#     See also:
+#         :func:`learning_rate_schedule`
+#     '''
+#     if unit == UnitType.sample:
+#         if isinstance(schedule, cntk_py.training_parameter_per_sample_schedule):
+#             return schedule
+#     else:
+#         if isinstance(schedule, cntk_py.training_parameter_per_minibatch_schedule):
+#             return schedule
+#
+#     if isinstance(schedule, (int, float)):
+#         if epoch_size is not None:
+#             warnings.warn('When providing the schedule as a number, epoch_size is ignored', RuntimeWarning)
+#         if UnitType(unit) is UnitType.sample:
+#             return cntk_py.training_parameter_per_sample_schedule(schedule)
+#         else:
+#             return cntk_py.training_parameter_per_minibatch_schedule(schedule)
+#
+#     args = [schedule] if epoch_size is None else [schedule, epoch_size]
+#
+#     if isinstance(schedule, list):
+#         if UnitType(unit) is UnitType.sample:
+#             return cntk_py.training_parameter_per_sample_schedule(*args)
+#         else:
+#             return cntk_py.training_parameter_per_minibatch_schedule(*args)
+#
+#     raise ValueError(
+#         'schedule must be either a float or a list, not %s' % type(schedule))
 
 
 @typemap
@@ -308,10 +409,19 @@ def learning_rate_schedule(lr, unit, epoch_size=None):
     Args:
         lr (float or list): see parameter ``schedule`` in
          :func:`training_parameter_schedule`.
-        unit (:class:`UnitType`): see parameter
-         ``unit`` in :func:`training_parameter_schedule`.
-        epoch_size (int): see parameter ``epoch_size`` in
-         :func:`training_parameter_schedule`.
+        unit (int or :class:`UnitType`): when unit is of type int, it
+         is the reference minibatch size of the learning rate; when it
+         is of type ``unit``, it is for back compatibility which will be removed
+         in future release:
+          * ``sample``: the reference minibatch size is set to 1
+          * ``minibatch``: the reference minibatch size is set to -1.
+        epoch_size (int): number of samples as a scheduling unit.
+         Parameters in the schedule change their values every ``epoch_size``
+         samples. If no ``epoch_size`` is provided, this parameter is substituted
+         by the size of the full data sweep, in which case the scheduling unit is
+         the entire data sweep (as indicated by the :class:`MinibatchSource`) and parameters
+         change their values on the sweep-by-sweep basis specified by the
+         ``epoch_size``.
 
     Returns:
         learning rate schedule
@@ -319,11 +429,16 @@ def learning_rate_schedule(lr, unit, epoch_size=None):
     See also:
         :func:`training_parameter_schedule`
     '''
-    return training_parameter_schedule(lr, unit, epoch_size)
+    if unit == UnitType.sample:
+        unit = 1
+    else:
+        unit = -1
+
+    return training_rate_parameter_schedule(lr, unit, epoch_size)
 
 
 @typemap
-def momentum_schedule(momentum, epoch_size=None):
+def momentum_schedule(momentum, epoch_size=None, reference_mb_size_in_samples = None):
     '''
     Create a per-minibatch momentum schedule (using the same semantics as
     :func:`training_parameter_schedule` with the `unit=UnitType.minibatch`).
@@ -357,8 +472,7 @@ def momentum_schedule(momentum, epoch_size=None):
     Returns:
         momentum schedule
     '''
-    return training_parameter_schedule(momentum, UnitType.minibatch, epoch_size)
-
+    return training_rate_parameter_schedule(momentum, reference_mb_size_in_samples, epoch_size)
 
 @typemap
 def momentum_as_time_constant_schedule(momentum, epoch_size=None):
@@ -395,23 +509,26 @@ def momentum_as_time_constant_schedule(momentum, epoch_size=None):
 
     """
     My note: (this should be deprecated for sure!)
+    See the C++ implementation CNTK::MomentumRateAsTimeConstant
     After changing to rate, momentum_as_time_constant_schedule is actually a rate 
     with rate = 1/e and reference_mbsize = time_constant
     the corresponding adjusted momentum 
         expoential decay rate = (1/e) ^ (encountered_mbsize / reference_mbsize)
                               = (1/e) ^ (encountered_mbsize / time_constant)
     """
-    if isinstance(momentum, (cntk_py.momentum_as_time_constant_schedule)):
+    if isinstance(momentum, (cntk_py.training_rate_parameter_schedule)):
         return momentum
 
     if isinstance(momentum, (int, float)):
         if epoch_size is not None:
             warnings.warn('When providing the schedule as a number, epoch_size is ignored', RuntimeWarning)
-        return cntk_py.momentum_as_time_constant_schedule(momentum)
+        rate = cntk_py.momentum_rate_as_time_constant(momentum)
+        return cntk_py.training_rate_parameter_schedule(rate)
 
     if isinstance(momentum, list):
-        args = [momentum] if epoch_size is None else [momentum, epoch_size]
-        return cntk_py.momentum_as_time_constant_schedule(*args)
+        momentum_rate = [cntk_py.momentum_rate_as_time_constant(m) for m in momentum]
+        args = [momentum_rate] if epoch_size is None else [momentum_rate, epoch_size]
+        return cntk_py.training_rate_parameter_schedule(*args)
 
     raise ValueError(
         'momentum must be either a float or a list, not %s' % type(momentum))

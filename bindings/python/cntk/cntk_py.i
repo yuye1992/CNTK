@@ -52,7 +52,6 @@
 %rename(sequence_reduce_sum) CNTK::Sequence::ReduceSum;
 %rename(sequence_reduce_max) CNTK::Sequence::ReduceMax;
 %rename(sequence_softmax) CNTK::Sequence::Softmax;
-%rename(momentum_schedule) CNTK::MomentumSchedule;
 %rename(ctf_deserializer) CNTK::CTFDeserializer;
 %rename(cbf_deserializer) CNTK::CBFDeserializer;
 %rename(htk_feature_deserializer) CNTK::HTKFeatureDeserializer;
@@ -145,9 +144,12 @@
 %template() std::pair<size_t, double>;
 %template() std::pair<size_t, size_t>;
 %template() std::pair<size_t, int>;
+%template() std::pair<size_t, CNTK::Rate>;
 %template() std::pair<float, float>;
 %template() std::pair<int, int>;
+%template() std::vector<CNTK::Rate>;
 %template() std::vector<std::pair<size_t, double>>;
+%template() std::vector<std::pair<size_t, CNTK::Rate>>;
 %template() std::vector<std::pair<size_t, size_t>>;
 %template() std::vector<std::pair<CNTK::Variable, CNTK::Variable>>;
 %template() std::vector<std::pair<CNTK::Variable, std::shared_ptr<CNTK::Function>>>;
@@ -1083,6 +1085,77 @@ public:
 }
 
 //
+// Converting Python list [(size_t, Rate)] to std::vector<std::pair<std::size_t, CNTK::Rate>>
+//
+
+%typecheck(1000) std::vector<std::pair<std::size_t, CNTK::Rate>> const& {
+    // '1000' is the typecheck precedence code. It means: check after basic
+    // types, but before arrays. See: http://www.swig.org/Doc1.3/Typemaps.html#Typemaps_overloading
+    $1 = PyList_Check($input) ? 1 : 0;
+}
+
+%typemap(in) std::vector<std::pair<std::size_t, CNTK::Rate>> const& {
+     //in std::vector<std::pair<std::size_t, CNTK::Rate>>
+     if (PyList_Check($input)) {
+        std::vector<std::pair<std::size_t, CNTK::Rate>>* vec = new std::vector<std::pair<std::size_t, CNTK::Rate>>();
+
+        PyObject *listIterator = PyObject_GetIter($input);
+        if (listIterator == NULL) {
+            SWIG_exception_fail(SWIG_ValueError, "cannot convert list element to std::pair<std::size_t, CNTK::Rate>");
+        }
+
+        PyObject *listItem;
+        while ((listItem = PyIter_Next(listIterator))) {
+            PyObject *value = PyObject_GetIter(listItem);
+            if (iterator == NULL) {
+                SWIG_exception_fail(SWIG_ValueError, "cannot convert tuple element to std::pair<std::size_t, CNTK::Rate>");
+            }
+
+            if (PyTuple_Check(listItem)) {
+				//get the num of samples
+                PyObject* first = PyTuple_GET_ITEM(listItem, 0);
+                size_t first_val = PyLong_AsSize_t(first);
+
+				//get the CNTK::Rate
+                PyObject* second = PyTuple_GET_ITEM(listItem, 1);
+                void *raw_rate = 0 ;
+                int res1 = SWIG_ConvertPtr(item, &raw_rate, SWIGTYPE_p_CNTK__Rate,  SWIG_POINTER_IMPLICIT_CONV);
+                if (!SWIG_IsOK(res1)) {
+                    SWIG_exception_fail(SWIG_ArgError(res1), "cannot convert tuple element to CNTK::Rate");
+                }
+                if (!raw_var) {
+                    SWIG_exception_fail(SWIG_ValueError, "invalid null reference when converting a tuple element to CNTK::Rate");
+                }
+
+                CNTK::Rate* rate = reinterpret_cast<CNTK::Rate*>(raw_rate);
+                vec->push_back(std::make_pair(first_val, *rate))
+
+                Py_DECREF(second);
+            } else {
+                SWIG_exception(SWIG_TypeError, "tuple expected");
+            }
+            Py_DECREF(listItem);
+        }
+
+        Py_DECREF(listIterator);
+
+        if (PyErr_Occurred()) {
+            SWIG_exception_fail(SWIG_ValueError, "cannot convert list element to std::pair<std::size_t, CNTK::Rate>");
+        }
+
+        $1 = vec;
+
+     } else {
+         SWIG_exception(SWIG_ValueError, "list expected");
+     }
+}
+
+%typemap(freearg) std::vector<std::pair<std::size_t, CNTK::Rate>> const& {
+    //freearg std::vector<std::pair<std::size_t, CNTK::Rate>>
+    delete $1;
+}
+
+//
 // Converting Python dictionary {StreamInformation: (mbsize, Value)} to std::unordered_map<CNTK::StreamInformation, std::pair<size_t, size_t>>&
 //
 %typecheck(1000)  std::unordered_map<CNTK::StreamInformation, std::pair<size_t, size_t>>& {
@@ -1918,18 +1991,18 @@ extern "C" CNTKPYTHON_API bool CreateDeserializer(DataDeserializerPtr& deseriali
 %template(DictionaryValueFromDict) CNTK::DictionaryValue::DictionaryValue<CNTK::Dictionary>;
 %template(DictionaryValueFromNDArrayView) CNTK::DictionaryValue::DictionaryValue<CNTK::NDArrayView>;
 
-%shared_ptr(CNTK::Rate)
+//%shared_ptr(CNTK::Rate)
 %shared_ptr(CNTK::TrainingParameterSchedule<double>)
 %shared_ptr(CNTK::TrainingParameterSchedule<size_t>)
 %shared_ptr(CNTK::TrainingParameterSchedule<Rate>)
-%shared_ptr(CNTK::MomentumSchedule)
 
 typedef CNTK::TrainingParameterSchedule<size_t> MinibatchSizeSchedule;
 %template(minibatch_size_schedule) CNTK::TrainingParameterSchedule<size_t>;
-typedef CNTK::TrainingParameterSchedule<Rate> LearningRateSchedule;
-%template(learning_rate_schedule) CNTK::TrainingParameterSchedule<Rate>;
-typedef CNTK::TrainingParameterSchedule<Rate> MomentumSchedule;
-%template(momentum_schedule) CNTK::TrainingParameterSchedule<Rate>;
+
+%template(training_double_parameter_schedule) CNTK::TrainingParameterSchedule<double>;
+typedef CNTK::TrainingParameterSchedule<double> TrainingDoubleParameterSchedule;
+%template(training_rate_parameter_schedule) CNTK::TrainingParameterSchedule<Rate>;
+typedef CNTK::TrainingParameterSchedule<Rate> TrainingRateParameterSchedule;
 
 
 %template(OptionalBool) CNTK::Internal::Optional<bool>;
@@ -2037,6 +2110,7 @@ DATA_TYPE.__eq__ = lambda a,b: (a is not None and b is not None and EQ(a,b)) or 
 %py_repr_for(NDArrayView)
 %py_repr_for(Value)
 %py_repr_for(MinibatchData)
+%py_repr_for(Rate)
 
 %py_eq_for(Variable, Variable_eq)
 %py_hash_for(Variable)

@@ -17,7 +17,7 @@ def map_if_possible(obj):
         from cntk.axis import Axis
         from cntk.device import DeviceDescriptor
         from cntk.io import MinibatchSource, MinibatchData, StreamConfiguration
-        from cntk.learners import Learner
+        from cntk.learners import Learner, Rate
         from cntk.ops.functions import Function
         from cntk.train.trainer import Trainer
         from cntk.train.training_session import TrainingSession
@@ -42,6 +42,7 @@ def map_if_possible(obj):
                 cntk_py.TrainingSession: TrainingSession,
                 cntk_py.Value: Value,
                 cntk_py.Variable: Variable,
+                cntk_py.Rate: Rate
                 }
 
     # Some types like NumPy arrays don't let to set the __class__
