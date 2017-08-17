@@ -7,6 +7,8 @@
 Classes and functions for expression generation from a CNTK model.
 """
 from model_transforms import *
+from node_visitor import *
+from quantizer import *
 from cntk import *
 from cntk import cntk_py
 from pdb import set_trace
@@ -16,86 +18,9 @@ import itertools
 import functools
 import json
 
-class NodeVisitor:
-    '''
-    Visitor for the model nodes.
-    '''
-    def __init__(self, graph):
-        '''
-        Constructor.
-        Args:
-            graph: nx graph of the model     
-        '''
-        super(NodeVisitor, self).__init__()
-        self.graph = graph
-
-    def visit(self, nodes):
-        '''
-        Visits the nodes in order.
-        Args:
-            nodes(list): uids of nodes for evaluation. Nodes are evaluated
-              in the given list order.
-        '''
-        from cntk import cntk_py
-
-        for n in nodes:
-            node = self.graph.node[n]['data']
-            if isinstance(node, cntk_py.Function):
-                if not node.is_primitive:
-                    raise ValueError('Unexpected non primitive function %s' % node)
-                self.visit_primitive_function(node)
-            elif node.is_parameter:
-                self.visit_parameter(node)
-            elif node.is_constant:
-                self.visit_constant(node)
-            elif node.is_input:
-                self.visit_input(node)
-            elif node.is_output:
-                self.visit_output(node)
-            else:
-                raise ValueError("Unexpected node type %s" % node)
-
-    def visit_parameter(self, node):
-        raise NotImplemented()
-
-    def visit_constant(self, node):
-        raise NotImplemented()
-
-    def visit_input(self, node):
-        raise NotImplemented()
-
-    def visit_output(self, node):
-        raise NotImplemented()
-
-    def visit_primitive_function(self, node):
-        raise NotImplemented()
-
-class EmptyNodeVisitor(NodeVisitor):
-    '''
-    Empty node visitor for the model nodes.
-    '''
-    def __init__(self, graph):
-        super(EmptyNodeVisitor, self).__init__(graph)
-
-    def visit_parameter(self, node):
-        pass
-
-    def visit_constant(self, node):
-        pass
-
-    def visit_input(self, node):
-        pass
-
-    def visit_output(self, node):
-        pass
-
-    def visit_primitive_function(self, node):
-        pass
-
-
 class WeightsExtractor(EmptyNodeVisitor):
     '''
-    Extracts weights and constants into a separate file.
+    Extracts weights and constants into a separate json file.
     TODO: We should take dependency on protobuf and extract 
     this values directly.
     '''
@@ -110,9 +35,13 @@ class WeightsExtractor(EmptyNodeVisitor):
             json.dump(self.weights, f)
 
     def visit_parameter(self, node):
-        self.weights[node.uid] = [float(f) for f in np.transpose(node.as_parameter().value).flatten()]
+        quantized = 'quantized' in self.graph.node[node.uid]
+        self.weights[node.uid] = [float(f) for f in (self.graph.node[node.uid]['quantized'] if quantized else np.transpose(node.as_parameter().value).flatten())]
 
     def visit_constant(self, node):
+        quantized = 'quantized' in self.graph.node[node.uid]
+        if quantized:
+            raise ValueError('Quantized constants are currently not supported')
         self.weights[node.uid] = [float(f) for f in np.transpose(node.as_constant().value).flatten()]
 
 class CppNamespaceGen:
@@ -209,9 +138,12 @@ class HalideExpressionGenerator(NodeVisitor):
         # Generating the class with setters for weights and constants. 
         evaluator = CppClassGen(class_name)
         for node in self.values:
-            evaluator.add_private_member('std::vector<%s> m_%s;' % (self.data_type(node), node.uid))       
-            evaluator.add_public_member('const std::vector<%s> get_%s() const { return m_%s; }' % (self.data_type(node), node.uid.lower(), node.uid))
-            evaluator.add_public_member('void set_%s(const std::vector<%s>&& v) { m_%s = std::move(v); };' % (node.uid.lower(), self.data_type(node), node.uid))
+            type = self.data_type(node)
+            evaluator.add_private_member('std::vector<%s> m_%s;' % (type, node.uid))       
+            evaluator.add_public_member('const std::vector<%s> get_%s() const { return m_%s; }' % (type, node.uid.lower(), node.uid))
+            evaluator.add_public_member('void set_%s(const std::vector<%s>&& v) { m_%s = std::move(v); };' % (node.uid.lower(), type, node.uid))
+            if 'quantized' in self.graph.node[node.uid]:
+                evaluator.add_public_member('constexpr int get_%s_step() const { return %d; };' % (node.uid.lower(), self.graph.node[node.uid]['qstep']))
 
         # Actually generating the function that will create the computation graph.
         eval_graph = 'Halide::Pipeline create_eval_graph(%s)\n {\n %s \n %s \n %s \n }\n' % (all_params, 'Halide::Var var1, var2;', self.listing, self.generate_return_value())
@@ -283,11 +215,35 @@ class HalideExpressionGenerator(NodeVisitor):
             raise ValueError('Not implemented function %s' % node.op_name)
         self.uid_to_exp[node.uid] = '%s' % node.uid
 
+    def visit_node(self, node):
+        if isinstance(node, QuantizeNode):
+            self.generate_quantization(node)
+        else:
+            raise ValueError('Unexpected node' % node)
+        self.uid_to_exp[node.uid] = '%s' % node.uid
+
+    def generate_quantization(self, node):
+        operands = get_predecessors(self.graph, node.uid)
+        if len(operands) != 1:
+            raise ValueError('Operation "quantization" expects 1 operand, given %s', str(operands))
+        shape = node.shape if len(node.shape) > 0 else (1,)
+        shape_arg = '%d, %d' % (shape[0], shape[1]) if len(shape) == 2 else '%d' % shape[0]
+        exp = 'std::vector<Halide::Func> %s; %s = Quantize<%s, %s, %s, %d>(%s)' % tuple([node.uid, node.uid, 'float' if node.dtype == np.float32 else 'double', self.data_type(node), 
+                                                                                     shape_arg, self.graph.node[node.uid]['reserved_bits'], self.uid_to_exp[operands[0]]])
+        self.listing += exp + ';\n'
+
     def generate_binary_call(self, node, op_name):
         operands = get_predecessors(self.graph, node.uid)
         if len(operands) != 2:
             raise ValueError('Operation "%s" expects 2 operands, given %s', op_name, str(operands))
         exp = 'Halide::Func %s("%s"); %s = %s(%s, %s)' % tuple([node.uid, node.uid, node.uid, op_name] + [self.uid_to_exp[o] for o in operands])
+        if len(self.graph.successors(node.uid)) > 1: # Make sure we do not recalculate the same values twice.
+            exp += ';\n%s.compute_root()' % node.uid
+        self.listing += exp + ';\n'
+
+    def generate_call(self, node, op_name, operands):
+        str_operands = ','.join(operands)
+        exp = 'Halide::Func %s("%s"); %s = %s(%s)' % tuple([node.uid, node.uid, node.uid, op_name, str_operands])
         if len(self.graph.successors(node.uid)) > 1: # Make sure we do not recalculate the same values twice.
             exp += ';\n%s.compute_root()' % node.uid
         self.listing += exp + ';\n'
@@ -301,14 +257,21 @@ class HalideExpressionGenerator(NodeVisitor):
 
     def generate_times(self, node):
         operands = get_predecessors(self.graph, node.uid)
+        node_attrs = self.graph.node[node.uid]
         if len(operands) != 2:
             raise ValueError('Expecting 2 operands')
-        operand = self.graph.node[operands[0]]['data']
-        if len(operand.shape) != 0 and len(operand.shape) != 1:
+        vector = self.graph.node[operands[0]]['data']
+        if len(vector.shape) != 0 and len(vector.shape) != 1:
             set_trace()
-            raise ValueError("Times is currently supported only for 1D * 2D, given %s" % str(operand.shape))
-        shape = operand.shape if len(operand.shape) == 1 else (1,)        
-        self.generate_binary_call(node, 'VectorByMatrixTimes<%s, %s>' % (shape[0], node.shape[0 if len(node.shape) == 1 else 1]))
+            raise ValueError("Times is currently supported only for 1D * 2D, given %s" % str(vector.shape))
+
+        matrix = self.graph.node[operands[1]]['data']
+        shape = matrix.shape if len(matrix.shape) > 0 else (1,)        
+        if 'quantized' not in self.graph.node[node.uid]:
+            self.generate_binary_call(node, 'VectorByMatrixTimes<%s, %s>' % (shape[0], shape[1]))
+        else:
+            self.generate_call(node, 'VectorByMatrixTimesQuantized<%s, %s, %s, %s, %d>' % ('float' if node.dtype == np.float32 else 'double', self.data_type(node), shape[0], shape[1], node_attrs['reserved_bits']),
+                               [self.uid_to_exp[o] for o in operands])
 
     def generate_element_times(self, node):
         self.generate_binary_call(node, 'ElementTimes')
@@ -347,27 +310,37 @@ class HalideExpressionGenerator(NodeVisitor):
         return 'return Halide::Pipeline({ %s });' % ', '.join(self.outputs)
 
     def data_type(self, node):
-        return 'float' if node.dtype == np.float32 else 'double'
+        node_attrs = self.graph.node[node.uid]
+        if 'quantized' in node_attrs:
+            if node_attrs['total_bits'] == 16:
+                return 'short'
+            elif node_attrs['total_bits'] == 8:
+                return 'char'
+            else:
+                raise ValueError('Unsupported type')
+        else:
+            return 'float' if node.dtype == np.float32 else 'double'
 
     def total_num_elements(self, shape):
         return shape[0] if len(shape) == 1 else 1 if len(shape) == 0 else functools.reduce(lambda x, y: x*y, shape)
 
     def generate_value(self, node):
-        if node.dtype == np.float32:
-            data_type = 'float'
-        else:
-            assert node.dtype == np.float64
-            data_type = 'double'
+        type = self.data_type(node)
         if len(node.shape) == 2:
-            expression = 'auto b_%s = Halide::Buffer<%s>(m_%s.data(), %s, %s, "%s");\n' % (node.uid, data_type, node.uid, node.shape[0], node.shape[1], node.uid)
+            expression = 'auto b_%s = Halide::Buffer<%s>(m_%s.data(), %s, %s, "%s");\n' % (node.uid, type, node.uid, node.shape[0], node.shape[1], node.uid)
         elif len(node.shape) == 1:
-            expression = 'auto b_%s = Halide::Buffer<%s>(m_%s.data(), %s, "%s");\n' % (node.uid, data_type, node.uid, node.shape[0], node.uid)
+            expression = 'auto b_%s = Halide::Buffer<%s>(m_%s.data(), %s, "%s");\n' % (node.uid, type, node.uid, node.shape[0], node.uid)
         elif len(node.shape) == 0: # Scalar represent as array
-            expression = 'auto b_%s = Halide::Buffer<%s>(m_%s.data(), %s, "%s");\n' % (node.uid, data_type, node.uid, 1, node.uid)
+            expression = 'auto b_%s = Halide::Buffer<%s>(m_%s.data(), %s, "%s");\n' % (node.uid, type, node.uid, 1, node.uid)
         else:
             set_trace()
             raise ValueError('Unexpected shape encountered, only 1 and 2D are currently supported %s' % node)
-
-        expression += 'Halide::Func %s("%s"); %s(%s) = b_%s(%s);' % (node.uid, node.uid, node.uid, self.index_vars(node), node.uid, self.index_vars(node))
+        
+        if 'quantized' not in self.graph.node[node.uid]:
+            expression += 'Halide::Func %s("%s"); %s(%s) = b_%s(%s);' % (node.uid, node.uid, node.uid, self.index_vars(node), node.uid, self.index_vars(node))
+        else:
+            expression += 'Halide::Func step_%s("step_%s"); step_%s() = %d;' %(node.uid, node.uid, node.uid, self.graph.node[node.uid]['qstep'])
+            expression += 'Halide::Func f_%s("f_%s"); f_%s(%s) = b_%s(%s);' % (node.uid, node.uid, node.uid, self.index_vars(node), node.uid, self.index_vars(node))
+            expression += 'std::vector<Halide::Func> %s { step_%s, f_%s };' % (node.uid, node.uid, node.uid)
         self.values.append(node)
         return expression

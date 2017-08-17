@@ -48,9 +48,9 @@ BOOST_AUTO_TEST_CASE(XorOperation, * utf::tolerance(0.01))
     // Halide
     XorEvaluator e;
     e.set_parameter26(get_value("Parameter26"));
-    e.set_parameter25(get_value("Parameter25"));
+    //e.set_parameter25(get_value("Parameter25"));
     e.set_parameter6(get_value("Parameter6"));
-    e.set_parameter5(get_value("Parameter5"));
+    //e.set_parameter5(get_value("Parameter5"));
 
     Halide::ImageParam features(Halide::type_of<float>(), 1);
     auto f = e.create_eval_graph(features);
