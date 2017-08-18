@@ -78,7 +78,9 @@ class OperationQuantizer(EmptyNodeVisitor):
             self.graph.add_edge(p, node_name, order=0)
             self.graph.add_edge(node_name, node.uid, order=self.graph.get_edge_data(p, node.uid)['order'])
             self.graph.node[node_name]['data'] = QuantizeNode(name=node_name, shape=self.graph.node[p]['data'].shape, dtype=node.dtype)
+            self.graph.node[node_name]['quantized'] = True
             self.graph.node[node_name]['reserved_bits'] = self.reserved_bits
+            self.graph.node[node_name]['total_bits'] = self.total_bits
             self.graph.remove_edge(p, node.uid)
 
     def visit_parameter(self, node):
@@ -87,15 +89,8 @@ class OperationQuantizer(EmptyNodeVisitor):
         if not all_quantized:
             return
 
-        # Quantize the parameter.
-        max_val = max(abs(np.amax(node.as_parameter().value)), abs(np.amin(node.as_parameter().value)))
-        max_val *= 2 ** self.reserved_bits
-        bins = np.linspace(start=-max_val, stop=max_val + 1, num=2 ** self.total_bits)
-        if len(bins) < 2:
-            raise ValueError('Number of bins < 2 is currently not supported')
-        quantized = np.digitize(np.transpose(node.as_parameter().value).flatten(), bins)
-        self.graph.node[node.uid]['quantized'] = quantized
-        self.graph.node[node.uid]['qstep'] = bins[1] - bins[0]
+        # Mark parameter to be quantized.
+        self.graph.node[node.uid]['quantized'] = True 
         self.graph.node[node.uid]['reserved_bits'] = self.reserved_bits
         self.graph.node[node.uid]['total_bits'] = self.total_bits
 

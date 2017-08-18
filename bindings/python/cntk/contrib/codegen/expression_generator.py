@@ -18,6 +18,14 @@ import itertools
 import functools
 import json
 
+def py2c_type(type):
+    if type == np.float32:
+        return 'float'
+    elif type == np.float64:
+        return 'double'
+    else:
+        raise ValueError('Unsupported type %s' % type)
+
 class WeightsExtractor(EmptyNodeVisitor):
     '''
     Extracts weights and constants into a separate json file.
@@ -35,14 +43,10 @@ class WeightsExtractor(EmptyNodeVisitor):
             json.dump(self.weights, f)
 
     def visit_parameter(self, node):
-        quantized = 'quantized' in self.graph.node[node.uid]
-        self.weights[node.uid] = [float(f) for f in (self.graph.node[node.uid]['quantized'] if quantized else np.transpose(node.as_parameter().value).flatten())]
+        self.weights[node.uid] = [float(f) for f in node.as_parameter().value.flatten()]
 
     def visit_constant(self, node):
-        quantized = 'quantized' in self.graph.node[node.uid]
-        if quantized:
-            raise ValueError('Quantized constants are currently not supported')
-        self.weights[node.uid] = [float(f) for f in np.transpose(node.as_constant().value).flatten()]
+        self.weights[node.uid] = [float(f) for f in node.as_constant().value.flatten()]
 
 class CppNamespaceGen:
     '''
@@ -138,12 +142,18 @@ class HalideExpressionGenerator(NodeVisitor):
         # Generating the class with setters for weights and constants. 
         evaluator = CppClassGen(class_name)
         for node in self.values:
-            type = self.data_type(node)
-            evaluator.add_private_member('std::vector<%s> m_%s;' % (type, node.uid))       
-            evaluator.add_public_member('const std::vector<%s> get_%s() const { return m_%s; }' % (type, node.uid.lower(), node.uid))
-            evaluator.add_public_member('void set_%s(const std::vector<%s>&& v) { m_%s = std::move(v); };' % (node.uid.lower(), type, node.uid))
-            if 'quantized' in self.graph.node[node.uid]:
-                evaluator.add_public_member('constexpr int get_%s_step() const { return %d; };' % (node.uid.lower(), self.graph.node[node.uid]['qstep']))
+            original_type = py2c_type(node.dtype)
+            quantized_type = self.data_type(node)
+            if original_type == quantized_type:
+                evaluator.add_private_member('std::vector<%s> m_%s;' % (original_type, node.uid))       
+                evaluator.add_public_member('const std::vector<%s> get_%s() const { return m_%s; }' % (original_type, node.uid.lower(), node.uid))
+                evaluator.add_public_member('void set_%s(const std::vector<%s>&& v) { m_%s = std::move(v); };' % (node.uid.lower(), original_type, node.uid))
+            else:
+                evaluator.add_private_member('std::vector<%s> m_%s;' % (quantized_type, node.uid))       
+                evaluator.add_private_member('%s m_step_%s;' % (original_type, node.uid))       
+                evaluator.add_public_member('const std::vector<%s> get_%s() const { return m_%s; }' % (quantized_type, node.uid.lower(), node.uid))
+                evaluator.add_public_member('void set_%s(const std::vector<%s>&& v) { auto r = Quantize<%s, %s>(v, %d); m_%s = r.first; m_step_%s = r.second; };' % (node.uid.lower(),
+                                             original_type, original_type, quantized_type, self.graph.node[node.uid]['reserved_bits'], node.uid, node.uid))
 
         # Actually generating the function that will create the computation graph.
         eval_graph = 'Halide::Pipeline create_eval_graph(%s)\n {\n %s \n %s \n %s \n }\n' % (all_params, 'Halide::Var var1, var2;', self.listing, self.generate_return_value())
@@ -228,8 +238,8 @@ class HalideExpressionGenerator(NodeVisitor):
             raise ValueError('Operation "quantization" expects 1 operand, given %s', str(operands))
         shape = node.shape if len(node.shape) > 0 else (1,)
         shape_arg = '%d, %d' % (shape[0], shape[1]) if len(shape) == 2 else '%d' % shape[0]
-        exp = 'std::vector<Halide::Func> %s; %s = Quantize<%s, %s, %s, %d>(%s)' % tuple([node.uid, node.uid, 'float' if node.dtype == np.float32 else 'double', self.data_type(node), 
-                                                                                     shape_arg, self.graph.node[node.uid]['reserved_bits'], self.uid_to_exp[operands[0]]])
+        exp = 'std::vector<Halide::Func> %s; %s = Quantize<%s, %s>(%s, %s, %d)' % tuple([node.uid, node.uid, 'float' if node.dtype == np.float32 else 'double', self.data_type(node), 
+                                                                                        self.uid_to_exp[operands[0]], shape_arg, self.graph.node[node.uid]['reserved_bits']] )
         self.listing += exp + ';\n'
 
     def generate_binary_call(self, node, op_name):
@@ -267,11 +277,11 @@ class HalideExpressionGenerator(NodeVisitor):
 
         matrix = self.graph.node[operands[1]]['data']
         shape = matrix.shape if len(matrix.shape) > 0 else (1,)        
-        if 'quantized' not in self.graph.node[node.uid]:
-            self.generate_binary_call(node, 'VectorByMatrixTimes<%s, %s>' % (shape[0], shape[1]))
-        else:
-            self.generate_call(node, 'VectorByMatrixTimesQuantized<%s, %s, %s, %s, %d>' % ('float' if node.dtype == np.float32 else 'double', self.data_type(node), shape[0], shape[1], node_attrs['reserved_bits']),
-                               [self.uid_to_exp[o] for o in operands])
+
+        op_name = 'VectorByMatrixTimes'
+        if 'quantized' in self.graph.node[node.uid]:
+            op_name += 'Quantized'
+        self.generate_call(node, op_name, [self.uid_to_exp[o] for o in operands] + [str(shape[0]), str(shape[1])])
 
     def generate_element_times(self, node):
         self.generate_binary_call(node, 'ElementTimes')
@@ -327,7 +337,7 @@ class HalideExpressionGenerator(NodeVisitor):
     def generate_value(self, node):
         type = self.data_type(node)
         if len(node.shape) == 2:
-            expression = 'auto b_%s = Halide::Buffer<%s>(m_%s.data(), %s, %s, "%s");\n' % (node.uid, type, node.uid, node.shape[0], node.shape[1], node.uid)
+            expression = 'auto b_%s = Halide::Buffer<%s>(m_%s.data(), %s, %s, "%s");\n' % (node.uid, type, node.uid, node.shape[1], node.shape[0], node.uid)
         elif len(node.shape) == 1:
             expression = 'auto b_%s = Halide::Buffer<%s>(m_%s.data(), %s, "%s");\n' % (node.uid, type, node.uid, node.shape[0], node.uid)
         elif len(node.shape) == 0: # Scalar represent as array
@@ -339,8 +349,8 @@ class HalideExpressionGenerator(NodeVisitor):
         if 'quantized' not in self.graph.node[node.uid]:
             expression += 'Halide::Func %s("%s"); %s(%s) = b_%s(%s);' % (node.uid, node.uid, node.uid, self.index_vars(node), node.uid, self.index_vars(node))
         else:
-            expression += 'Halide::Func step_%s("step_%s"); step_%s() = %d;' %(node.uid, node.uid, node.uid, self.graph.node[node.uid]['qstep'])
-            expression += 'Halide::Func f_%s("f_%s"); f_%s(%s) = b_%s(%s);' % (node.uid, node.uid, node.uid, self.index_vars(node), node.uid, self.index_vars(node))
-            expression += 'std::vector<Halide::Func> %s { step_%s, f_%s };' % (node.uid, node.uid, node.uid)
+            expression += 'Halide::Func f_%s("f_%s"); f_%s(%s) = b_%s(%s);\n' % (node.uid, node.uid, node.uid, self.index_vars(node), node.uid, self.index_vars(node))
+            expression += 'Halide::Func f_step_%s("f_step_%s"); f_step_%s() = m_step_%s;\n' % (node.uid, node.uid, node.uid, node.uid)
+            expression += 'std::vector<Halide::Func> %s { f_%s, f_step_%s };\n' % (node.uid, node.uid, node.uid)
         self.values.append(node)
         return expression

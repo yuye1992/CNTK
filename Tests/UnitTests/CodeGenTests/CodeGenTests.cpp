@@ -35,7 +35,7 @@ BOOST_AUTO_TEST_SUITE(CodeGenDeserializationSuite)
 BOOST_AUTO_TEST_CASE(XorOperation, * utf::tolerance(0.01))
 {
     pt::ptree root;
-    pt::read_json("XorWeights.json", root);
+    pt::read_json("XorEvaluator.json", root);
 
     auto get_value = [&](const std::string& name)
     {
@@ -48,9 +48,9 @@ BOOST_AUTO_TEST_CASE(XorOperation, * utf::tolerance(0.01))
     // Halide
     XorEvaluator e;
     e.set_parameter26(get_value("Parameter26"));
-    //e.set_parameter25(get_value("Parameter25"));
+    e.set_parameter25(get_value("Parameter25"));
     e.set_parameter6(get_value("Parameter6"));
-    //e.set_parameter5(get_value("Parameter5"));
+    e.set_parameter5(get_value("Parameter5"));
 
     Halide::ImageParam features(Halide::type_of<float>(), 1);
     auto f = e.create_eval_graph(features);
@@ -87,13 +87,125 @@ BOOST_AUTO_TEST_CASE(XorOperation, * utf::tolerance(0.01))
     value = MakeSharedObject<Value>(
         MakeSharedObject<NDArrayView>(DataType::Float, NDShape({ 2 }), v.data(), sizeof(float) * 2, DeviceDescriptor::CPUDevice()));
     i = std::unordered_map<Variable, ValuePtr>({ { input.front(), value } });
-    o = std::unordered_map<Variable, ValuePtr>({ { output, nullptr } });    
+    o = std::unordered_map<Variable, ValuePtr>({ { output, nullptr } });
     model->Forward(i, o, DeviceDescriptor::CPUDevice());
     auto result21 = *(o[output]->Data()->DataBuffer<float>());
 
-    BOOST_REQUIRE_EQUAL(result10, result20);
-    BOOST_REQUIRE_EQUAL(result11, result21);
+    BOOST_REQUIRE_CLOSE(result10, result20, 0.1);
+    BOOST_REQUIRE_CLOSE(result11, result21, 0.1);
 }
+
+BOOST_AUTO_TEST_CASE(TestVectorQuantization)
+{
+    std::vector<float> f = { 1.11f, -1.09f };
+    auto result = Quantize<float, short>(f, 1);
+    BOOST_REQUIRE_CLOSE(result.first[0] * result.second, f[0], 0.01);
+    BOOST_REQUIRE_CLOSE(result.first[1] * result.second, f[1], 0.01);
+}
+
+BOOST_AUTO_TEST_CASE(TestStorageOrder)
+{
+    std::vector<float> m;
+    for (int i = 0; i < 24; ++i)
+        m.push_back((float)i);
+
+    auto bm = Buffer<float>(m.data(), { 4, 3, 2 });
+
+    // First coordinate is column, so it changes the most frequently.
+    BOOST_REQUIRE_EQUAL(bm(0, 0, 0), m[0]);
+    BOOST_REQUIRE_EQUAL(bm(1, 0, 0), m[1]);
+    BOOST_REQUIRE_EQUAL(bm(2, 0, 0), m[2]);
+    BOOST_REQUIRE_EQUAL(bm(3, 0, 0), m[3]);
+    BOOST_REQUIRE_EQUAL(bm(0, 1, 0), m[4]);
+    BOOST_REQUIRE_EQUAL(bm(1, 1, 0), m[5]);
+    BOOST_REQUIRE_EQUAL(bm(2, 1, 0), m[6]);
+    BOOST_REQUIRE_EQUAL(bm(3, 1, 0), m[7]);
+    BOOST_REQUIRE_EQUAL(bm(0, 1, 1), m[16]);
+    BOOST_REQUIRE_EQUAL(bm(1, 1, 1), m[17]);
+    BOOST_REQUIRE_EQUAL(bm(2, 1, 1), m[18]);
+    BOOST_REQUIRE_EQUAL(bm(3, 1, 1), m[19]);
+}
+
+BOOST_AUTO_TEST_CASE(TestMatrixQuantization)
+{
+    std::vector<float> m = { 10.13f, -100.18f, 16.9f, 19.5f, -15.f, -20.f };
+
+    auto r = Quantize<float, short>(m, 1);
+    BOOST_REQUIRE_CLOSE(r.first[0] * r.second, m[0], 0.1);
+    BOOST_REQUIRE_CLOSE(r.first[1] * r.second, m[1], 0.1);
+    BOOST_REQUIRE_CLOSE(r.first[2] * r.second, m[2], 0.1);
+    BOOST_REQUIRE_CLOSE(r.first[3] * r.second, m[3], 0.1);
+    BOOST_REQUIRE_CLOSE(r.first[4] * r.second, m[4], 0.1);
+    BOOST_REQUIRE_CLOSE(r.first[5] * r.second, m[5], 0.1);
+
+    auto bm = Buffer<float>(m.data(), { 3, 2 });
+    Halide::Func fbm;
+    Halide::Var x, y;
+    fbm(x, y) = bm(x, y);
+
+    Halide::Buffer<short> result(3, 2);
+    Halide::Buffer<float> step = Halide::Buffer<float>::make_scalar("step");
+
+    auto quantized = Quantize<float, short>(fbm, 2, 3, 1);
+    auto p = Halide::Pipeline(quantized);
+    p.realize({ result, step });
+
+    BOOST_REQUIRE_CLOSE(step(0), r.second, 0.001);
+    BOOST_REQUIRE_EQUAL(result(0, 0), r.first[0]);
+    BOOST_REQUIRE_EQUAL(result(1, 0), r.first[1]);
+    BOOST_REQUIRE_EQUAL(result(2, 0), r.first[2]);
+    BOOST_REQUIRE_EQUAL(result(0, 1), r.first[3]);
+    BOOST_REQUIRE_EQUAL(result(1, 1), r.first[4]);
+    BOOST_REQUIRE_EQUAL(result(2, 1), r.first[5]);
+}
+
+BOOST_AUTO_TEST_CASE(TestQuantizedMatrixMultiplication)
+{
+    std::vector<float> v = { 1.11f, -1.09f, 8.004f };
+    std::vector<float> m = { 10.13f, -100.18f, 16.9f, 19.5f, -15.f, -20.f };
+    auto bv = Buffer<float>(v.data(), 3);
+    auto bm = Buffer<float>(m.data(), 2, 3);
+    Halide::Func fbv;
+    Halide::Var index;
+    fbv(index) = bv(index);
+    Halide::Func fbm;
+    Halide::Var x, y;
+    fbm(x, y) = bm(x, y);
+
+    auto vq = Quantize<float, short>(fbv, 3, 2);
+
+    // Checking that vector quantization is correct.
+    Halide::Buffer<short> vqr(3);
+    Halide::Buffer<float> vqs = Halide::Buffer<float>::make_scalar("step");
+    Halide::Pipeline(vq).realize({ vqr, vqs });
+
+    BOOST_REQUIRE_CLOSE(vqr(0) * vqs(0), v[0], 0.1);
+    BOOST_REQUIRE_CLOSE(vqr(1) * vqs(0), v[1], 0.1);
+    BOOST_REQUIRE_CLOSE(vqr(2) * vqs(0), v[2], 0.1);
+
+    auto mq = Quantize<float, short>(fbm, 3, 2, 2);
+
+    // Checking that matrix quantization is correct.
+    Halide::Buffer<short> mqr(2, 3);
+    Halide::Buffer<float> mqs = Halide::Buffer<float>::make_scalar("step");
+    Halide::Pipeline(mq).realize({ mqr, mqs });
+
+    BOOST_REQUIRE_CLOSE(mqr(0, 0) * mqs(0), m[0], 0.1);
+    BOOST_REQUIRE_CLOSE(mqr(1, 0) * mqs(0), m[1], 0.1);
+    BOOST_REQUIRE_CLOSE(mqr(0, 1) * mqs(0), m[2], 0.1);
+    BOOST_REQUIRE_CLOSE(mqr(1, 1) * mqs(0), m[3], 0.1);
+    BOOST_REQUIRE_CLOSE(mqr(0, 2) * mqs(0), m[4], 0.1);
+    BOOST_REQUIRE_CLOSE(mqr(1, 2) * mqs(0), m[5], 0.1);
+
+    // Actually doing the multiplication
+    auto f = VectorByMatrixTimesQuantized(vq, mq, 3, 2);
+    auto result = Buffer<float>(2);
+    f.realize({ result });
+
+    BOOST_REQUIRE_CLOSE(result(0), -127.2367f, 0.1);
+    BOOST_REQUIRE_CLOSE(result(1), -291.9898f, 1);
+}
+
 
 BOOST_AUTO_TEST_CASE(TestPlus, *utf::tolerance(0.00001))
 {
@@ -118,7 +230,7 @@ BOOST_AUTO_TEST_CASE(TestPlus, *utf::tolerance(0.00001))
 BOOST_AUTO_TEST_CASE(TestSlice, *utf::tolerance(0.00001))
 {
     ImageParam a(Halide::type_of<float>(), 1);
-    auto result = Slice<1, 6>(a);
+    auto result = Slice(a, 1 ,6);
 
     float ca[] = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
     a.set(Buffer<float>((float*)ca, 10));
@@ -140,7 +252,7 @@ BOOST_AUTO_TEST_CASE(TestVecMultiply, *utf::tolerance(0.00001))
     ImageParam a(Halide::type_of<float>(), 1);
     ImageParam b(Halide::type_of<float>(), 2);
 
-    auto result = VectorByMatrixTimes<3, 3>(a, b);
+    auto result = VectorByMatrixTimes(a, b, 3, 3);
     a.set(Buffer<float>((float*)ca, 3));
     b.set(Buffer<float>((float*)cb, 3, 3));
 

@@ -9,44 +9,40 @@ namespace CNTK
 {
     const int c_VectorizationWidth = 4;
 
-    template <int InputDimension, int OutputDimension>
-    inline Halide::Func VectorByMatrixTimes(Halide::Func vec, Halide::Func matrix)
+    inline Halide::Func VectorByMatrixTimes(Halide::Func vec, Halide::Func matrix, int matrixRowDimension, int matrixColumnDimension)
     {
-        size_t dimension = InputDimension;
-        if (dimension < c_VectorizationWidth)
+        if (matrixRowDimension < c_VectorizationWidth)
         {
             // No point in vectorization, the size is too small.
             Halide::Func output("VectorByMatrixTimes");
-            Halide::RDom k(0, InputDimension);
-            Halide::Var index;
-            output(index) = Halide::sum(vec(k) * matrix(k, index));
+            Halide::RDom k(0, matrixRowDimension, "matrixRowIndex");
+            Halide::Var matrixColumnIndex("matrixColumnIndex");
+            output(matrixColumnIndex) = Halide::sum(vec(k) * matrix(matrixColumnIndex, k));
             return output;
         }
 
         Halide::Func partial("VectorByMatrixTimesPartial");
-        Halide::Var vectorizedInnerIndex;
-        Halide::Var outerIndex;
-        Halide::RDom k1(0, InputDimension / c_VectorizationWidth);
-        partial(vectorizedInnerIndex, outerIndex) = Halide::sum(vec(vectorizedInnerIndex + (k1 * c_VectorizationWidth)) * matrix(vectorizedInnerIndex + (k1 * c_VectorizationWidth), outerIndex));
+        Halide::Var matrixSubRowIndex("matrixSubRowIndex");
+        Halide::Var matrixColumnIndex("matrixColumnIndex");
+        Halide::RDom k1(0, matrixRowDimension / c_VectorizationWidth);
+        partial(matrixSubRowIndex, matrixColumnIndex) = Halide::sum(vec(matrixSubRowIndex + (k1 * c_VectorizationWidth)) * matrix(matrixColumnIndex, matrixSubRowIndex + (k1 * c_VectorizationWidth)));
+        partial.bound(matrixSubRowIndex, 0, c_VectorizationWidth);
 
-        Halide::Func vectorized("VectorByMatrixTimesVectorized");
-        Halide::Var index;
+        Halide::Func head("VectorByMatrixTimesHead");
         Halide::RDom k2(0, c_VectorizationWidth);
-        vectorized(index) = Halide::sum(partial(k2, index));
+        head(matrixColumnIndex) = Halide::sum(partial(k2, matrixColumnIndex));
 
-        Halide::Func residual("VectorByMatrixTimesResidual");
-        Halide::RDom k3((InputDimension / c_VectorizationWidth) * c_VectorizationWidth, InputDimension % c_VectorizationWidth);
-        residual(index) = Halide::sum(vec(k3) * matrix(k3, index));
+        Halide::Func tail("VectorByMatrixTimesTail");
+        Halide::RDom k3((matrixRowDimension / c_VectorizationWidth) * c_VectorizationWidth, matrixRowDimension  % c_VectorizationWidth);
+        tail(matrixColumnIndex) = Halide::sum(vec(k3) * matrix(matrixColumnIndex, k3));
 
-        Halide::Func output("VectorByMatrixTimes");
-        output(index) = vectorized(index) + residual(index);
+        Halide::Func output("MatrixByVectorTimes");
+        output(matrixColumnIndex) = head(matrixColumnIndex) + tail(matrixColumnIndex);
 
-        partial.bound(vectorizedInnerIndex, 0, c_VectorizationWidth);
-        partial.compute_at(output, index).vectorize(vectorizedInnerIndex, c_VectorizationWidth);
+        partial.compute_at(output, matrixColumnIndex).vectorize(matrixSubRowIndex);
 
-        output.bound(index, 0, OutputDimension);
-        output.compute_root().vectorize(index, c_VectorizationWidth);
-
+        output.bound(matrixColumnIndex, 0, matrixColumnDimension);
+        output.compute_root().vectorize(matrixColumnIndex, c_VectorizationWidth);
         return output;
     }
 
@@ -67,12 +63,11 @@ namespace CNTK
         return tanhOutput;
     }
 
-    template <int From, int To>
-    inline Halide::Func Slice(const Halide::Func& input)
+    inline Halide::Func Slice(const Halide::Func& input, int from, int to)
     {
         Halide::Func slice("Slice");
         Halide::Var index;
-        slice(index) = input(Halide::min(From + index, To - 1));
+        slice(index) = input(Halide::min(from + index, to - 1));
         return slice;
     }
 
@@ -92,52 +87,56 @@ namespace CNTK
         return result;
     }
 
-    // TODO: Probably we should pass a codebook of the following interface
-    // Func(bin_value) => gives the unquantized value back.
-    // This codebook can be also generated during quantization based on any distribution: symmetric/assymetric/log.
-    // Otherwise we have to change the signature for each and every quantization procedure.
-    template <typename T, typename QuantizedType, int inputDimension, int outputDimension, int NumReservedBits>
     inline Halide::Func VectorByMatrixTimesQuantized(
-        const std::vector<Halide::Func>& vec, const std::vector<Halide::Func>& matrix)
+        const std::vector<Halide::Func>& vec,
+        const std::vector<Halide::Func>& matrix,
+        int matrixRowDimension,
+        int matrixColumnDimension)
     {
-        auto quantized = VectorByMatrixTimes<inputDimension, outputDimension>(vec[1], matrix[1]);
-
-        Halide::Func result("result");
+        // Widening the quantized type to avoid overflow.
         Halide::Var index;
+        Halide::Func widen;
+        widen(index) = Halide::cast<int>(vec[0](index));
+        widen.bound(index, 0, matrixRowDimension);
 
-        Halide::Func inv1;
-        inv1() = (T)1.0 / vec[0]();
-        Halide::Func inv2;
-        inv2() = (T)1.0 / matrix[0]();
-        inv1.compute_root();
-        inv2.compute_root();
+        auto quantized = VectorByMatrixTimes(widen, matrix[0], matrixRowDimension, matrixColumnDimension);
 
-        result(index) = inv1() * inv2() * quantized(index);
-        result.bound(index, 0, outputDimension);
+        Halide::Func result("VectorByMatrixTimesQuantized");
+        Halide::Var matrixColumnIndex("matrixColumnIndex");
+
+        result(matrixColumnIndex) = Halide::print(quantized(matrixColumnIndex), "Quantized") * Halide::print(vec[1](), "VecStep") * Halide::print(matrix[1](), "MatStep");
+        result.bound(matrixColumnIndex, 0, matrixColumnDimension);
         return result;
     }
 
-    template<class Type, class QuantizedType, int InputDimension, int NumReservedBits>
-    inline std::vector<Halide::Func> Quantize(Halide::Func vector)
+    template<class Type, class QuantizedType>
+    inline std::vector<Halide::Func> Quantize(
+        Halide::Func vector,
+        int vectorRowDimension,
+        int numReservedBits)
     {
-        Halide::Func minMaxVectorized("minMaxVectorized");
-        Halide::Var vectorizationIndex("vectorizationIndex");
-        Halide::RDom k1(0, InputDimension /c_VectorizationWidth, "vectorizedDom");
-        minMaxVectorized(vectorizationIndex) = { std::numeric_limits<Type>::max(), std::numeric_limits<Type>::min() };
+        Halide::Func minMaxHead("minMaxPartial");
+        Halide::Var subRowIndex("subRowIndex");
+        minMaxHead(subRowIndex) = { std::numeric_limits<Type>::max(), std::numeric_limits<Type>::min() };
 
-        Halide::Expr inputValue = vector(vectorizationIndex + (k1 * c_VectorizationWidth));
-        minMaxVectorized(vectorizationIndex) = { Halide::min(minMaxVectorized(vectorizationIndex)[0], inputValue), Halide::max(minMaxVectorized(vectorizationIndex)[1], inputValue) };
+        Halide::RDom k1(0, vectorRowDimension / c_VectorizationWidth, "vectorizedDom");
+        Halide::Expr inputValue = vector(subRowIndex + (k1 * c_VectorizationWidth));
+        minMaxHead(subRowIndex) = { Halide::min(minMaxHead(subRowIndex)[0], inputValue), Halide::max(minMaxHead(subRowIndex)[1], inputValue) };
 
-        Halide::RDom k2((InputDimension / c_VectorizationWidth) * c_VectorizationWidth, InputDimension % c_VectorizationWidth);
+        Halide::RDom k2((vectorRowDimension / c_VectorizationWidth) * c_VectorizationWidth, vectorRowDimension % c_VectorizationWidth);
         Halide::Func minMaxTail("minMaxTail");
         minMaxTail() = { Halide::minimum(vector(k2)), Halide::maximum(vector(k2)) };
 
         Halide::Func minMax("minMax");
         Halide::RDom k3(0, c_VectorizationWidth);
-        minMax() = { Halide::min(Halide::minimum(minMaxVectorized(k3)[0]), minMaxTail()[0]), Halide::max(Halide::maximum(minMaxVectorized(k3)[1]), minMaxTail()[1]) };
+        minMax() =
+        {
+            Halide::min(Halide::minimum(minMaxHead(k3)[0]), minMaxTail()[0]),
+            Halide::max(Halide::maximum(minMaxHead(k3)[1]), minMaxTail()[1])
+        };
 
         Halide::Func absMax("absMax");
-        absMax() = Halide::max(-minMax()[0], minMax()[1]) * (1 << NumReservedBits);
+        absMax() = print(Halide::max(-minMax()[0], minMax()[1]) * (1 << numReservedBits), "max");
 
         // Quantize, same procedure as in MLP library
         const int numQuantizedTypeBits = sizeof(QuantizedType) * 8;
@@ -146,46 +145,73 @@ namespace CNTK
         auto quantizedTypeMaxValue = std::numeric_limits<QuantizedType>::max();
 
         Halide::Func qStep("qstep");
-        qStep() = absMax() / (quantizedTypeMaxValue + 0.5f); // 0.5 is for rounding.
+        qStep() = print(absMax() / (quantizedTypeMaxValue + 0.5f), "qstep"); // 0.5 is for rounding.
+
+        Halide::Func inverseQStep("inverseqstep");
+        inverseQStep() = (quantizedTypeMaxValue + 0.5f) / absMax();
 
         Halide::Func quantized("quantized");
         Halide::Var index("quantizedIndex");
         // + 1 for the edge case of quantizing -quantizedTypeMaxValue and 0.5 for rounding.
-        quantized(index) = Halide::cast(Halide::type_of<QuantizedType>(), Halide::cast(Halide::Int(32), (vector(index) * qStep() + quantizedTypeMaxValue + 1.5f) - (1 + quantizedTypeMaxValue)));
+        quantized(index) = Halide::cast(Halide::type_of<QuantizedType>(), Halide::cast(Halide::Int(32), (vector(index) * inverseQStep() + quantizedTypeMaxValue + 1.5f) - (1 + quantizedTypeMaxValue)));
 
         // Schedule
-        minMaxVectorized.bound(vectorizationIndex, 0, c_VectorizationWidth);
-        minMaxVectorized.vectorize(vectorizationIndex, c_VectorizationWidth);
-        minMaxVectorized.compute_root().update().vectorize(vectorizationIndex, c_VectorizationWidth);
+        minMaxHead.bound(subRowIndex, 0, c_VectorizationWidth);
+        minMaxHead.vectorize(subRowIndex, c_VectorizationWidth);
+        minMaxHead.compute_root().update().vectorize(subRowIndex, c_VectorizationWidth);
         qStep.compute_root();
+        inverseQStep.compute_root();
+        return std::vector<Halide::Func>{ quantized, qStep };
+    }
 
-        return std::vector<Halide::Func>{ qStep, quantized };
+    // Offline quantization, please use only for non perf critical tasks,
+    // i.e. quantization of parameters.
+    template<class OriginalType, class QuantizedType>
+    inline std::pair<std::vector<QuantizedType>, OriginalType> Quantize(std::vector<OriginalType> value, int numReservedBits)
+    {
+        int size = (int)value.size();
+        Halide::Buffer<OriginalType> b(value.data(), size);
+        Halide::Func w;
+        Halide::Var index;
+        w(index) = b(index);
+        w.bound(index, 0, (int)value.size());
+
+        auto quantize = Halide::Pipeline(Quantize<OriginalType, QuantizedType>(w, size, numReservedBits));
+
+        std::vector<QuantizedType> result;
+        result.resize(value.size());
+        Halide::Buffer<QuantizedType> quantized(result.data(), size);
+        Halide::Buffer<OriginalType> step = Halide::Buffer<OriginalType>::make_scalar("step");
+        quantize.realize({ quantized, step });
+
+        return std::make_pair(result, step(0));
     }
 
     // Actually for speech models there is no need in using this function, because vectors are the only
     // quantized entities at runtime.
-    template<class Type, class QuantizedType, int InputDimension, int OuputDimension, int NumReservedBits>
-    inline std::vector<Halide::Func> Quantize(Halide::Func matrix)
+    template<class OriginalType, class QuantizedType>
+    inline std::vector<Halide::Func> Quantize(Halide::Func matrix,
+        int matrixRowDimension,
+        int matrixColumnDimension,
+        int numReservedBits)
     {
-        int width = matrix.width();
-        int height = matrix.height();
-        int totalSize = width * height;
-
         // Flatten
-        Var index("index");
-        Func asVector("asVector");
-        asVector(index) = matrix(index / OuputDimension, index % OuputDimension);
-        asVector.bound(index, 0, InputDimension * OutputDimension);
+        Halide::Var index("index");
+        Halide::Func asVector("asVector");
+        asVector(index) = matrix(index / matrixRowDimension, index % matrixRowDimension);
+        asVector.bound(index, 0, matrixRowDimension * matrixColumnDimension);
 
-        Func qStep("qstep"), quantized("quantized"), quantizedMatrix("quantizedMatrix");
-        auto result = Quantize<Type, QuantizedType, InputDimension * OutputDimension, NumReservedBits>(
-            asVector);
+        auto result = Quantize<OriginalType, QuantizedType>(
+            asVector,
+            matrixRowDimension * matrixColumnDimension,
+            numReservedBits);
 
         // Unflatten
-        Var x, y;
-        quantizedMatrix(x, y) = quantized(x * OutputDimension + y);
-        quantizedMatrix.bound(x, 0, InputDimension);
-        quantizedMatrix.bound(y, 0, OuputDimension);
-        return { qStep, quantizedMatrix };
+        Halide::Var x, y;
+        Halide::Func quantizedMatrix("quantizedMatrix");
+        quantizedMatrix(x, y) = result[0](x * matrixRowDimension + y);
+        quantizedMatrix.bound(x, 0, matrixColumnDimension);
+        quantizedMatrix.bound(y, 0, matrixRowDimension);
+        return { quantizedMatrix, result[1] };
     }
 }
