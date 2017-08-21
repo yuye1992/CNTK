@@ -16,7 +16,7 @@ tools such as IDEs to facilitate the definition of computational networks, to ex
 them on sample data in real time. Please give feedback through these :cntkwiki:`channels <Feedback-Channels>`.
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 3
 
    Setup <setup>
    Getting Started <gettingstarted>

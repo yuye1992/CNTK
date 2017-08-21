@@ -5,7 +5,7 @@ Tutorials
      CNTK 101:`Logistic Regression <CNTK_101_LogisticRegression.html>`_ with NumPy (:cntktut:`source <CNTK_101_LogisticRegression>`)
     
 #.  *Classify cancer using simulated data (Feed Forward, FFN)*
-     CNTK 102:`Feed Forward network <CNTK_102_FeedForward.html>`_ with NumPy (:cntktut:`source <CNTK_102_FeedForward>`)
+     CNTK 102: Feed Forward network with NumPy (`html <CNTK_102_FeedForward.html>`_) (:cntktut:`source <CNTK_102_FeedForward>`)
      
 #.  *Recognize hand written digits (OCR) with MNIST data*
      CNTK 103 Part A: `MNIST data preparation <CNTK_103A_MNIST_DataLoader.html>`_ (:cntktut:`source <CNTK_103A_MNIST_DataLoader>`),
@@ -56,7 +56,7 @@ Tutorials
      CNTK 208: `Training with Connectionist Temporal Classification <CNTK_208_Speech_Connectionist_Temporal_Classification.html>`_ (:cntktut:`source <CNTK_208_Speech_Connectionist_Temporal_Classification>`)
 
 #.  *Recognize flowers and animals in natural scene images using deep transfer learning*
-     CNTK 301: `Deep transfer learning with pre-trained ResNet model <CNTK_301_Image_Recognition_with_Deep_Transfer_Learning.html>`_ (:cntktut:`source <CNTK_301_Image_Recognition_with_Deep_Transfer_Learning>`)  
+     CNTK 301: `Deep transfer learning with pre-trained ResNet model <CNTK_301_Image_Recognition_with_Deep_Transfer_Learning.html>`_ (:cntktut:`source <CNTK_301_Image_Recognition_with_Deep_Transfer_Learning>`)    
 
 Try these notebooks pre-installed on `CNTK Azure Notebooks`_ for free.
 
