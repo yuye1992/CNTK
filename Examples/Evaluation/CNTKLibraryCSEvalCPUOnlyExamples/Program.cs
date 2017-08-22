@@ -17,19 +17,22 @@ namespace CNTKLibraryCSEvalExamples
             Console.WriteLine("======== Evaluate model using C# CPUOnly Build ========");
 
             // Evalaute a single image.
-            CNTKLibraryManagedExamples.EvaluationSingleImage(DeviceDescriptor.CPUDevice);
+            var dummy = CNTKLibraryManagedExamples.EvaluationSingleImage(DeviceDescriptor.CPUDevice);
 
-            // Evaluate a batch of images
-            CNTKLibraryManagedExamples.EvaluationBatchOfImages(DeviceDescriptor.CPUDevice);
+            if (dummy)
+            {
+                // Evaluate a batch of images
+                CNTKLibraryManagedExamples.EvaluationBatchOfImages(DeviceDescriptor.CPUDevice);
 
-            // Evaluate multiple sample requests in parallel
-            CNTKLibraryManagedExamples.EvaluateMultipleImagesInParallel(DeviceDescriptor.CPUDevice);
+                // Evaluate multiple sample requests in parallel
+                CNTKLibraryManagedExamples.EvaluateMultipleImagesInParallel(DeviceDescriptor.CPUDevice);
 
-            // Evaluate a single sequence with one-hot vector
-            CNTKLibraryManagedExamples.EvaluationSingleSequenceUsingOneHot(DeviceDescriptor.CPUDevice);
+                // Evaluate a single sequence with one-hot vector
+                CNTKLibraryManagedExamples.EvaluationSingleSequenceUsingOneHot(DeviceDescriptor.CPUDevice);
 
-            // Evalaute a batch of variable length sequences with one-hot vector
-            CNTKLibraryManagedExamples.EvaluationBatchOfSequencesUsingOneHot(DeviceDescriptor.CPUDevice);
+                // Evalaute a batch of variable length sequences with one-hot vector
+                CNTKLibraryManagedExamples.EvaluationBatchOfSequencesUsingOneHot(DeviceDescriptor.CPUDevice);
+            }
 
             Console.WriteLine("======== Evaluation completes. ========");
         }
