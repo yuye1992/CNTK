@@ -319,7 +319,7 @@ class HalideExpressionGenerator(NodeVisitor):
             if 'sliceStrides' in node.attributes and node.attributes['sliceStrides'] != 1:
                 set_trace()
                 raise ValueError('Unexpected stride "%s", only stride of 1 is currently supported' % str(node.attributes['sliceStrides']))
-            exp = 'Halide::Func %s("%s"); %s = Slice<%d, %d>(%s)' % (node.uid, node.uid, node.uid, begin, end, self.uid_to_exp[operand.uid])
+            exp = 'Halide::Func %s("%s"); %s = Slice(%s, %d, %d)' % (node.uid, node.uid, node.uid, self.uid_to_exp[operand.uid], begin, end)
         else:
             raise ValueError('Slice is not supported on node of shape %s' % str(node.shape)) 
         self.listing += exp + ';\n'

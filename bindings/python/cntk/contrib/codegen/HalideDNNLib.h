@@ -106,6 +106,14 @@ namespace CNTK
         return result;
     }
 
+    inline Halide::Func Minus(const Halide::Func& operand1, const Halide::Func& operand2)
+    {
+        Halide::Var index;
+        Halide::Func result("Minus");
+        result(index) = operand1(index) - operand2(index);
+        return result;
+    }
+
     inline Halide::Func VectorByMatrixTimesQuantized(
         const std::vector<Halide::Func>& vec,
         const std::vector<Halide::Func>& matrix,

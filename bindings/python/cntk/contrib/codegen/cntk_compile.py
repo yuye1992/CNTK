@@ -19,8 +19,6 @@ import argparse
 import cntk.logging
 
 if __name__ == '__main__':
-    import pdb; pdb.set_trace()
-
     parser = argparse.ArgumentParser()
     parser.add_argument('-m', '--model', help='Path to the CNTK model file',
                         required=True, default=None)

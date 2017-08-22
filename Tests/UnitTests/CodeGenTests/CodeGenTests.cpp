@@ -15,7 +15,8 @@
 #undef min
 #undef max
 
-#include "generated/XorEvaluator.h"
+#include "XorEvaluator.h"
+#include "LstmSpeechEvaluator.h"
 
 #include "CNTKLibrary.h"
 
