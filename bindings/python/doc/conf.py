@@ -13,10 +13,6 @@ try:
 except ImportError:
     raise ImportError("Unable to import sphinx_rtd_theme, please install via "
                       "'pip install sphinx_rtd_theme'")
-
-                      
-import sphinx.environment
-from docutils.utils import get_source_line
                       
 extensions = [
     'sphinx.ext.autodoc',

@@ -5,7 +5,7 @@ Tutorials
      CNTK 101:`Logistic Regression <CNTK_101_LogisticRegression.html>`_ with NumPy (:cntktut:`source <CNTK_101_LogisticRegression>`)
     
 #.  *Classify cancer using simulated data (Feed Forward, FFN)*
-     CNTK 102: Feed Forward network with NumPy (`html <CNTK_102_FeedForward.html>`_) (:cntktut:`source <CNTK_102_FeedForward>`)
+     CNTK 102: `Feed Forward network <CNTK_102_FeedForward.html>`_  with NumPy (:cntktut:`source <CNTK_102_FeedForward>`)
      
 #.  *Recognize hand written digits (OCR) with MNIST data*
      CNTK 103 Part A: `MNIST data preparation <CNTK_103A_MNIST_DataLoader.html>`_ (:cntktut:`source <CNTK_103A_MNIST_DataLoader>`),
