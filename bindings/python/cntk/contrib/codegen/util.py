@@ -67,7 +67,7 @@ def nx_plot(g, filename):
             op_name = primitive_op_map.get(node.op_name, node.op_name)
             render_as_primitive = len(op_name) <= 4
             size = 0.4 if render_as_primitive else 0.6
-            cur_node = pydot.Node(node.uid, label='"' + op_name + node_desc(node) + '"',
+            cur_node = pydot.Node(node.uid[:6], label='"' + op_name + node_desc(node) + '"',
                                   shape='ellipse'  if render_as_primitive else 'box',
                                   fixedsize='true' if render_as_primitive else 'false', height=size, width=size,
                                   fontsize=20  if render_as_primitive and len(op_name) == 1 else 12 ,

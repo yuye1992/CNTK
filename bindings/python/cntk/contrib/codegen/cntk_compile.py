@@ -16,8 +16,11 @@ from expression_generator import *
 import networkx as nx
 import matplotlib.pyplot as plt
 import argparse
+import cntk.logging
 
 if __name__ == '__main__':
+    import pdb; pdb.set_trace()
+
     parser = argparse.ArgumentParser()
     parser.add_argument('-m', '--model', help='Path to the CNTK model file',
                         required=True, default=None)
@@ -45,6 +48,7 @@ if __name__ == '__main__':
 
     # Create the graph and perform some transforms on it
     model = Function.load(args['model'])
+
     graph = ModelToGraphConverter().convert(model)
     remove_intermediate_output_nodes(graph)
     split_past_values(graph)
@@ -74,8 +78,12 @@ if __name__ == '__main__':
     with open(args['output'], 'w') as f:
         f.write(listing)
 
+    print('Successfully finished generation of halide expression')
+
+    print('Start dumping the weights...')
     # Also make sure we generate the json weights/constants for now.
     # These should be taken by C++ directly from the model though.
     # Or better built-in inside the source file. Not yet clear how though
     # because long arrays break the C++ linker.
     WeightsExtractor(graph).dump(args['weights'])
+    print('Successfully dumped the weights')

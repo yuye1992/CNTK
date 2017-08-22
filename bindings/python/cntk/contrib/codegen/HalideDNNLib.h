@@ -65,6 +65,14 @@ namespace CNTK
         return tanhOutput;
     }
 
+    inline Halide::Func Log(const Halide::Func& input)
+    {
+        Halide::Func logOutput("Log");
+        Halide::Var index;
+        logOutput(index) = log(input(index));
+        return logOutput;
+    }
+
     inline Halide::Func Slice(const Halide::Func& input, int from, int to)
     {
         Halide::Func slice("Slice");

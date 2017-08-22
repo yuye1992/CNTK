@@ -212,9 +212,15 @@ class HalideExpressionGenerator(NodeVisitor):
             self.generate_times(node)
         elif op_name == 'Plus':
             self.generate_plus(node)
+        elif op_name == 'Minus':
+            self.generate_minus(node)
+        elif op_name == 'Log':
+            self.generate_log(node)
         elif op_name == 'Slice':
             self.generate_slice(node)
-        elif op_name == 'StableSigmoid':
+        elif op_name == 'Splice':
+            self.generate_splice(node)
+        elif op_name == 'StableSigmoid' or op_name == 'Sigmoid':
             self.generate_stable_sigmoid(node)
         elif op_name == 'Tanh':
             self.generate_tanh(node)
@@ -289,26 +295,46 @@ class HalideExpressionGenerator(NodeVisitor):
     def generate_plus(self, node):
         self.generate_binary_call(node, 'Plus')
 
+    def generate_minus(self, node):
+        self.generate_binary_call(node, 'Minus')
+
     def generate_stable_sigmoid(self, node):
         self.generate_unary_call(node, 'Sigmoid<%s>' % self.data_type(node))
 
     def generate_tanh(self, node):
         self.generate_unary_call(node, 'Tanh')
 
+    def generate_log(self, node):
+        self.generate_unary_call(node, 'Log')
+
     def generate_slice(self, node):
         operand = get_predecessors(self.graph, node.uid)
         if len(operand) != 1:
-            raise ValueError('Operation "slice" expects 2 operands')
+            set_trace()
+            raise ValueError('Operation "slice" expects 1 operand')
         operand = self.graph.node[operand[0]]['data']
         if len(operand.shape) == 1:
             begin = node.attributes['beginIndex']
             end = node.attributes['endIndex']
-            stride = node.attributes['sliceStrides']
-            if stride != 1:
-                raise ValueError('Unexpected stride "%s", only stride of 1 is currently supported' % str(stride))
+            if 'sliceStrides' in node.attributes and node.attributes['sliceStrides'] != 1:
+                set_trace()
+                raise ValueError('Unexpected stride "%s", only stride of 1 is currently supported' % str(node.attributes['sliceStrides']))
             exp = 'Halide::Func %s("%s"); %s = Slice<%d, %d>(%s)' % (node.uid, node.uid, node.uid, begin, end, self.uid_to_exp[operand.uid])
         else:
             raise ValueError('Slice is not supported on node of shape %s' % str(node.shape)) 
+        self.listing += exp + ';\n'
+
+    def generate_splice(self, node):
+        operands = get_predecessors(self.graph, node.uid)
+        if len(operands) != 2:
+            raise ValueError('Operation "splice" expects 2 operands')
+        operand1 = self.graph.node[operands[0]]['data']
+        operand2 = self.graph.node[operands[1]]['data']
+        if len(operand1.shape) != 1 or len(operand2.shape) != 1:
+            raise ValueError('Currently splice only supports vectors as operands')
+
+        exp = 'Halide::Func %s("%s"); %s = Splice(%s, %s, %d, %d)' % (node.uid, node.uid, node.uid, self.uid_to_exp[operand1.uid],
+                                                                      self.uid_to_exp[operand2.uid], operand1.shape[0], operand2.shape[0])
         self.listing += exp + ';\n'
 
     def generate_file_header(self):
