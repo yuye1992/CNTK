@@ -81,6 +81,15 @@ namespace CNTK
         return slice;
     }
 
+    inline Halide::Func Splice(const Halide::Func& o1, const Halide::Func& o2, int o1Size, int o2Size)
+    {
+        Halide::Func splice("Splice");
+        Halide::Var index;
+        splice(index) = Halide::select(index < o1Size, o1(Halide::min(index, o1Size - 1)), o2(Halide::max(0, index - o1Size)));
+        splice.bound(index, 0, o1Size + o2Size);
+        return splice;
+    }
+
     inline Halide::Func ElementTimes(const Halide::Func& operand1, const Halide::Func& operand2)
     {
         Halide::Var index;
