@@ -25,7 +25,8 @@ namespace CNTK
         Halide::Var matrixSubRowIndex("matrixSubRowIndex");
         Halide::Var matrixColumnIndex("matrixColumnIndex");
         Halide::RDom k1(0, matrixRowDimension / c_VectorizationWidth);
-        partial(matrixSubRowIndex, matrixColumnIndex) = Halide::sum(vec(matrixSubRowIndex + (k1 * c_VectorizationWidth)) * matrix(matrixColumnIndex, matrixSubRowIndex + (k1 * c_VectorizationWidth)));
+        Halide::Expr partialMul = vec(matrixSubRowIndex + (k1 * c_VectorizationWidth)) * matrix(matrixColumnIndex, matrixSubRowIndex + (k1 * c_VectorizationWidth));
+        partial(matrixSubRowIndex, matrixColumnIndex) = Halide::sum(partialMul);
         partial.bound(matrixSubRowIndex, 0, c_VectorizationWidth);
 
         Halide::Func head("VectorByMatrixTimesHead");
@@ -34,7 +35,8 @@ namespace CNTK
 
         Halide::Func tail("VectorByMatrixTimesTail");
         Halide::RDom k3((matrixRowDimension / c_VectorizationWidth) * c_VectorizationWidth, matrixRowDimension  % c_VectorizationWidth);
-        tail(matrixColumnIndex) = Halide::sum(vec(k3) * matrix(matrixColumnIndex, k3));
+        auto tailMul = vec(k3) * matrix(matrixColumnIndex, k3);
+        tail(matrixColumnIndex) = Halide::sum(tailMul);
 
         Halide::Func output("MatrixByVectorTimes");
         output(matrixColumnIndex) = head(matrixColumnIndex) + tail(matrixColumnIndex);
