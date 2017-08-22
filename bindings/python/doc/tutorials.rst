@@ -64,4 +64,3 @@ For our Japanese users, you can find some of the `tutorials in Japanese`_ (unsup
 
 .. _`CNTK Azure Notebooks`: https://notebooks.azure.com/cntk/libraries/tutorials
 .. _`tutorials in Japanese`: https://notebooks.azure.com/library/cntkbeta2_ja
-     

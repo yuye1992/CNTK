@@ -1,9 +1,9 @@
 Manuals
 =======================================================
 
-#.  `How to create user minibatch sources <Manual_How_to_create_user_minibatch_sources.html>`_ (:cntkman:`source <Manual_How_to_create_user_minibatch_sources>`)
+#. `How to create user minibatch sources <Manual_How_to_create_user_minibatch_sources.html>`_ (:cntkman:`source <Manual_How_to_create_user_minibatch_sources>`)
 
-#. `How to debug python scripts <Manual_How_to_debug.html>`_ (:cntkman:`source <Manual_How_to_debug>`)
+#. `How to debug CNTK python scripts <Manual_How_to_debug.html>`_ (:cntkman:`source <Manual_How_to_debug>`)
 
 #. `How to feed data <Manual_How_to_feed_data.html>`_ (:cntkman:`source <Manual_How_to_feed_data>`)
 
