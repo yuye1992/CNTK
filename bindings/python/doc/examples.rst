@@ -1,8 +1,8 @@
 Examples
 ========
 
-The best way to learn about the APIs is to look at the
-following examples in the [CNTK clone root]/Examples directory:
+CNTK also offers several examples that are not in Tutorial style. 
+Many of these are recipes that involve more advanced networks [CNTK clone root]/Examples directory:
 
 -  :cntk:`MNIST <Examples/Image/Classification/MLP/Python/SimpleMNIST.py>`:
    A fully connected feed-forward model for classification of MNIST

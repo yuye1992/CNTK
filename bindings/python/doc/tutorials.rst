@@ -70,6 +70,7 @@ For our Japanese users, you can find some of the `tutorials in Japanese`_ (unsup
    :glob:
    :maxdepth: 1
    :caption: 100 series
+   :hidden:
 
    CNTK_10*
 
@@ -77,6 +78,7 @@ For our Japanese users, you can find some of the `tutorials in Japanese`_ (unsup
    :glob:
    :maxdepth: 1
    :caption: 200 series
+   :hidden:
 
    CNTK_20*
    
@@ -84,5 +86,6 @@ For our Japanese users, you can find some of the `tutorials in Japanese`_ (unsup
    :glob:
    :maxdepth: 1
    :caption: 300 series 
+   :hidden:
 
    CNTK_30*   

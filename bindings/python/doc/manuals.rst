@@ -17,5 +17,6 @@ Manuals
    :glob:
    :maxdepth: 1
    :caption: List view
+   :hidden:
 
    Manual_*
