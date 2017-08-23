@@ -196,11 +196,13 @@ public:
 
 public:
     CuDnnConvolutionEngine(ConvolveGeometryPtr geometry, DEVICEID_TYPE deviceId, ImageLayoutKind imageLayout,
-                           size_t maxTempMemSizeInSamples, PoolKind poolKind, bool forceDeterministicAlgorithms, bool poolIncludePad)
+                           size_t maxTempMemSizeInSamples, PoolKind poolKind, bool forceDeterministicAlgorithms,
+                           bool inputHasFreeDimension, bool poolIncludePad)
         : Base(geometry, deviceId, imageLayout, maxTempMemSizeInSamples, poolKind, poolIncludePad),
           m_cudnn(CuDnn::Instance()),
           m_dataType(CuDnnTensor::GetDataType<ElemType>()),
-          m_forceDeterministicAlgorithms(forceDeterministicAlgorithms)
+          m_forceDeterministicAlgorithms(forceDeterministicAlgorithms),
+          m_inputHasFreeDimension(inputHasFreeDimension)
     {
         auto inShape = geometry->InputShape(); 
         auto outShape = geometry->OutputShape(); 
@@ -275,7 +277,7 @@ protected:
             calgo = 1;              // set count of algorithms 
             return result;
         };
-        // finde workspace size needed to auto-tune all algorithms, as well as the size needed for deterministic algorithm 
+        // find workspace size needed to auto-tune all algorithms, as well as the size needed for deterministic algorithm 
         auto workspaceSizeFinder = [&, this]() -> cudnnStatus_t
         {
             size_t tmpSize;
@@ -483,13 +485,14 @@ private:
             algo.AlgoWorkspaceSize = 0;
             algo.MBSizeForCurrentWorkspace = 0;
         } 
-        else if (algo.autotuningState == AutotuningState::Running && !m_forceDeterministicAlgorithms)  // batchSize changes to be smaller than MBSizeForCurrentWorkspace, need to re-do tuning if non-deterministic
+        else if (algo.autotuningState == AutotuningState::Running && !m_forceDeterministicAlgorithms && !m_inputHasFreeDimension)  // batchSize changes to be smaller than MBSizeForCurrentWorkspace, need to re-do tuning if non-deterministic
             algo.autotuningState = AutotuningState::PendingTuning;
 
         typename TAlgo::typeT algoPerf[MaxAlgoCount];
         int calgo = 0;
-        // in initState, where memory allocation for nodes are not completed, we only run the algorithm with no workspace
-        // or in the special case when m_forceDeterministicAlgorithms, we allocate some memory and use the deterministic algorithm 
+        // In initState, where memory allocation for nodes are not completed, we only run the algorithm with no workspace.
+        // In the special case when m_forceDeterministicAlgorithms, we allocate some memory and use the deterministic algorithm.
+        // In the special case when m_inputHasFreeDimension, we only run the algorithm with no workspace.
         if (algo.autotuningState == AutotuningState::Init)
         {
             // find workspace size needed for finderEx and deterministic algorithm 
@@ -504,6 +507,13 @@ private:
                 algo.maxAlgo = algo.selectedAlgo;
                 algo.autotuningState = AutotuningState::Running;    // no further need for tuning since this is deterministic, directly enter running state 
                 algo.AlgoWorkspaceSize = (*algoPerf).memory;
+            }
+            else if (m_inputHasFreeDimension)
+            {
+                CUDNN_CALL(staticFinder(algo.selectedAlgo, true)); // No memory algorithm is selected, as the memory requirement will change from batch to batch.
+                algo.maxMBSizeSeen = batchSize;
+                algo.MBSizeForCurrentAlgo = batchSize;
+                algo.autotuningState = AutotuningState::Running;
             }
             else
             {
@@ -653,15 +663,18 @@ private:
 
     // Flag indicating whether only deterministic algorithms should be used.
     bool m_forceDeterministicAlgorithms;
+    bool m_inputHasFreeDimension;
 };
 
 template <class ElemType>
 std::unique_ptr<ConvolutionEngine<ElemType>> CuDnnConvolutionEngineFactory<ElemType>::Create(ConvolveGeometryPtr geometry,
                                                                                              DEVICEID_TYPE deviceId, ImageLayoutKind imageLayout,
                                                                                              size_t maxTempMemSizeInSamples, PoolKind poolKind,
-                                                                                             bool forceDeterministicAlgorithms, bool poolIncludePad)
+                                                                                             bool forceDeterministicAlgorithms, bool inputHasFreeDimension, 
+                                                                                             bool poolIncludePad)
 {
-    return std::make_unique<CuDnnConvolutionEngine<ElemType>>(geometry, deviceId, imageLayout, maxTempMemSizeInSamples, poolKind, forceDeterministicAlgorithms, poolIncludePad);
+    return std::make_unique<CuDnnConvolutionEngine<ElemType>>(geometry, deviceId, imageLayout, maxTempMemSizeInSamples, poolKind, 
+                                                              forceDeterministicAlgorithms, inputHasFreeDimension, poolIncludePad);
 }
 
 template <class ElemType>
