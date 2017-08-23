@@ -137,7 +137,11 @@ class HalideExpressionGenerator(NodeVisitor):
 
     def generate(self, nodes, class_name='evaluator'):
         self.visit(nodes)
-        all_params = ', '.join(['const Halide::ImageParam& %s' % i for i in self.inputs])
+        past_inputs = [i[1] for i in self.inputs if i[0]]
+        actual_inputs = [i[1] for i in self.inputs if not i[0]] 
+        all_params = list(sorted(actual_inputs))
+        all_params.extend(sorted(past_inputs))
+        all_params = ', '.join(['const Halide::ImageParam& %s' % p for p in all_params])
         
         # Generating the class with setters for weights and constants. 
         evaluator = CppClassGen(class_name)
@@ -162,9 +166,68 @@ class HalideExpressionGenerator(NodeVisitor):
         init_method = self.generate_init_method()
         evaluator.add_public_member(init_method)
 
+        evaluator.add_private_member('Halide::Pipeline m_graph;')       
+        evaluator.add_private_member('bool m_graphInitialized {false};')       
+
+        self.generate_eval_method(evaluator)
+
         nspace = CppNamespaceGen('CNTK')
         nspace.add_member(str(evaluator))
         return self.generate_file_header() + str(nspace)
+
+    def model_node(self, uid):
+        return self.graph.node[uid]['data']
+
+    def model_original_node(self, uid):
+        return self.graph.node[uid]['original']
+
+    def halide_shape(self, shape):
+        if len(shape) == 2:
+            return (str(shape[1]), str(shape[0]))
+        elif len(shape) == 1:
+            return (str(shape[0]),)
+        elif len(shape) == 0:
+            return (str(1),)
+        else:
+            raise ValueError('Unexpected shape encountered, only 1 and 2D are currently supported %s' % shape)
+
+    def generate_eval_method(self, evaluator):
+        past_inputs = [(i[1], i[2]) for i in self.inputs if i[0]]
+        past_inputs = list(sorted(past_inputs, key=lambda x: x[0]))
+
+        for i in past_inputs:
+            node = self.model_node(i[1])
+            evaluator.add_private_member('std::vector<Halide::Buffer<%s>> m_buffer%s;' % (self.data_type(node), node.name))
+            evaluator.add_private_member('Halide::ImageParam m_%s { Halide::type_of<%s>(), %d };' % (node.name, self.data_type(node), len(node.shape)))
+
+        content = ''
+        past_outputs = [o for o in self.outputs if o[0]]
+        past_outputs = list(sorted(past_outputs, key=lambda x: x[0]))
+        
+        actual_inputs = [(i[1], i[2]) for i in self.inputs if not i[0]]
+        actual_inputs = list(sorted(actual_inputs, key=lambda x: x[0]))
+        actual_inputs = ['%s' % p[0] for p in actual_inputs]
+        input_params = actual_inputs + ['m_%s' % p[0] for p in past_inputs]
+
+        actual_outputs = [(o[1], o[2]) for o in self.outputs if not o[0]]
+        actual_outputs = list(sorted(actual_outputs, key=lambda x: x[0]))
+        actual_outputs = [p[0] for p in actual_outputs]
+        output_params = actual_outputs + ['m_buffer%s[timestamp %% m_buffer%s.size()]' % (p[0], p[0]) for p in past_inputs]
+
+        content += 'void Evaluate(%s %s, %s)\n' % ('' if len(past_inputs) == 0 else 'int timestamp,', ', '.join(['const Halide::ImageParam& ' + i for i in actual_inputs]), ', '.join(['Halide::Buffer<float>& ' + o for o in actual_outputs]))
+        content += '{\n'
+        content += '    if(!m_graphInitialized)\n'
+        content += '    {\n'
+        content += '        m_graph = create_eval_graph(%s);\n' % (', '.join(input_params))
+        content += '        m_graphInitialized = true;\n'
+        content += '    }\n'
+
+        for p in past_inputs:
+            content += 'm_%s.set(m_buffer%s[((timestamp - %d) %% m_buffer%s.size())]);\n' % (p[0], p[0], self.model_original_node(p[1]).attributes['offset'], p[0])
+
+        content += '    m_graph.realize({%s});\n' % (', '.join(output_params))
+        content += '}\n'
+        evaluator.add_public_member(content)
 
     def generate_init_method(self):
         # TODO: need to use some template libraries for code gen
@@ -185,6 +248,14 @@ class HalideExpressionGenerator(NodeVisitor):
         '''
         for node in self.values:
             content += 'set_%s(get_value("%s"));\n' % (node.uid.lower(), node.uid)
+
+        # Initializing the past value input buffers.
+        past_inputs = [(i[1], i[2]) for i in self.inputs if i[0]]
+        for pi in past_inputs:
+            input_node = self.model_node(pi[1])
+            past_node = self.model_original_node(pi[1])
+            shape = self.halide_shape(node.shape)
+            content += 'm_buffer%s.resize(%d, Halide::Buffer<%s>(%s));\n' % (pi[0], past_node.attributes['offset'] + 1, self.data_type(node), ','.join(shape))
         content += '}\n'
         return content
 
@@ -201,14 +272,11 @@ class HalideExpressionGenerator(NodeVisitor):
         self.uid_to_exp[node.uid] = '%s' % node.uid
 
     def visit_input(self, node):
-        input = self.graph.node[node.uid]
-        if 'original' in input:
-            original = input['original']
-            input_name = '%s' % (node.name)
-        else:
-            input_name = '%s' % (node.uid)
+        is_past_value = 'original' in self.graph.node[node.uid]
+        input_name = '%s' % (node.name if node.name else node.uid)
         self.uid_to_exp[node.uid] = '%s' % input_name
-        self.inputs.append(input_name)
+        # Is past value and the name of the input (name??uid)
+        self.inputs.append((is_past_value, input_name, node.uid))
 
     def visit_output(self, node):
         output = self.graph.node[node.uid]
@@ -217,10 +285,15 @@ class HalideExpressionGenerator(NodeVisitor):
             original = output['original']
             if len(operands) != 2:
                 raise ValueError('Past Value value is expected to have 2 operands, given %s' % str(operands))
+            is_past_value = True
         else:
             if len(operands) != 1:
                 raise ValueError('Output value is expected to have a single operand, given %s' % str(operands))
-        self.outputs.append(operands[0])
+            is_past_value = False
+
+        name = node.name if node.name else node.uid
+        # is past value, (name??uid) of the node, uid of the actual expression
+        self.outputs.append((is_past_value, name, operands[0], node.uid))
 
     def index_vars(self, node):
         if len(node.shape) == 1 or len(node.shape) == 0:
@@ -376,7 +449,12 @@ class HalideExpressionGenerator(NodeVisitor):
         return header;
 
     def generate_return_value(self):
-        return 'return Halide::Pipeline({ %s });' % ', '.join(self.outputs)
+        past_outputs = [o for o in self.outputs if o[0]]
+        actual_outputs = [o for o in self.outputs if not o[0]]
+        # Sorting by name
+        all_outputs = list(sorted(actual_outputs, key = lambda x: x[1]))
+        all_outputs.extend(sorted(past_outputs, key = lambda x: x[1]))
+        return 'return Halide::Pipeline({ %s });' % ', '.join(['%s/*%s*/' % (o[2], o[1]) for o in all_outputs])
 
     def data_type(self, node):
         node_attrs = self.graph.node[node.uid]

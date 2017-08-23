@@ -42,7 +42,7 @@ namespace CNTK
             Halide::Func Times121("Times121"); Times121 = VectorByMatrixTimes(Tanh107, Parameter25, 2, 1);
             Halide::Func Plus123("Plus123"); Plus123 = Plus(Times121, Parameter26);
 
-            return Halide::Pipeline({ Plus123 });
+            return Halide::Pipeline({ Plus123/*Block128_Output_0*/ });
         }
 
 
@@ -65,10 +65,22 @@ namespace CNTK
             set_parameter5(get_value("Parameter5"));
         }
 
+        void Evaluate(const Halide::ImageParam& Input3, Halide::Buffer<float>& Block128_Output_0)
+        {
+            if (!m_graphInitialized)
+            {
+                m_graph = create_eval_graph(Input3);
+                m_graphInitialized = true;
+            }
+            m_graph.realize({ Block128_Output_0 });
+        }
+
     private:
         std::vector<float> m_Parameter26;
         std::vector<float> m_Parameter25;
         std::vector<float> m_Parameter6;
         std::vector<float> m_Parameter5;
+        Halide::Pipeline m_graph;
+        bool m_graphInitialized{ false };
     };
 };

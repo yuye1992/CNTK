@@ -158,8 +158,8 @@ def split_past_values(graph):
         if node.op_name != 'PastValue':
             continue
 
-        external_output = cntk.output_variable(dynamic_axes=node.dynamic_axes, shape=node.shape, dtype=node.dtype, name=node.uid + '_external_output')
-        external_input = cntk.input_variable(dynamic_axes=node.dynamic_axes, shape=node.shape, dtype=node.dtype, name=node.uid + '_external_input')
+        external_output = cntk.output_variable(dynamic_axes=node.dynamic_axes, shape=node.shape, dtype=node.dtype, name=node.uid)
+        external_input = cntk.input_variable(dynamic_axes=node.dynamic_axes, shape=node.shape, dtype=node.dtype, name=node.uid)
 
         graph.add_node(external_input.uid, data=external_input, original=node)
         graph.add_node(external_output.uid, data=external_output, original=node)
