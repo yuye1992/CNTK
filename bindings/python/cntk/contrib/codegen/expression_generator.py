@@ -156,12 +156,37 @@ class HalideExpressionGenerator(NodeVisitor):
                                              original_type, original_type, quantized_type, self.graph.node[node.uid]['reserved_bits'], node.uid, node.uid))
 
         # Actually generating the function that will create the computation graph.
-        eval_graph = 'Halide::Pipeline create_eval_graph(%s)\n {\n %s \n %s \n %s \n }\n' % (all_params, 'Halide::Var var1, var2;', self.listing, self.generate_return_value())
-        evaluator.add_public_member(eval_graph)
+        create_eval_graph_method = 'Halide::Pipeline create_eval_graph(%s)\n {\n %s \n %s \n %s \n }\n' % (all_params, 'Halide::Var var1, var2;', self.listing, self.generate_return_value())
+        evaluator.add_public_member(create_eval_graph_method)
+
+        init_method = self.generate_init_method()
+        evaluator.add_public_member(init_method)
 
         nspace = CppNamespaceGen('CNTK')
         nspace.add_member(str(evaluator))
-        return self.generate_file_header() + str(nspace);
+        return self.generate_file_header() + str(nspace)
+
+    def generate_init_method(self):
+        # TODO: need to use some template libraries for code gen
+        content = '''
+        public:
+        void init(const std::string& weightFilePath)
+        {
+            boost::property_tree::ptree root;
+            boost::property_tree::read_json(weightFilePath.c_str(), root);
+
+            auto get_value = [&](const std::string& name)
+            {
+                std::vector<float> result;
+                for (auto& v : root.get_child(name))
+                    result.push_back(v.second.get_value<float>());
+                return result;
+            };
+        '''
+        for node in self.values:
+            content += 'set_%s(get_value("%s"));\n' % (node.uid.lower(), node.uid)
+        content += '}\n'
+        return content
 
     def visit_parameter(self, node):
         node = node.as_parameter()
@@ -339,7 +364,15 @@ class HalideExpressionGenerator(NodeVisitor):
 
     def generate_file_header(self):
         header  = '#pragma once\n'
-        header += '#include "HalideDNNLib.h"\n\n'
+        header += '#include <vector>\n'
+        header += '#include <string>\n'
+        header += '#include "HalideDNNLib.h"\n'
+        header += '#pragma warning(push)\n'
+        header += '#pragma warning(disable : 4715)\n'
+        header += '#include <boost/property_tree/ptree.hpp>\n'
+        header += '#include <boost/property_tree/json_parser.hpp>\n'
+        header += '#pragma warning(pop)\n'
+        header += '\n'
         return header;
 
     def generate_return_value(self):
