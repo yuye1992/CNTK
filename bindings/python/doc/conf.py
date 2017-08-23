@@ -28,6 +28,9 @@ extensions = [
 # Suppress warnings
 suppress_warnings = ['image.nonlocal_uri']
 
+# Define source suffix
+source_suffix = ['.rst', '.ipynb']
+
 master_doc = 'index'
 
 exclude_patterns = [

@@ -14,6 +14,7 @@ if NOT "%PAPER%" == "" (
 )
 set TUTORIALSOURCEDIR=..\..\..\Tutorials\
 set TUTORIALSOURCEFILE=CNTK_*.ipynb
+set IGNORETUTORIALSOURCEFILE=CNTK_5*.ipynb
 
 set MANUALSOURCEDIR=..\..\..\Manual\
 set MANUALSOURCEFILE=Manual_*.ipynb
@@ -80,6 +81,7 @@ if errorlevel 9009 (
 if "%1" == "html" (
     echo Copying tutorial notebooks to build directory  
     xcopy %TUTORIALSOURCEDIR%%TUTORIALSOURCEFILE% .
+    del %IGNORETUTORIALSOURCEFILE%
     echo Copying manual notebooks to build directory  
     xcopy %MANUALSOURCEDIR%%MANUALSOURCEFILE% .
     %SPHINXBUILD% -b html %ALLSPHINXOPTS% %BUILDDIR%/html

@@ -4,6 +4,7 @@ Tutorials
 #.  *Classify cancer using simulated data (Logistic Regression)*
      CNTK 101:`Logistic Regression <CNTK_101_LogisticRegression.html>`_ with NumPy (:cntktut:`source <CNTK_101_LogisticRegression>`)
     
+    
 #.  *Classify cancer using simulated data (Feed Forward, FFN)*
      CNTK 102: `Feed Forward network <CNTK_102_FeedForward.html>`_  with NumPy (:cntktut:`source <CNTK_102_FeedForward>`)
      
@@ -64,3 +65,24 @@ For our Japanese users, you can find some of the `tutorials in Japanese`_ (unsup
 
 .. _`CNTK Azure Notebooks`: https://notebooks.azure.com/cntk/libraries/tutorials
 .. _`tutorials in Japanese`: https://notebooks.azure.com/library/cntkbeta2_ja
+
+.. toctree::
+   :glob:
+   :maxdepth: 1
+   :caption: 100 series
+
+   CNTK_10*
+
+.. toctree::
+   :glob:
+   :maxdepth: 1
+   :caption: 200 series
+
+   CNTK_20*
+   
+.. toctree::
+   :glob:
+   :maxdepth: 1
+   :caption: 300 series 
+
+   CNTK_30*   
