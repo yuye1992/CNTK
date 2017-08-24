@@ -90,7 +90,7 @@ BOOST_AUTO_TEST_CASE(SpeechLstmModel)
     auto inputShape = NDShape({ (size_t)InputDimension });
 
     // Input
-    const int NumberOfFrames = 2;
+    const int NumberOfFrames = 80;
     std::vector<std::vector<float>> frames;
     frames.resize(NumberOfFrames, std::vector<float>(InputDimension));
 
@@ -132,7 +132,7 @@ BOOST_AUTO_TEST_CASE(SpeechLstmModel)
     };
 
     // Perform evaluation
-    const int NumberOfIterations = 1;
+    const int NumberOfIterations = 5;
     for (int i = 0; i < NumberOfIterations; i++)
     {
         int timestamp = 0;
@@ -145,6 +145,132 @@ BOOST_AUTO_TEST_CASE(SpeechLstmModel)
             }
         }
     }
+}
+
+class Timer
+{
+    LARGE_INTEGER m_freq, m_start;
+
+public:
+    Timer()
+    {
+        // count ticks per second
+        if (!QueryPerformanceFrequency(&m_freq))
+            throw std::exception("Timer: QueryPerformanceFrequency failed!");
+    }
+
+    void start()
+    {
+        if (!QueryPerformanceCounter(&m_start))
+            throw std::exception("Timer: QueryPerformanceCounter failed!");
+    }
+
+    double stop(bool inMilliseconds = true) const
+    {
+        LARGE_INTEGER end;
+        QueryPerformanceCounter(&end);
+        return ((end.QuadPart - m_start.QuadPart) / (double)m_freq.QuadPart) * (inMilliseconds ? 1000 : 1);
+    }
+};
+
+void MeasurePerf(const std::function<void()>& workload, const std::string& str, int numIterations = 10, bool warmupRun = true)
+{
+    Timer timer;
+
+    // Warmup run
+    if (warmupRun)
+        workload();
+
+    std::vector<double> executionTimes(numIterations);
+    double averageTime = 0;
+    for (int i = 0; i < numIterations; ++i)
+    {
+        timer.start();
+        workload();
+        executionTimes[i] = timer.stop();
+        averageTime += executionTimes[i];
+    }
+    averageTime /= (double)numIterations;
+
+    std::sort(executionTimes.begin(), executionTimes.end());
+
+    double stdDev = 0.0;
+    std::for_each(executionTimes.begin(), executionTimes.end(), 
+        [&stdDev, averageTime, numIterations](double executionTime) { stdDev += (std::abs(executionTime - averageTime)) / numIterations; });
+
+    printf("%s: Min=%.2lf ms, Median=%.2lf ms, Average=%.2lf ms, Max=%.2lf ms, StdDev=%.2lf ms.\n",
+        str.c_str(),
+        executionTimes[0],
+        executionTimes[numIterations / 2],
+        averageTime,
+        executionTimes[numIterations - 1],
+        stdDev);
+}
+
+BOOST_AUTO_TEST_CASE(SpeechLstmModelPerformance)
+{
+    const int InputDimension = 80;
+    const int OutputDimension = 9404;
+
+    // Halide
+    LstmSpeechEvaluator e;
+    e.init("LstmSpeechEvaluator.json");
+
+    std::vector<float> frame;
+    frame.resize(InputDimension);
+
+    for (size_t j = 0; j < InputDimension; ++j)
+        frame[j] = (rand() % 256) / (float)256;
+
+    Halide::ImageParam features(Halide::type_of<float>(), 1);
+    features.set(Halide::Buffer<float>(frame.data(), InputDimension));
+
+    Halide::Buffer<float> result1(OutputDimension);
+
+    auto halide = [&]()
+    {
+        e.Evaluate(0, features, result1);
+    };
+
+    halide();
+
+    // CNTK
+    auto model = Function::Load(L"lstm_speech.model", DeviceDescriptor::CPUDevice());
+    auto input = model->Arguments();
+    auto output = model->Output();
+    auto inputShape = NDShape({ (size_t)InputDimension });
+
+    auto data = MakeSharedObject<NDArrayView>(DataType::Float, NDShape({ frame.size() }), frame.data(),
+            sizeof(float) * InputDimension, DeviceDescriptor::CPUDevice());
+    std::vector<NDArrayViewPtr> d = { data };
+    auto value = Value::Create(inputShape, d, { true }, DeviceDescriptor::CPUDevice());
+
+    std::unordered_map<Variable, ValuePtr> i = { { input.front(), value } };
+    std::unordered_map<Variable, ValuePtr> o = { { output, nullptr } };
+
+    auto cntk = [&]()
+    {
+        model->Forward(i, o, DeviceDescriptor::CPUDevice());
+    };
+
+    cntk();
+
+    auto result2 = o[output]->Data()->DataBuffer<float>();
+
+    for (int j = 0; j < OutputDimension; ++j)
+    {
+        BOOST_REQUIRE_CLOSE(result1(j), result2[j], 0.1);
+    }
+
+    // All is set up correctly. Run the workloads for perf.
+    MeasurePerf(halide, "Halide workload 1:");
+    MeasurePerf(cntk, "CNTK workload 1:");
+
+    MeasurePerf(cntk, "CNTK workload 2:");
+    MeasurePerf(halide, "Halide workload 2:");
+
+    MeasurePerf(halide, "Halide workload 3:");
+    MeasurePerf(cntk, "CNTK workload 3:");
 }
 
 BOOST_AUTO_TEST_CASE(TestVectorQuantization)
