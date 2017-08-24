@@ -152,17 +152,18 @@ namespace CNTK
             auto b_Parameter488 = Halide::Buffer<float>(m_Parameter488.data(), 1024, "Parameter488");
             Halide::Func Parameter488("Parameter488"); Parameter488(var1) = b_Parameter488(var1);
 
-            Halide::Func ElementTimes489("ElementTimes489"); ElementTimes489 = ElementTimes(Parameter488, PastValue460);
             auto b_Parameter469 = Halide::Buffer<float>(m_Parameter469.data(), 1024, "Parameter469");
             Halide::Func Parameter469("Parameter469"); Parameter469(var1) = b_Parameter469(var1);
 
             auto b_Constant459 = Halide::Buffer<float>(m_Constant459.data(), 1, "Constant459");
             Halide::Func Constant459("Constant459"); Constant459(var1) = b_Constant459(var1);
 
+            Halide::Func PastValue460_Constant459("PastValue460_Constant459"); PastValue460_Constant459(var1) = Halide::select(m_timestamp(0) < 1, Constant459(0), PastValue460(var1));;
+            Halide::Func ElementTimes489("ElementTimes489"); ElementTimes489 = ElementTimes(Parameter488, PastValue460_Constant459);
             auto b_Parameter457 = Halide::Buffer<float>(m_Parameter457.data(), 1024, "Parameter457");
             Halide::Func Parameter457("Parameter457"); Parameter457(var1) = b_Parameter457(var1);
 
-            Halide::Func ElementTimes463("ElementTimes463"); ElementTimes463 = ElementTimes(Parameter457, PastValue460);
+            Halide::Func ElementTimes463("ElementTimes463"); ElementTimes463 = ElementTimes(Parameter457, PastValue460_Constant459);
             auto b_Parameter446 = Halide::Buffer<float>(m_Parameter446.data(), 1024, "Parameter446");
             Halide::Func Parameter446("Parameter446"); Parameter446(var1) = b_Parameter446(var1);
 
@@ -175,6 +176,7 @@ namespace CNTK
             auto b_Constant429 = Halide::Buffer<float>(m_Constant429.data(), 1, "Constant429");
             Halide::Func Constant429("Constant429"); Constant429(var1) = b_Constant429(var1);
 
+            Halide::Func PastValue430_Constant429("PastValue430_Constant429"); PastValue430_Constant429(var1) = Halide::select(m_timestamp(0) < 1, Constant429(0), PastValue430(var1));;
             auto b_Parameter22 = Halide::Buffer<float>(m_Parameter22.data(), 512, 1024, "Parameter22");
             Halide::Func Parameter22("Parameter22"); Parameter22(var1, var2) = b_Parameter22(var1, var2);
 
@@ -190,17 +192,18 @@ namespace CNTK
             auto b_Parameter372 = Halide::Buffer<float>(m_Parameter372.data(), 1024, "Parameter372");
             Halide::Func Parameter372("Parameter372"); Parameter372(var1) = b_Parameter372(var1);
 
-            Halide::Func ElementTimes373("ElementTimes373"); ElementTimes373 = ElementTimes(Parameter372, PastValue344);
             auto b_Parameter353 = Halide::Buffer<float>(m_Parameter353.data(), 1024, "Parameter353");
             Halide::Func Parameter353("Parameter353"); Parameter353(var1) = b_Parameter353(var1);
 
             auto b_Constant343 = Halide::Buffer<float>(m_Constant343.data(), 1, "Constant343");
             Halide::Func Constant343("Constant343"); Constant343(var1) = b_Constant343(var1);
 
+            Halide::Func PastValue344_Constant343("PastValue344_Constant343"); PastValue344_Constant343(var1) = Halide::select(m_timestamp(0) < 1, Constant343(0), PastValue344(var1));;
+            Halide::Func ElementTimes373("ElementTimes373"); ElementTimes373 = ElementTimes(Parameter372, PastValue344_Constant343);
             auto b_Parameter341 = Halide::Buffer<float>(m_Parameter341.data(), 1024, "Parameter341");
             Halide::Func Parameter341("Parameter341"); Parameter341(var1) = b_Parameter341(var1);
 
-            Halide::Func ElementTimes347("ElementTimes347"); ElementTimes347 = ElementTimes(Parameter341, PastValue344);
+            Halide::Func ElementTimes347("ElementTimes347"); ElementTimes347 = ElementTimes(Parameter341, PastValue344_Constant343);
             auto b_Parameter330 = Halide::Buffer<float>(m_Parameter330.data(), 1024, "Parameter330");
             Halide::Func Parameter330("Parameter330"); Parameter330(var1) = b_Parameter330(var1);
 
@@ -213,6 +216,7 @@ namespace CNTK
             auto b_Constant313 = Halide::Buffer<float>(m_Constant313.data(), 1, "Constant313");
             Halide::Func Constant313("Constant313"); Constant313(var1) = b_Constant313(var1);
 
+            Halide::Func PastValue314_Constant313("PastValue314_Constant313"); PastValue314_Constant313(var1) = Halide::select(m_timestamp(0) < 1, Constant313(0), PastValue314(var1));;
             auto b_Parameter34 = Halide::Buffer<float>(m_Parameter34.data(), 512, 1024, "Parameter34");
             Halide::Func Parameter34("Parameter34"); Parameter34(var1, var2) = b_Parameter34(var1, var2);
 
@@ -228,17 +232,18 @@ namespace CNTK
             auto b_Parameter256 = Halide::Buffer<float>(m_Parameter256.data(), 1024, "Parameter256");
             Halide::Func Parameter256("Parameter256"); Parameter256(var1) = b_Parameter256(var1);
 
-            Halide::Func ElementTimes257("ElementTimes257"); ElementTimes257 = ElementTimes(Parameter256, PastValue228);
             auto b_Parameter237 = Halide::Buffer<float>(m_Parameter237.data(), 1024, "Parameter237");
             Halide::Func Parameter237("Parameter237"); Parameter237(var1) = b_Parameter237(var1);
 
             auto b_Constant227 = Halide::Buffer<float>(m_Constant227.data(), 1, "Constant227");
             Halide::Func Constant227("Constant227"); Constant227(var1) = b_Constant227(var1);
 
+            Halide::Func PastValue228_Constant227("PastValue228_Constant227"); PastValue228_Constant227(var1) = Halide::select(m_timestamp(0) < 1, Constant227(0), PastValue228(var1));;
+            Halide::Func ElementTimes257("ElementTimes257"); ElementTimes257 = ElementTimes(Parameter256, PastValue228_Constant227);
             auto b_Parameter225 = Halide::Buffer<float>(m_Parameter225.data(), 1024, "Parameter225");
             Halide::Func Parameter225("Parameter225"); Parameter225(var1) = b_Parameter225(var1);
 
-            Halide::Func ElementTimes231("ElementTimes231"); ElementTimes231 = ElementTimes(Parameter225, PastValue228);
+            Halide::Func ElementTimes231("ElementTimes231"); ElementTimes231 = ElementTimes(Parameter225, PastValue228_Constant227);
             auto b_Parameter214 = Halide::Buffer<float>(m_Parameter214.data(), 1024, "Parameter214");
             Halide::Func Parameter214("Parameter214"); Parameter214(var1) = b_Parameter214(var1);
 
@@ -251,6 +256,7 @@ namespace CNTK
             auto b_Constant197 = Halide::Buffer<float>(m_Constant197.data(), 1, "Constant197");
             Halide::Func Constant197("Constant197"); Constant197(var1) = b_Constant197(var1);
 
+            Halide::Func PastValue198_Constant197("PastValue198_Constant197"); PastValue198_Constant197(var1) = Halide::select(m_timestamp(0) < 1, Constant197(0), PastValue198(var1));;
             auto b_Parameter46 = Halide::Buffer<float>(m_Parameter46.data(), 512, 1024, "Parameter46");
             Halide::Func Parameter46("Parameter46"); Parameter46(var1, var2) = b_Parameter46(var1, var2);
 
@@ -266,17 +272,18 @@ namespace CNTK
             auto b_Parameter140 = Halide::Buffer<float>(m_Parameter140.data(), 1024, "Parameter140");
             Halide::Func Parameter140("Parameter140"); Parameter140(var1) = b_Parameter140(var1);
 
-            Halide::Func ElementTimes141("ElementTimes141"); ElementTimes141 = ElementTimes(Parameter140, PastValue112);
             auto b_Parameter121 = Halide::Buffer<float>(m_Parameter121.data(), 1024, "Parameter121");
             Halide::Func Parameter121("Parameter121"); Parameter121(var1) = b_Parameter121(var1);
 
             auto b_Constant111 = Halide::Buffer<float>(m_Constant111.data(), 1, "Constant111");
             Halide::Func Constant111("Constant111"); Constant111(var1) = b_Constant111(var1);
 
+            Halide::Func PastValue112_Constant111("PastValue112_Constant111"); PastValue112_Constant111(var1) = Halide::select(m_timestamp(0) < 1, Constant111(0), PastValue112(var1));;
+            Halide::Func ElementTimes141("ElementTimes141"); ElementTimes141 = ElementTimes(Parameter140, PastValue112_Constant111);
             auto b_Parameter109 = Halide::Buffer<float>(m_Parameter109.data(), 1024, "Parameter109");
             Halide::Func Parameter109("Parameter109"); Parameter109(var1) = b_Parameter109(var1);
 
-            Halide::Func ElementTimes115("ElementTimes115"); ElementTimes115 = ElementTimes(Parameter109, PastValue112);
+            Halide::Func ElementTimes115("ElementTimes115"); ElementTimes115 = ElementTimes(Parameter109, PastValue112_Constant111);
             auto b_Parameter98 = Halide::Buffer<float>(m_Parameter98.data(), 1024, "Parameter98");
             Halide::Func Parameter98("Parameter98"); Parameter98(var1) = b_Parameter98(var1);
 
@@ -289,6 +296,7 @@ namespace CNTK
             auto b_Constant81 = Halide::Buffer<float>(m_Constant81.data(), 1, "Constant81");
             Halide::Func Constant81("Constant81"); Constant81(var1) = b_Constant81(var1);
 
+            Halide::Func PastValue82_Constant81("PastValue82_Constant81"); PastValue82_Constant81(var1) = Halide::select(m_timestamp(0) < 1, Constant81(0), PastValue82(var1));;
             auto b_Constant62 = Halide::Buffer<float>(m_Constant62.data(), 80, "Constant62");
             Halide::Func Constant62("Constant62"); Constant62(var1) = b_Constant62(var1);
 
@@ -297,7 +305,7 @@ namespace CNTK
 
             Halide::Func Minus66("Minus66"); Minus66 = Minus(features, Constant61);
             Halide::Func ElementTimes69("ElementTimes69"); ElementTimes69 = ElementTimes(Minus66, Constant62);
-            Halide::Func Splice85("Splice85"); Splice85 = Splice(ElementTimes69, PastValue82, 80, 512);
+            Halide::Func Splice85("Splice85"); Splice85 = Splice(ElementTimes69, PastValue82_Constant81, 80, 512);
             Halide::Func Times88("Times88"); Times88 = VectorByMatrixTimes(Splice85, Parameter55, 592, 192);
             Halide::Func Times91("Times91"); Times91 = VectorByMatrixTimes(Times88, Parameter53, 192, 4096);
             Times91.compute_root();
@@ -305,7 +313,7 @@ namespace CNTK
             Halide::Func Plus118("Plus118"); Plus118 = Plus(Slice105, ElementTimes115);
             Halide::Func Plus122("Plus122"); Plus122 = Plus(Plus118, Parameter121);
             Halide::Func Sigmoid125("Sigmoid125"); Sigmoid125 = Sigmoid<float>(Plus122);
-            Halide::Func ElementTimes128("ElementTimes128"); ElementTimes128 = ElementTimes(Sigmoid125, PastValue112);
+            Halide::Func ElementTimes128("ElementTimes128"); ElementTimes128 = ElementTimes(Sigmoid125, PastValue112_Constant111);
             Halide::Func Slice136("Slice136"); Slice136 = Slice(Times91, 0, 1024);
             Halide::Func Plus144("Plus144"); Plus144 = Plus(Slice136, ElementTimes141);
             Halide::Func Plus148("Plus148"); Plus148 = Plus(Plus144, Parameter147);
@@ -325,7 +333,7 @@ namespace CNTK
             Halide::Func ElementTimes190("ElementTimes190"); ElementTimes190 = ElementTimes(Sigmoid183, Tanh187);
             Halide::Func Times193("Times193"); Times193 = VectorByMatrixTimes(ElementTimes190, Parameter46, 1024, 512);
             Times193.compute_root();
-            Halide::Func Splice201("Splice201"); Splice201 = Splice(Times193, PastValue198, 512, 512);
+            Halide::Func Splice201("Splice201"); Splice201 = Splice(Times193, PastValue198_Constant197, 512, 512);
             Halide::Func Times204("Times204"); Times204 = VectorByMatrixTimes(Splice201, Parameter43, 1024, 384);
             Halide::Func Times207("Times207"); Times207 = VectorByMatrixTimes(Times204, Parameter41, 384, 4096);
             Times207.compute_root();
@@ -333,7 +341,7 @@ namespace CNTK
             Halide::Func Plus234("Plus234"); Plus234 = Plus(Slice221, ElementTimes231);
             Halide::Func Plus238("Plus238"); Plus238 = Plus(Plus234, Parameter237);
             Halide::Func Sigmoid241("Sigmoid241"); Sigmoid241 = Sigmoid<float>(Plus238);
-            Halide::Func ElementTimes244("ElementTimes244"); ElementTimes244 = ElementTimes(Sigmoid241, PastValue228);
+            Halide::Func ElementTimes244("ElementTimes244"); ElementTimes244 = ElementTimes(Sigmoid241, PastValue228_Constant227);
             Halide::Func Slice252("Slice252"); Slice252 = Slice(Times207, 0, 1024);
             Halide::Func Plus260("Plus260"); Plus260 = Plus(Slice252, ElementTimes257);
             Halide::Func Plus264("Plus264"); Plus264 = Plus(Plus260, Parameter263);
@@ -353,7 +361,7 @@ namespace CNTK
             Halide::Func ElementTimes306("ElementTimes306"); ElementTimes306 = ElementTimes(Sigmoid299, Tanh303);
             Halide::Func Times309("Times309"); Times309 = VectorByMatrixTimes(ElementTimes306, Parameter34, 1024, 512);
             Times309.compute_root();
-            Halide::Func Splice317("Splice317"); Splice317 = Splice(Times309, PastValue314, 512, 512);
+            Halide::Func Splice317("Splice317"); Splice317 = Splice(Times309, PastValue314_Constant313, 512, 512);
             Halide::Func Times320("Times320"); Times320 = VectorByMatrixTimes(Splice317, Parameter31, 1024, 384);
             Halide::Func Times323("Times323"); Times323 = VectorByMatrixTimes(Times320, Parameter29, 384, 4096);
             Times323.compute_root();
@@ -361,7 +369,7 @@ namespace CNTK
             Halide::Func Plus350("Plus350"); Plus350 = Plus(Slice337, ElementTimes347);
             Halide::Func Plus354("Plus354"); Plus354 = Plus(Plus350, Parameter353);
             Halide::Func Sigmoid357("Sigmoid357"); Sigmoid357 = Sigmoid<float>(Plus354);
-            Halide::Func ElementTimes360("ElementTimes360"); ElementTimes360 = ElementTimes(Sigmoid357, PastValue344);
+            Halide::Func ElementTimes360("ElementTimes360"); ElementTimes360 = ElementTimes(Sigmoid357, PastValue344_Constant343);
             Halide::Func Slice368("Slice368"); Slice368 = Slice(Times323, 0, 1024);
             Halide::Func Plus376("Plus376"); Plus376 = Plus(Slice368, ElementTimes373);
             Halide::Func Plus380("Plus380"); Plus380 = Plus(Plus376, Parameter379);
@@ -381,7 +389,7 @@ namespace CNTK
             Halide::Func ElementTimes422("ElementTimes422"); ElementTimes422 = ElementTimes(Sigmoid415, Tanh419);
             Halide::Func Times425("Times425"); Times425 = VectorByMatrixTimes(ElementTimes422, Parameter22, 1024, 512);
             Times425.compute_root();
-            Halide::Func Splice433("Splice433"); Splice433 = Splice(Times425, PastValue430, 512, 512);
+            Halide::Func Splice433("Splice433"); Splice433 = Splice(Times425, PastValue430_Constant429, 512, 512);
             Halide::Func Times436("Times436"); Times436 = VectorByMatrixTimes(Splice433, Parameter19, 1024, 448);
             Halide::Func Times439("Times439"); Times439 = VectorByMatrixTimes(Times436, Parameter17, 448, 4096);
             Times439.compute_root();
@@ -389,7 +397,7 @@ namespace CNTK
             Halide::Func Plus466("Plus466"); Plus466 = Plus(Slice453, ElementTimes463);
             Halide::Func Plus470("Plus470"); Plus470 = Plus(Plus466, Parameter469);
             Halide::Func Sigmoid473("Sigmoid473"); Sigmoid473 = Sigmoid<float>(Plus470);
-            Halide::Func ElementTimes476("ElementTimes476"); ElementTimes476 = ElementTimes(Sigmoid473, PastValue460);
+            Halide::Func ElementTimes476("ElementTimes476"); ElementTimes476 = ElementTimes(Sigmoid473, PastValue460_Constant459);
             Halide::Func Slice484("Slice484"); Slice484 = Slice(Times439, 0, 1024);
             Halide::Func Plus492("Plus492"); Plus492 = Plus(Slice484, ElementTimes489);
             Halide::Func Plus496("Plus496"); Plus496 = Plus(Plus492, Parameter495);
@@ -485,20 +493,21 @@ namespace CNTK
             set_constant81(get_value("Constant81"));
             set_constant62(get_value("Constant62"));
             set_constant61(get_value("Constant61"));
-            m_bufferPastValue460.resize(2, Halide::Buffer<float>(80));
-            m_bufferPastValue430.resize(2, Halide::Buffer<float>(80));
-            m_bufferPastValue344.resize(2, Halide::Buffer<float>(80));
-            m_bufferPastValue314.resize(2, Halide::Buffer<float>(80));
-            m_bufferPastValue228.resize(2, Halide::Buffer<float>(80));
-            m_bufferPastValue198.resize(2, Halide::Buffer<float>(80));
-            m_bufferPastValue112.resize(2, Halide::Buffer<float>(80));
-            m_bufferPastValue82.resize(2, Halide::Buffer<float>(80));
+            m_bufferPastValue460.resize(2, Halide::Buffer<float>(1024));
+            m_bufferPastValue430.resize(2, Halide::Buffer<float>(512));
+            m_bufferPastValue344.resize(2, Halide::Buffer<float>(1024));
+            m_bufferPastValue314.resize(2, Halide::Buffer<float>(512));
+            m_bufferPastValue228.resize(2, Halide::Buffer<float>(1024));
+            m_bufferPastValue198.resize(2, Halide::Buffer<float>(512));
+            m_bufferPastValue112.resize(2, Halide::Buffer<float>(1024));
+            m_bufferPastValue82.resize(2, Halide::Buffer<float>(512));
         }
 
         void Evaluate(int timestamp, const Halide::ImageParam& features, Halide::Buffer<float>& ScaledLogLikelihood)
         {
             if (!m_graphInitialized)
             {
+                m_timestamp.set(m_bufferTimestamp);
                 m_graph = create_eval_graph(features, m_PastValue112, m_PastValue198, m_PastValue228, m_PastValue314, m_PastValue344, m_PastValue430, m_PastValue460, m_PastValue82);
                 m_graphInitialized = true;
             }
@@ -510,6 +519,7 @@ namespace CNTK
             m_PastValue430.set(m_bufferPastValue430[((timestamp - 1) % m_bufferPastValue430.size())]);
             m_PastValue460.set(m_bufferPastValue460[((timestamp - 1) % m_bufferPastValue460.size())]);
             m_PastValue82.set(m_bufferPastValue82[((timestamp - 1) % m_bufferPastValue82.size())]);
+            m_bufferTimestamp(0) = timestamp;
             m_graph.realize({ ScaledLogLikelihood, m_bufferPastValue112[timestamp % m_bufferPastValue112.size()], m_bufferPastValue198[timestamp % m_bufferPastValue198.size()], m_bufferPastValue228[timestamp % m_bufferPastValue228.size()], m_bufferPastValue314[timestamp % m_bufferPastValue314.size()], m_bufferPastValue344[timestamp % m_bufferPastValue344.size()], m_bufferPastValue430[timestamp % m_bufferPastValue430.size()], m_bufferPastValue460[timestamp % m_bufferPastValue460.size()], m_bufferPastValue82[timestamp % m_bufferPastValue82.size()] });
         }
 
@@ -570,6 +580,8 @@ namespace CNTK
         std::vector<float> m_Constant61;
         Halide::Pipeline m_graph;
         bool m_graphInitialized{ false };
+        Halide::Buffer<int> m_bufferTimestamp{ 1 };
+        Halide::ImageParam m_timestamp{ Halide::type_of<int>(), 1 };
         std::vector<Halide::Buffer<float>> m_bufferPastValue112;
         Halide::ImageParam m_PastValue112{ Halide::type_of<float>(), 1 };
         std::vector<Halide::Buffer<float>> m_bufferPastValue198;

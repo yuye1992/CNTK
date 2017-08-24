@@ -14,31 +14,31 @@ namespace CNTK
         if (matrixRowDimension < c_VectorizationWidth)
         {
             // No point in vectorization, the size is too small.
-            Halide::Func output("VectorByMatrixTimes");
-            Halide::RDom k(0, matrixRowDimension, "matrixRowIndex");
-            Halide::Var matrixColumnIndex("matrixColumnIndex");
+            Halide::Func output("VectorByMatrixTimes" +  vec.name() + "_" + matrix.name());
+            Halide::RDom k(0, matrixRowDimension, "matrixRowIndex" + vec.name() + "_" + matrix.name());
+            Halide::Var matrixColumnIndex("matrixColumnIndex" + vec.name() + "_" + matrix.name());
             output(matrixColumnIndex) = Halide::sum(vec(k) * matrix(matrixColumnIndex, k));
             return output;
         }
 
-        Halide::Func partial("VectorByMatrixTimesPartial");
-        Halide::Var matrixSubRowIndex("matrixSubRowIndex");
-        Halide::Var matrixColumnIndex("matrixColumnIndex");
+        Halide::Func partial("VectorByMatrixTimesPartial" + vec.name() + "_" + matrix.name());
+        Halide::Var matrixSubRowIndex("matrixSubRowIndex" + vec.name() + "_" + matrix.name());
+        Halide::Var matrixColumnIndex("matrixColumnIndex" + vec.name() + "_" + matrix.name());
         Halide::RDom k1(0, matrixRowDimension / c_VectorizationWidth);
         Halide::Expr partialMul = vec(matrixSubRowIndex + (k1 * c_VectorizationWidth)) * matrix(matrixColumnIndex, matrixSubRowIndex + (k1 * c_VectorizationWidth));
         partial(matrixSubRowIndex, matrixColumnIndex) = Halide::sum(partialMul);
         partial.bound(matrixSubRowIndex, 0, c_VectorizationWidth);
 
-        Halide::Func head("VectorByMatrixTimesHead");
+        Halide::Func head("VectorByMatrixTimesHead" + vec.name() + "_" + matrix.name());
         Halide::RDom k2(0, c_VectorizationWidth);
         head(matrixColumnIndex) = Halide::sum(partial(k2, matrixColumnIndex));
 
-        Halide::Func tail("VectorByMatrixTimesTail");
+        Halide::Func tail("VectorByMatrixTimesTail" + vec.name() + "_" + matrix.name());
         Halide::RDom k3((matrixRowDimension / c_VectorizationWidth) * c_VectorizationWidth, matrixRowDimension  % c_VectorizationWidth);
         auto tailMul = vec(k3) * matrix(matrixColumnIndex, k3);
         tail(matrixColumnIndex) = Halide::sum(tailMul);
 
-        Halide::Func output("MatrixByVectorTimes");
+        Halide::Func output("MatrixByVectorTimes" + vec.name() + "_" + matrix.name());
         output(matrixColumnIndex) = head(matrixColumnIndex) + tail(matrixColumnIndex);
 
         partial.compute_at(output, matrixColumnIndex).vectorize(matrixSubRowIndex);
@@ -53,7 +53,7 @@ namespace CNTK
     {
         Halide::Func sigmoidOutput("Sigmoid");
         Halide::Var index;
-        sigmoidOutput(index) = (T)1 / ((T)1 + fast_exp(-input(index)));
+        sigmoidOutput(index) = (T)1 / ((T)1 + exp(-input(index)));
         return sigmoidOutput;
     }
 

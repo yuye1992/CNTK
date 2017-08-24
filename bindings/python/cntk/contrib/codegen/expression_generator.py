@@ -142,7 +142,7 @@ class HalideExpressionGenerator(NodeVisitor):
         all_params = list(sorted(actual_inputs))
         all_params.extend(sorted(past_inputs))
         all_params = ', '.join(['const Halide::ImageParam& %s' % p for p in all_params])
-        
+
         # Generating the class with setters for weights and constants. 
         evaluator = CppClassGen(class_name)
         for node in self.values:
@@ -168,6 +168,8 @@ class HalideExpressionGenerator(NodeVisitor):
 
         evaluator.add_private_member('Halide::Pipeline m_graph;')       
         evaluator.add_private_member('bool m_graphInitialized {false};')       
+        evaluator.add_private_member('Halide::Buffer<int> m_bufferTimestamp { 1 };')       
+        evaluator.add_private_member('Halide::ImageParam m_timestamp { Halide::type_of<int>(), 1 };')       
 
         self.generate_eval_method(evaluator)
 
@@ -197,6 +199,7 @@ class HalideExpressionGenerator(NodeVisitor):
 
         for i in past_inputs:
             node = self.model_node(i[1])
+            original_node = self.model_original_node(i[1])
             evaluator.add_private_member('std::vector<Halide::Buffer<%s>> m_buffer%s;' % (self.data_type(node), node.name))
             evaluator.add_private_member('Halide::ImageParam m_%s { Halide::type_of<%s>(), %d };' % (node.name, self.data_type(node), len(node.shape)))
 
@@ -218,12 +221,16 @@ class HalideExpressionGenerator(NodeVisitor):
         content += '{\n'
         content += '    if(!m_graphInitialized)\n'
         content += '    {\n'
+        content += '        m_timestamp.set(m_bufferTimestamp);\n'
         content += '        m_graph = create_eval_graph(%s);\n' % (', '.join(input_params))
         content += '        m_graphInitialized = true;\n'
         content += '    }\n'
 
         for p in past_inputs:
             content += 'm_%s.set(m_buffer%s[((timestamp - %d) %% m_buffer%s.size())]);\n' % (p[0], p[0], self.model_original_node(p[1]).attributes['offset'], p[0])
+
+        if len(past_inputs) != 0:
+            content += 'm_bufferTimestamp(0) = timestamp;\n'
 
         content += '    m_graph.realize({%s});\n' % (', '.join(output_params))
         content += '}\n'
@@ -254,8 +261,8 @@ class HalideExpressionGenerator(NodeVisitor):
         for pi in past_inputs:
             input_node = self.model_node(pi[1])
             past_node = self.model_original_node(pi[1])
-            shape = self.halide_shape(node.shape)
-            content += 'm_buffer%s.resize(%d, Halide::Buffer<%s>(%s));\n' % (pi[0], past_node.attributes['offset'] + 1, self.data_type(node), ','.join(shape))
+            shape = self.halide_shape(input_node.shape)
+            content += 'm_buffer%s.resize(%d, Halide::Buffer<%s>(%s));\n' % (pi[0], past_node.attributes['offset'] + 1, self.data_type(input_node), ','.join(shape))
         content += '}\n'
         return content
 
@@ -281,16 +288,9 @@ class HalideExpressionGenerator(NodeVisitor):
     def visit_output(self, node):
         output = self.graph.node[node.uid]
         operands = get_predecessors(self.graph, node.uid)
-        if 'original' in output:
-            original = output['original']
-            if len(operands) != 2:
-                raise ValueError('Past Value value is expected to have 2 operands, given %s' % str(operands))
-            is_past_value = True
-        else:
-            if len(operands) != 1:
-                raise ValueError('Output value is expected to have a single operand, given %s' % str(operands))
-            is_past_value = False
-
+        is_past_value = 'original' in output
+        if len(operands) != 1:
+            raise ValueError('Output value is expected to have a single operand, given %s' % str(operands))
         name = node.name if node.name else node.uid
         # is past value, (name??uid) of the node, uid of the actual expression
         self.outputs.append((is_past_value, name, operands[0], node.uid))
@@ -332,6 +332,8 @@ class HalideExpressionGenerator(NodeVisitor):
     def visit_node(self, node):
         if isinstance(node, QuantizeNode):
             self.generate_quantization(node)
+        elif isinstance(node, PastStateSelectorNode):
+            self.generate_past_state_selector(node)
         else:
             raise ValueError('Unexpected node' % node)
         self.uid_to_exp[node.uid] = '%s' % node.uid
@@ -491,3 +493,25 @@ class HalideExpressionGenerator(NodeVisitor):
             expression += 'std::vector<Halide::Func> %s { f_%s, f_step_%s };\n' % (node.uid, node.uid, node.uid)
         self.values.append(node)
         return expression
+
+    def generate_past_state_selector(self, node):
+        operands = get_predecessors(self.graph, node.uid)
+        if len(operands) != 2:
+            raise ValueError('Selection of past state expects 2 operands, given %s', str(operands))
+        input = self.model_node(operands[0])
+        state = self.model_node(operands[1])
+        is_same_shape = input.shape == state.shape
+        if not is_same_shape and len(state.shape) != 0:
+            raise ValueError('Shape of the past value node does not match the shape of the state. Implicit broadcasting is currently not supported.')
+
+        if len(input.shape) != 1:
+            raise ValueError('Selection of past value state is currenlty supported only for vectors.')
+
+        shape = node.shape if len(node.shape) > 0 else (1,)
+        shape_arg = '%d, %d' % (shape[0], shape[1]) if len(shape) == 2 else '%d' % shape[0]
+        exp = 'Halide::Func %s("%s"); %s(var1) = Halide::select(m_timestamp(0) < %d, %s(%s), %s(var1));' % (node.uid, node.uid, node.uid, 
+                                                                                                            self.model_original_node(node.uid).attributes['offset'], 
+                                                                                                            self.uid_to_exp[operands[1]], 
+                                                                                                            'var1' if is_same_shape else '0',
+                                                                                                            self.uid_to_exp[operands[0]])
+        self.listing += exp + ';\n'

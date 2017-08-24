@@ -144,10 +144,42 @@ def remove_intermediate_output_nodes(graph):
             graph.remove_node(n)
             removed = True
 
+class PastStateSelectorNode:
+    def __init__(self, name, shape, dtype):
+        self.name = name
+        self.uid = name
+        self.op_name = 'pastStateSelector'
+        self.shape = shape
+        self.dtype = dtype
+
+    @property
+    def is_input(self):
+        return False;
+
+    @property
+    def is_placeholder(self):
+        return False
+
+    @property
+    def is_parameter(self):
+        return False
+
+    @property
+    def is_constant(self):
+        return False
+
+    @property
+    def is_output(self):
+        return False
+
+    @property
+    def dynamic_axes(self):
+        return []
+
 def split_past_values(graph):
     '''
-    Splits each past value into input and output past value.
-    TODO: Initial non zero state is not yet handled correctly. 
+    Splits each past value into (input + state + state_selector) and (output) nodes.
+    For all these nodes the attribute 'original' points to the original past value node.
     Args:
         graph: nx model graph
     '''
@@ -164,10 +196,24 @@ def split_past_values(graph):
         graph.add_node(external_input.uid, data=external_input, original=node)
         graph.add_node(external_output.uid, data=external_output, original=node)
 
+        predecessors = get_predecessors(graph, n)
+        if len(predecessors) != 2:
+            raise ValueError('Past value is expected to have to operands')
+
+        state = graph.node[predecessors[1]]['data']
+        if not state.is_constant:
+            raise ValueError('Currently only constant initial state of past values is supported')
+
+        graph.node[predecessors[1]]['original'] = node
+
+        state_selector = PastStateSelectorNode(name = external_input.name + '_' + state.uid, shape = external_input.shape, dtype=external_input.dtype)
+        graph.add_node(state_selector.uid, data=state_selector, original=node)
+
+        graph.add_edge(external_input.uid, state_selector.uid, order = 0)
+        graph.add_edge(state.uid, state_selector.uid, order = 1)
+
         for successor in graph.successors(n):
-            graph.add_edge(external_input.uid, successor, order = graph.get_edge_data(n, successor)['order'])
+            graph.add_edge(state_selector.uid, successor, order = graph.get_edge_data(n, successor)['order'])
 
-        for predecessor in get_predecessors(graph, n):
-            graph.add_edge(predecessor, external_output.uid, order = graph.get_edge_data(predecessor, n)['order'])
-
+        graph.add_edge(predecessors[0], external_output.uid, order = 0)
         graph.remove_node(n)

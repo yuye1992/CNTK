@@ -4,12 +4,7 @@
 //
 #include "stdafx.h"
 #include "Common.h"
-
-#pragma warning(push)
-#pragma warning(disable : 4715)
-#include <boost/property_tree/ptree.hpp>
-#include <boost/property_tree/json_parser.hpp>
-#pragma warning(pop)
+#include <random>
 
 // Due to inclusion of windows.h
 #undef min
@@ -81,34 +76,75 @@ BOOST_AUTO_TEST_CASE(XorOperation)
 
 BOOST_AUTO_TEST_CASE(SpeechLstmModel)
 {
+    const int InputDimension = 80;
+    const int OutputDimension = 9404;
+
     // Halide
     LstmSpeechEvaluator e;
     e.init("LstmSpeechEvaluator.json");
-
-    Halide::ImageParam features(Halide::type_of<float>(), 1);
-    std::vector<float> v;
-    v.resize(80);
-    features.set(Halide::Buffer<float>(v.data(), 80));
-
-    Halide::Buffer<float> result(9404);
-    e.Evaluate(0, features, result);
-    auto result10 = result(0);
 
     // CNTK
     auto model = Function::Load(L"lstm_speech.model", DeviceDescriptor::CPUDevice());
     auto input = model->Arguments();
     auto output = model->Output();
+    auto inputShape = NDShape({ (size_t)InputDimension });
 
-    ValuePtr value = MakeSharedObject<Value>(
-        MakeSharedObject<NDArrayView>(DataType::Float, NDShape({ 80 }), v.data(), sizeof(float) * 80, DeviceDescriptor::CPUDevice()));
+    // Input
+    const int NumberOfFrames = 2;
+    std::vector<std::vector<float>> frames;
+    frames.resize(NumberOfFrames, std::vector<float>(InputDimension));
 
-    std::unordered_map<Variable, ValuePtr> i = { { input.front(), value } };
-    std::unordered_map<Variable, ValuePtr> o = { { output, nullptr } };
+    {
+        for (int i = 0; i < NumberOfFrames; ++i)
+            for (size_t j = 0; j < frames[i].size(); ++j)
+                frames[i][j] = (rand() % 256) / (float)256;
+    }
 
-    model->Forward(i, o, DeviceDescriptor::CPUDevice());
-    auto result20 = *(o[output]->Data()->DataBuffer<float>());
+    Halide::ImageParam features(Halide::type_of<float>(), 1);
 
-    BOOST_REQUIRE_CLOSE(result10, result20, 0.0001);
+    auto evaluateFrame = [&](int timestamp, std::vector<float>& f)
+    {
+        features.set(Halide::Buffer<float>(f.data(), InputDimension));
+
+        Halide::Buffer<float> result(OutputDimension);
+        e.Evaluate(timestamp, features, result);
+
+        // CNTK evaluation
+        auto data = MakeSharedObject<NDArrayView>(DataType::Float, NDShape({ f.size() }), f.data(),
+            sizeof(float) * InputDimension, DeviceDescriptor::CPUDevice());
+        std::vector<NDArrayViewPtr> d = { data };
+        auto value = Value::Create(inputShape, d, { timestamp == 0 ? true : false }, DeviceDescriptor::CPUDevice());
+
+        std::unordered_map<Variable, ValuePtr> i = { { input.front(), value } };
+        std::unordered_map<Variable, ValuePtr> o = { { output, nullptr } };
+
+        model->Forward(i, o, DeviceDescriptor::CPUDevice());
+        auto result2 = o[output]->Data()->DataBuffer<float>();
+
+        std::vector<float> output1(OutputDimension, 0), output2(OutputDimension, 0);
+        for (int j = 0; j < OutputDimension; ++j)
+        {
+            output1[j] = result(j);
+            output2[j] = result2[j];
+        }
+
+        return std::make_pair(output1, output2);
+    };
+
+    // Perform evaluation
+    const int NumberOfIterations = 1;
+    for (int i = 0; i < NumberOfIterations; i++)
+    {
+        int timestamp = 0;
+        for (auto& f : frames)
+        {
+            auto result1 = evaluateFrame(timestamp++, f);
+            for (int j = 0; j < result1.first.size(); ++j)
+            {
+                BOOST_REQUIRE_CLOSE(result1.first[j], result1.second[j], 0.1);
+            }
+        }
+    }
 }
 
 BOOST_AUTO_TEST_CASE(TestVectorQuantization)
@@ -271,7 +307,7 @@ BOOST_AUTO_TEST_CASE(TestSplice, *utf::tolerance(0.00001))
     a.set(Buffer<float>((float*)ca, 2));
 
     float cb[] = { 2, 3, 4, 5, 6, 7, 8, 9 };
-    a.set(Buffer<float>((float*)ca, 8));
+    b.set(Buffer<float>((float*)cb, 8));
 
     Buffer<float> output(10);
     result.realize(output);
