@@ -7,7 +7,7 @@
 
 namespace CNTK
 {
-    const int c_VectorizationWidth = 4;
+    const int c_VectorizationWidth = 8;
 
     inline Halide::Func MatrixByVectorTimes(Halide::Func matrix, Halide::Func vec, int matrixRowDimension, int matrixColumnDimension)
     {
@@ -51,6 +51,7 @@ namespace CNTK
 
         output.bound(matrixRowIndex, 0, matrixRowDimension);
         output.compute_root().vectorize(matrixRowIndex, c_VectorizationWidth);
+        output.output_buffer().set_bounds(0, 0, matrixRowDimension);
         return output;
     }
 
@@ -100,6 +101,7 @@ namespace CNTK
         Halide::Var index;
         Halide::Func result("ElementTimes");
         result(index) = operand1(index) * operand2(index);
+        result.compute_root().vectorize(index, c_VectorizationWidth);
         return result;
     }
 
@@ -108,6 +110,7 @@ namespace CNTK
         Halide::Var index;
         Halide::Func result("Plus");
         result(index) = operand1(index) + operand2(index);
+        result.compute_root().vectorize(index, c_VectorizationWidth);
         return result;
     }
 
