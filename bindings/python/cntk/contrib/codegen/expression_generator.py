@@ -43,10 +43,10 @@ class WeightsExtractor(EmptyNodeVisitor):
             json.dump(self.weights, f)
 
     def visit_parameter(self, node):
-        self.weights[node.uid] = [float(f) for f in node.as_parameter().value.flatten()]
+        self.weights[node.uid] = [float(f) for f in np.transpose(node.as_parameter().value).flatten()]
 
     def visit_constant(self, node):
-        self.weights[node.uid] = [float(f) for f in node.as_constant().value.flatten()]
+        self.weights[node.uid] = [float(f) for f in np.transpose(node.as_constant().value).flatten()]
 
 class CppNamespaceGen:
     '''
@@ -185,7 +185,7 @@ class HalideExpressionGenerator(NodeVisitor):
 
     def halide_shape(self, shape):
         if len(shape) == 2:
-            return (str(shape[1]), str(shape[0]))
+            return (str(shape[0]), str(shape[1]))
         elif len(shape) == 1:
             return (str(shape[0]),)
         elif len(shape) == 0:
@@ -369,6 +369,8 @@ class HalideExpressionGenerator(NodeVisitor):
         if len(operands) != 1:
             raise ValueError('Operation "%s" expects 1 operand, given %s', op_name, str(operands))
         exp = 'Halide::Func %s("%s"); %s = %s(%s)' % tuple([node.uid, node.uid, node.uid, op_name, self.uid_to_exp[operands[0]]])
+        if len(self.graph.successors(node.uid)) > 1: # Make sure we do not recalculate the same values twice.
+            exp += ';\n%s.compute_root()' % node.uid
         self.listing += exp + ';\n'
 
     def generate_times(self, node):
@@ -384,10 +386,10 @@ class HalideExpressionGenerator(NodeVisitor):
         matrix = self.graph.node[operands[1]]['data']
         shape = matrix.shape if len(matrix.shape) > 0 else (1,)        
 
-        op_name = 'VectorByMatrixTimes'
+        op_name = 'MatrixByVectorTimes'
         if 'quantized' in self.graph.node[node.uid]:
             op_name += 'Quantized'
-        self.generate_call(node, op_name, [self.uid_to_exp[o] for o in operands] + [str(shape[0]), str(shape[1])])
+        self.generate_call(node, op_name, [self.uid_to_exp[o] for o in reversed(operands)] + [str(shape[1]), str(shape[0])])
 
     def generate_element_times(self, node):
         self.generate_binary_call(node, 'ElementTimes')
@@ -422,6 +424,8 @@ class HalideExpressionGenerator(NodeVisitor):
             exp = 'Halide::Func %s("%s"); %s = Slice(%s, %d, %d)' % (node.uid, node.uid, node.uid, self.uid_to_exp[operand.uid], begin, end)
         else:
             raise ValueError('Slice is not supported on node of shape %s' % str(node.shape)) 
+        if len(self.graph.successors(node.uid)) > 1: # Make sure we do not recalculate the same values twice.
+            exp += ';\n%s.compute_root()' % node.uid
         self.listing += exp + ';\n'
 
     def generate_splice(self, node):
@@ -435,6 +439,8 @@ class HalideExpressionGenerator(NodeVisitor):
 
         exp = 'Halide::Func %s("%s"); %s = Splice(%s, %s, %d, %d)' % (node.uid, node.uid, node.uid, self.uid_to_exp[operand1.uid],
                                                                       self.uid_to_exp[operand2.uid], operand1.shape[0], operand2.shape[0])
+        if len(self.graph.successors(node.uid)) > 1: # Make sure we do not recalculate the same values twice.
+            exp += ';\n%s.compute_root()' % node.uid
         self.listing += exp + ';\n'
 
     def generate_file_header(self):
@@ -476,7 +482,7 @@ class HalideExpressionGenerator(NodeVisitor):
     def generate_value(self, node):
         type = self.data_type(node)
         if len(node.shape) == 2:
-            expression = 'auto b_%s = Halide::Buffer<%s>(m_%s.data(), %s, %s, "%s");\n' % (node.uid, type, node.uid, node.shape[1], node.shape[0], node.uid)
+            expression = 'auto b_%s = Halide::Buffer<%s>(m_%s.data(), %s, %s, "%s");\n' % (node.uid, type, node.uid, node.shape[0], node.shape[1], node.uid)
         elif len(node.shape) == 1:
             expression = 'auto b_%s = Halide::Buffer<%s>(m_%s.data(), %s, "%s");\n' % (node.uid, type, node.uid, node.shape[0], node.uid)
         elif len(node.shape) == 0: # Scalar represent as array
@@ -508,7 +514,6 @@ class HalideExpressionGenerator(NodeVisitor):
             raise ValueError('Selection of past value state is currenlty supported only for vectors.')
 
         shape = node.shape if len(node.shape) > 0 else (1,)
-        shape_arg = '%d, %d' % (shape[0], shape[1]) if len(shape) == 2 else '%d' % shape[0]
         exp = 'Halide::Func %s("%s"); %s(var1) = Halide::select(m_timestamp(0) < %d, %s(%s), %s(var1));' % (node.uid, node.uid, node.uid, 
                                                                                                             self.model_original_node(node.uid).attributes['offset'], 
                                                                                                             self.uid_to_exp[operands[1]], 

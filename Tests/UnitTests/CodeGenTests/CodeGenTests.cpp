@@ -343,7 +343,7 @@ BOOST_AUTO_TEST_CASE(TestQuantizedMatrixMultiplication)
     std::vector<float> v = { 1.11f, -1.09f, 8.004f };
     std::vector<float> m = { 10.13f, -100.18f, 16.9f, 19.5f, -15.f, -20.f };
     auto bv = Buffer<float>(v.data(), 3);
-    auto bm = Buffer<float>(m.data(), 2, 3);
+    auto bm = Buffer<float>(m.data(), 3, 2);
     Halide::Func fbv;
     Halide::Var index;
     fbv(index) = bv(index);
@@ -362,27 +362,27 @@ BOOST_AUTO_TEST_CASE(TestQuantizedMatrixMultiplication)
     BOOST_REQUIRE_CLOSE(vqr(1) * vqs(0), v[1], 0.1);
     BOOST_REQUIRE_CLOSE(vqr(2) * vqs(0), v[2], 0.1);
 
-    auto mq = Quantize<float, short>(fbm, 3, 2, 2);
+    auto mq = Quantize<float, short>(fbm, 2, 3, 2);
 
     // Checking that matrix quantization is correct.
-    Halide::Buffer<short> mqr(2, 3);
+    Halide::Buffer<short> mqr(3, 2);
     Halide::Buffer<float> mqs = Halide::Buffer<float>::make_scalar("step");
     Halide::Pipeline(mq).realize({ mqr, mqs });
 
     BOOST_REQUIRE_CLOSE(mqr(0, 0) * mqs(0), m[0], 0.1);
     BOOST_REQUIRE_CLOSE(mqr(1, 0) * mqs(0), m[1], 0.1);
-    BOOST_REQUIRE_CLOSE(mqr(0, 1) * mqs(0), m[2], 0.1);
-    BOOST_REQUIRE_CLOSE(mqr(1, 1) * mqs(0), m[3], 0.1);
-    BOOST_REQUIRE_CLOSE(mqr(0, 2) * mqs(0), m[4], 0.1);
-    BOOST_REQUIRE_CLOSE(mqr(1, 2) * mqs(0), m[5], 0.1);
+    BOOST_REQUIRE_CLOSE(mqr(2, 0) * mqs(0), m[2], 0.1);
+    BOOST_REQUIRE_CLOSE(mqr(0, 1) * mqs(0), m[3], 0.1);
+    BOOST_REQUIRE_CLOSE(mqr(1, 1) * mqs(0), m[4], 0.1);
+    BOOST_REQUIRE_CLOSE(mqr(2, 1) * mqs(0), m[5], 0.1);
 
     // Actually doing the multiplication
-    auto f = VectorByMatrixTimesQuantized(vq, mq, 3, 2);
+    auto f = MatrixByVectorTimesQuantized(mq, vq, 2, 3);
     auto result = Buffer<float>(2);
     f.realize({ result });
 
-    BOOST_REQUIRE_CLOSE(result(0), -127.2367f, 0.1);
-    BOOST_REQUIRE_CLOSE(result(1), -291.9898f, 1);
+    BOOST_REQUIRE_CLOSE(result(0), 255.7081f, 0.1);
+    BOOST_REQUIRE_CLOSE(result(1), -122.085f, 1);
 }
 
 
@@ -445,7 +445,6 @@ BOOST_AUTO_TEST_CASE(TestSplice, *utf::tolerance(0.00001))
     }
 }
 
-
 BOOST_AUTO_TEST_CASE(TestVecMultiply, *utf::tolerance(0.00001))
 {
     float ca[] = { 1, 2, 3 };
@@ -454,7 +453,7 @@ BOOST_AUTO_TEST_CASE(TestVecMultiply, *utf::tolerance(0.00001))
     ImageParam a(Halide::type_of<float>(), 1);
     ImageParam b(Halide::type_of<float>(), 2);
 
-    auto result = VectorByMatrixTimes(a, b, 3, 3);
+    auto result = MatrixByVectorTimes(b, a, 3, 3);
     a.set(Buffer<float>((float*)ca, 3));
     b.set(Buffer<float>((float*)cb, 3, 3));
 

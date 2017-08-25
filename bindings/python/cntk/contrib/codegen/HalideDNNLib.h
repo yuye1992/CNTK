@@ -9,42 +9,48 @@ namespace CNTK
 {
     const int c_VectorizationWidth = 4;
 
-    inline Halide::Func VectorByMatrixTimes(Halide::Func vec, Halide::Func matrix, int matrixRowDimension, int matrixColumnDimension)
+    inline Halide::Func MatrixByVectorTimes(Halide::Func matrix, Halide::Func vec, int matrixRowDimension, int matrixColumnDimension)
     {
-        if (matrixRowDimension < c_VectorizationWidth)
+        const std::string suffix = matrix.name() + "_" + vec.name();
+
+        if (matrixColumnDimension < c_VectorizationWidth)
         {
             // No point in vectorization, the size is too small.
-            Halide::Func output("VectorByMatrixTimes" +  vec.name() + "_" + matrix.name());
-            Halide::RDom k(0, matrixRowDimension, "matrixRowIndex" + vec.name() + "_" + matrix.name());
-            Halide::Var matrixColumnIndex("matrixColumnIndex" + vec.name() + "_" + matrix.name());
-            output(matrixColumnIndex) = Halide::sum(vec(k) * matrix(matrixColumnIndex, k));
+            Halide::Func output("MatrixByVectorTimes" + suffix);
+            Halide::RDom k(0, matrixColumnDimension, "matrixColumnIndex" + suffix);
+            Halide::Var matrixRowIndex("matrixColumnIndex" + suffix);
+            output(matrixRowIndex) = Halide::sum(matrix(k, matrixRowIndex) * vec(k));
             return output;
         }
 
-        Halide::Func partial("VectorByMatrixTimesPartial" + vec.name() + "_" + matrix.name());
-        Halide::Var matrixSubRowIndex("matrixSubRowIndex" + vec.name() + "_" + matrix.name());
-        Halide::Var matrixColumnIndex("matrixColumnIndex" + vec.name() + "_" + matrix.name());
-        Halide::RDom k1(0, matrixRowDimension / c_VectorizationWidth);
-        Halide::Expr partialMul = vec(matrixSubRowIndex + (k1 * c_VectorizationWidth)) * matrix(matrixColumnIndex, matrixSubRowIndex + (k1 * c_VectorizationWidth));
-        partial(matrixSubRowIndex, matrixColumnIndex) = Halide::sum(partialMul, "partialSum");
-        partial.bound(matrixSubRowIndex, 0, c_VectorizationWidth);
+        Halide::Func partial("MatrixByVectorTimesPartial" + suffix);
+        Halide::Var matrixRowIndex("matrixRowIndex" + suffix);
+        Halide::Var matrixSubColumnIndex("matrixSubColumnIndex" + suffix);
+        Halide::RDom k1(0, matrixColumnDimension / c_VectorizationWidth);
 
-        Halide::Func head("VectorByMatrixTimesHead" + vec.name() + "_" + matrix.name());
+        Halide::Expr partialMul = vec(matrixSubColumnIndex + (k1 * c_VectorizationWidth)) * matrix(matrixSubColumnIndex + (k1 * c_VectorizationWidth), matrixRowIndex);
+        partial(matrixSubColumnIndex, matrixRowIndex) = Halide::sum(partialMul, "partialSum");
+        partial.bound(matrixSubColumnIndex, 0, c_VectorizationWidth);
+
+        Halide::Func head("MatrixByVectorTimesHead" + suffix);
         Halide::RDom k2(0, c_VectorizationWidth);
-        head(matrixColumnIndex) = Halide::sum(partial(k2, matrixColumnIndex), "headSum");
+        head(matrixRowIndex) = Halide::sum(partial(k2, matrixRowIndex), "headSum");
 
-        Halide::Func tail("VectorByMatrixTimesTail" + vec.name() + "_" + matrix.name());
-        Halide::RDom k3((matrixRowDimension / c_VectorizationWidth) * c_VectorizationWidth, matrixRowDimension  % c_VectorizationWidth);
-        auto tailMul = vec(k3) * matrix(matrixColumnIndex, k3);
-        tail(matrixColumnIndex) = Halide::sum(tailMul, "tailSum");
+        Halide::Func tail("VectorByMatrixTimesTail" + suffix);
+        Halide::RDom k3((matrixColumnDimension / c_VectorizationWidth) * c_VectorizationWidth, matrixColumnDimension % c_VectorizationWidth);
+        auto tailMul = vec(k3) * matrix(k3, matrixRowIndex);
+        tail(matrixRowIndex) = Halide::sum(tailMul, "tailSum");
 
-        Halide::Func output("MatrixByVectorTimes" + vec.name() + "_" + matrix.name());
-        output(matrixColumnIndex) = head(matrixColumnIndex) + tail(matrixColumnIndex);
+        Halide::Func output("MatrixByVectorTimes" + suffix);
+        output(matrixRowIndex) = head(matrixRowIndex) + tail(matrixRowIndex);
 
-        partial.compute_at(output, matrixColumnIndex).vectorize(matrixSubRowIndex);
+        // Schedule
+        vec.compute_root();
+        partial.bound(matrixSubColumnIndex, 0, c_VectorizationWidth);
+        partial.compute_at(output, matrixRowIndex).vectorize(matrixSubColumnIndex, c_VectorizationWidth);
 
-        output.bound(matrixColumnIndex, 0, matrixColumnDimension);
-        output.compute_root().vectorize(matrixColumnIndex, c_VectorizationWidth);
+        output.bound(matrixRowIndex, 0, matrixRowDimension);
+        output.compute_root().vectorize(matrixRowIndex, c_VectorizationWidth);
         return output;
     }
 
@@ -113,9 +119,9 @@ namespace CNTK
         return result;
     }
 
-    inline Halide::Func VectorByMatrixTimesQuantized(
-        const std::vector<Halide::Func>& vec,
+    inline Halide::Func MatrixByVectorTimesQuantized(
         const std::vector<Halide::Func>& matrix,
+        const std::vector<Halide::Func>& vec,
         int matrixRowDimension,
         int matrixColumnDimension)
     {
@@ -123,15 +129,15 @@ namespace CNTK
         Halide::Var index;
         Halide::Func widen;
         widen(index) = Halide::cast<int>(vec[0](index));
-        widen.bound(index, 0, matrixRowDimension);
+        widen.bound(index, 0, matrixColumnDimension);
 
-        auto quantized = VectorByMatrixTimes(widen, matrix[0], matrixRowDimension, matrixColumnDimension);
+        auto quantized = MatrixByVectorTimes(matrix[0], widen, matrixRowDimension, matrixColumnDimension);
 
-        Halide::Func result("VectorByMatrixTimesQuantized");
-        Halide::Var matrixColumnIndex("matrixColumnIndex");
+        Halide::Func result("MatrixByVectorTimesQuantized");
+        Halide::Var matrixRowIndex("matrixColumnIndex");
 
-        result(matrixColumnIndex) = Halide::print(quantized(matrixColumnIndex), "Quantized") * Halide::print(vec[1](), "VecStep") * Halide::print(matrix[1](), "MatStep");
-        result.bound(matrixColumnIndex, 0, matrixColumnDimension);
+        result(matrixRowIndex) = quantized(matrixRowIndex) * vec[1]() * matrix[1]();
+        result.bound(matrixRowIndex, 0, matrixRowDimension);
         return result;
     }
 
