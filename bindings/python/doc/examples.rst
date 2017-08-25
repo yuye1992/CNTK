@@ -2,7 +2,7 @@ Examples
 ========
 
 CNTK also offers several examples that are not in Tutorial style. 
-Many of these are recipes that involve more advanced networks [CNTK clone root]/Examples directory:
+Many of these are recipes involve more advanced networks and are located under :cntk:`Examples directory <Examples/>`.
 
 -  :cntk:`MNIST <Examples/Image/Classification/MLP/Python/SimpleMNIST.py>`:
    A fully connected feed-forward model for classification of MNIST

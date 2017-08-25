@@ -80,10 +80,10 @@ if errorlevel 9009 (
 
 if "%1" == "html" (
     echo Copying tutorial notebooks to build directory  
-    xcopy %TUTORIALSOURCEDIR%%TUTORIALSOURCEFILE% .
+    CMD /C xcopy %TUTORIALSOURCEDIR%%TUTORIALSOURCEFILE% .
     del %IGNORETUTORIALSOURCEFILE%
     echo Copying manual notebooks to build directory  
-    xcopy %MANUALSOURCEDIR%%MANUALSOURCEFILE% .
+    CMD /C xcopy %MANUALSOURCEDIR%%MANUALSOURCEFILE% .
     %SPHINXBUILD% -b html %ALLSPHINXOPTS% %BUILDDIR%/html
     echo Removing jupyter notebooks from build directory
     del %TUTORIALSOURCEFILE%

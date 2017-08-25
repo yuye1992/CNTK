@@ -69,23 +69,7 @@ For our Japanese users, you can find some of the `tutorials in Japanese`_ (unsup
 .. toctree::
    :glob:
    :maxdepth: 1
-   :caption: 100 series
+   :caption: List view
    :hidden:
 
-   CNTK_10*
-
-.. toctree::
-   :glob:
-   :maxdepth: 1
-   :caption: 200 series
-   :hidden:
-
-   CNTK_20*
-   
-.. toctree::
-   :glob:
-   :maxdepth: 1
-   :caption: 300 series 
-   :hidden:
-
-   CNTK_30*   
+   CNTK_*
