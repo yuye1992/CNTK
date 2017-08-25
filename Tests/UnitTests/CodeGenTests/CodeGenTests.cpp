@@ -5,6 +5,7 @@
 #include "stdafx.h"
 #include "Common.h"
 #include <random>
+#include <string>
 
 // Due to inclusion of windows.h
 #undef min
@@ -264,14 +265,14 @@ BOOST_AUTO_TEST_CASE(SpeechLstmModelPerformance)
     }
 
     // All is set up correctly. Run the workloads for perf.
-    MeasurePerf(halide, "Halide workload 1:");
-    MeasurePerf(cntk, "CNTK workload 1:");
-
-    MeasurePerf(cntk, "CNTK workload 2:");
-    MeasurePerf(halide, "Halide workload 2:");
-
-    MeasurePerf(halide, "Halide workload 3:");
-    MeasurePerf(cntk, "CNTK workload 3:");
+    {
+        const int workloads = 5;
+        for (int j = 0; j < workloads; j++)
+        {
+            MeasurePerf(halide, "Halide workload " + std::to_string(j) + ":", 100);
+            MeasurePerf(cntk, "CNTK workload " + std::to_string(j) + ":", 100);
+        }
+    }
 }
 
 BOOST_AUTO_TEST_CASE(TestVectorQuantization)
