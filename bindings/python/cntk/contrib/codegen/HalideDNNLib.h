@@ -26,17 +26,17 @@ namespace CNTK
         Halide::Var matrixColumnIndex("matrixColumnIndex" + vec.name() + "_" + matrix.name());
         Halide::RDom k1(0, matrixRowDimension / c_VectorizationWidth);
         Halide::Expr partialMul = vec(matrixSubRowIndex + (k1 * c_VectorizationWidth)) * matrix(matrixColumnIndex, matrixSubRowIndex + (k1 * c_VectorizationWidth));
-        partial(matrixSubRowIndex, matrixColumnIndex) = Halide::sum(partialMul);
+        partial(matrixSubRowIndex, matrixColumnIndex) = Halide::sum(partialMul, "partialSum");
         partial.bound(matrixSubRowIndex, 0, c_VectorizationWidth);
 
         Halide::Func head("VectorByMatrixTimesHead" + vec.name() + "_" + matrix.name());
         Halide::RDom k2(0, c_VectorizationWidth);
-        head(matrixColumnIndex) = Halide::sum(partial(k2, matrixColumnIndex));
+        head(matrixColumnIndex) = Halide::sum(partial(k2, matrixColumnIndex), "headSum");
 
         Halide::Func tail("VectorByMatrixTimesTail" + vec.name() + "_" + matrix.name());
         Halide::RDom k3((matrixRowDimension / c_VectorizationWidth) * c_VectorizationWidth, matrixRowDimension  % c_VectorizationWidth);
         auto tailMul = vec(k3) * matrix(matrixColumnIndex, k3);
-        tail(matrixColumnIndex) = Halide::sum(tailMul);
+        tail(matrixColumnIndex) = Halide::sum(tailMul, "tailSum");
 
         Halide::Func output("MatrixByVectorTimes" + vec.name() + "_" + matrix.name());
         output(matrixColumnIndex) = head(matrixColumnIndex) + tail(matrixColumnIndex);
@@ -81,12 +81,11 @@ namespace CNTK
         return slice;
     }
 
-    inline Halide::Func Splice(const Halide::Func& o1, const Halide::Func& o2, int o1Size, int o2Size)
+    inline Halide::Func Splice(const Halide::Func& o1, const Halide::Func& o2, int o1Size, int)
     {
         Halide::Func splice("Splice");
         Halide::Var index;
         splice(index) = Halide::select(index < o1Size, o1(Halide::min(index, o1Size - 1)), o2(Halide::max(0, index - o1Size)));
-        splice.bound(index, 0, o1Size + o2Size);
         return splice;
     }
 

@@ -250,6 +250,7 @@ BOOST_AUTO_TEST_CASE(SpeechLstmModelPerformance)
 
     auto cntk = [&]()
     {
+        o[output] = nullptr;
         model->Forward(i, o, DeviceDescriptor::CPUDevice());
     };
 
@@ -266,11 +267,11 @@ BOOST_AUTO_TEST_CASE(SpeechLstmModelPerformance)
     MeasurePerf(halide, "Halide workload 1:");
     MeasurePerf(cntk, "CNTK workload 1:");
 
-    MeasurePerf(cntk, "CNTK workload 2:");
-    MeasurePerf(halide, "Halide workload 2:");
+    //MeasurePerf(cntk, "CNTK workload 2:");
+    //MeasurePerf(halide, "Halide workload 2:");
 
-    MeasurePerf(halide, "Halide workload 3:");
-    MeasurePerf(cntk, "CNTK workload 3:");
+    //MeasurePerf(halide, "Halide workload 3:");
+    //MeasurePerf(cntk, "CNTK workload 3:");
 }
 
 BOOST_AUTO_TEST_CASE(TestVectorQuantization)
