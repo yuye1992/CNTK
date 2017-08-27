@@ -411,7 +411,8 @@ public:
 
     // Computes output shape given input shape and other convolution parameters.
     static TensorShape ComputeOutputShape(const TensorShape& inputShape, const TensorShape& kernelShape, const TensorShape& mapCount, const TensorShape& stride,
-                                          const BoolVec& sharing, const BoolVec& autoPad, const TensorShape& lowerPad, const TensorShape& upperPad, const bool ceilOutDim = false)
+                                          const BoolVec& sharing, const BoolVec& autoPad, const TensorShape& lowerPad, const TensorShape& upperPad, 
+                                          const bool ceilOutDim = false, const bool needsDynamicValidation = false, const bool isFinalValidationPass = false)
     {
         if (inputShape.GetRank() != kernelShape.GetRank())
             InvalidArgument("Convolution input and kernel tensors must have the same rank.");
@@ -433,7 +434,16 @@ public:
         {
             assert(inputShape[i] >= 1);
             if (kernelShape[i] > inputShape[i])
-                InvalidArgument("Convolution operation requires that kernel dim %d <= input dim %d.", (int)kernelShape[i], (int)inputShape[i]);
+            {
+                UNUSED(needsDynamicValidation);
+                if(isFinalValidationPass) // || !needsDynamicValidation)
+                    InvalidArgument("Convolution operation requires that kernel dim %d <= input dim %d.", (int)kernelShape[i], (int)inputShape[i]);
+                else
+                {
+                    dimsOutput[i] = 1; // 1 is a placeholder till all shapes are resolved.
+                    continue;
+                }
+            }
 
             size_t delta = stride[stride.GetRank() == 1 ? 0 : i];
             size_t dim = inputShape[i];
@@ -480,7 +490,8 @@ public:
     // Computes input shape given output shape and other convolution parameters.
     // Used in deconvolution operation.
     static TensorShape ComputeInputShape(const TensorShape& outputShape, const TensorShape& kernelShape, const TensorShape& mapCount, const TensorShape& stride,
-                                         const BoolVec& sharing, const BoolVec& autoPad, const TensorShape& lowerPad, const TensorShape& upperPad, bool ceilOutDim = false)
+                                         const BoolVec& sharing, const BoolVec& autoPad, const TensorShape& lowerPad, const TensorShape& upperPad, 
+                                         bool ceilOutDim = false, const bool needsDynamicValidation = false, const bool isFinalValidationPass = false)
     {
         UNUSED(ceilOutDim);
         if (outputShape.GetRank() != kernelShape.GetRank())
@@ -502,6 +513,17 @@ public:
         for (size_t i = 0; i < outputShape.GetRank(); i++)
         {
             assert(outputShape[i] >= 1);
+            if (kernelShape[i] > outputShape[i])
+            {
+                UNUSED(needsDynamicValidation);
+                if (isFinalValidationPass) // || !needsDynamicValidation)
+                    InvalidArgument("Convolution operation requires that kernel dim %d <= input dim %d.", (int)kernelShape[i], (int)outputShape[i]);
+                else
+                {
+                    dimsInput[i] = 1; // 1 is a placeholder till all shapes are resolved.
+                    continue;
+                }
+            }
 
             size_t delta = stride[stride.GetRank() == 1 ? 0 : i];
             size_t dim = outputShape[i];

@@ -495,14 +495,15 @@ public:
             if (!m_transpose)
             {
                 outputShape = ConvolveGeometry::ComputeOutputShape(inputShape, m_kernelShape, m_mapCount, m_stride,
-                                                                    m_sharing, m_autoPad, m_lowerPad, m_upperPad);
+                                                                    m_sharing, m_autoPad, m_lowerPad, m_upperPad, 
+                                                                    NeedsDynamicValidation(), isFinalValidationPass);
 
                 if (m_outputShape.GetRank() > 0 && m_outputShape != TensorShape(0))    // user have explicitly set m_outputShape, we check if it's the same as outputShape
                 {
                     if (m_outputShape != outputShape)
                     {
                         InvalidArgument("%ls %ls the shape of the specified convolution output %ls is different from "
-                            "the result of convoluting the input argument using the provided options %ls. It is recommonded "
+                            "the result of convoluting the input argument using the provided options %ls. It is recommended "
                             "that the output shape is not specified for convolution.", NodeName().c_str(), OperationName().c_str(),
                             static_cast<std::wstring>(m_outputShape).c_str(),
                             static_cast<std::wstring>(outputShape).c_str());
@@ -522,7 +523,8 @@ public:
                 {
                     // in case the user specifies the output shape, we make sure the input shape can be the result of
                     // convolution from the specified output shape
-                    auto inferredShape = ConvolveGeometry::ComputeOutputShape(m_outputShape, m_kernelShape, m_mapCount, m_stride, m_sharing, m_autoPad, m_lowerPad, m_upperPad);
+                    auto inferredShape = ConvolveGeometry::ComputeOutputShape(m_outputShape, m_kernelShape, m_mapCount, m_stride, m_sharing, m_autoPad,
+                                                                              m_lowerPad, m_upperPad, NeedsDynamicValidation(), isFinalValidationPass);
                     if (inputShape != inferredShape)
                         InvalidArgument("%ls %ls the shape of the convolution transpose operand %ls is different from "
                             "the result of convoluting the specified output argument using "
