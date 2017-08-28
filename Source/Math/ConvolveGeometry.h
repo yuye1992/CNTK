@@ -435,8 +435,7 @@ public:
             assert(inputShape[i] >= 1);
             if (kernelShape[i] > inputShape[i])
             {
-                UNUSED(needsDynamicValidation);
-                if(isFinalValidationPass) // || !needsDynamicValidation)
+                if(isFinalValidationPass || !needsDynamicValidation)
                     InvalidArgument("Convolution operation requires that kernel dim %d <= input dim %d.", (int)kernelShape[i], (int)inputShape[i]);
                 else
                 {
@@ -515,8 +514,7 @@ public:
             assert(outputShape[i] >= 1);
             if (kernelShape[i] > outputShape[i])
             {
-                UNUSED(needsDynamicValidation);
-                if (isFinalValidationPass) // || !needsDynamicValidation)
+                if (isFinalValidationPass || !needsDynamicValidation)
                     InvalidArgument("Convolution operation requires that kernel dim %d <= input dim %d.", (int)kernelShape[i], (int)outputShape[i]);
                 else
                 {
