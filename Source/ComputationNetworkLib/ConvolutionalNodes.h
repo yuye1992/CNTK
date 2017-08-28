@@ -493,7 +493,7 @@ public:
             // infer reduction dimensions if not given
             InferReductionDims(inputShape, inputShape);
             if (!m_transpose)
-            {                
+            {
                 outputShape = ConvolveGeometry::ComputeOutputShape(inputShape, m_kernelShape, m_mapCount, m_stride,
                                                                     m_sharing, m_autoPad, m_lowerPad, m_upperPad, false,
                                                                     this->NeedsDynamicValidation(), isFinalValidationPass);
