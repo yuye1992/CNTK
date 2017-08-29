@@ -2109,9 +2109,9 @@ def slice(x, axis, begin_index, end_index, strides=None, name=''):
         axis (int or :class:`~cntk.axis.Axis`): axis along which ``begin_index`` and ``end_index``
          will be used. If it is of type int it will be used as a static axis.
         begin_index (int): the index along axis where the slicing starts
-        end_index (int): the index along axis where the slicing ends
-        name (str, optional): the name of the Function instance in the network
+        end_index (int): the index along axis where the slicing ends (exclusive)
         strides(int): step sizes when applying slice, negative value means in reverse order
+        name (str, optional): the name of the Function instance in the network
 
     See also:
         Indexing in NumPy: https://docs.scipy.org/doc/numpy/reference/arrays.indexing.html
@@ -2874,7 +2874,7 @@ def input(shape, dtype=default_override_or(np.float32), needs_gradient=False, is
     Args:
         shape (tuple or int): the shape of the input tensor
         dtype (np.float32 or np.float64): data type. Default is np.float32.
-        needs_gradients (bool, optional): whether to back-propagates to it or not. False by default.
+        needs_gradient (bool, optional): whether to back-propagates to it or not. False by default.
         is_sparse (bool, optional): whether the variable is sparse (`False` by default)
         dynamic_axes (list or tuple, default): a list of dynamic axis (e.g., batch axis, sequence axis)
         name (str, optional): the name of the Function instance in the network
@@ -2900,7 +2900,7 @@ def input_variable(shape, dtype=default_override_or(np.float32), needs_gradient=
     Args:
         shape (tuple or int): the shape of the input tensor
         dtype (np.float32 or np.float64): data type. Default is np.float32.
-        needs_gradients (bool, optional): whether to back-propagates to it or not. False by default.
+        needs_gradient (bool, optional): whether to back-propagates to it or not. False by default.
         is_sparse (bool, optional): whether the variable is sparse (`False` by default)
         dynamic_axes (list or tuple, default): a list of dynamic axis (e.g., batch axis, time axis)
         name (str, optional): the name of the Function instance in the network

@@ -51,7 +51,7 @@ __C.CNTK.INPUT_ROIS_PER_IMAGE = 50
 __C.CNTK.IMAGE_WIDTH = 850
 __C.CNTK.IMAGE_HEIGHT = 850
 
-__C.CNTK.RESULTS_NMS_THRESHOLD = 0.3 # see also: __C.TEST.NMS = 0.3
+__C.CNTK.RESULTS_NMS_THRESHOLD = 0.5 # see also: __C.TEST.NMS = 0.5
 __C.CNTK.RESULTS_NMS_CONF_THRESHOLD = 0.0
 __C.CNTK.RESULTS_BGR_PLOT_THRESHOLD = 0.1
 
@@ -96,7 +96,7 @@ if __C.CNTK.DATASET == "Pascal":
 #
 
 if __C.CNTK.BASE_MODEL == "AlexNet":
-    __C.CNTK.BASE_MODEL_FILE = "AlexNet.model"
+    __C.CNTK.BASE_MODEL_FILE = "AlexNet_ImageNet_CNTK.model"
     __C.CNTK.FEATURE_NODE_NAME = "features"
     __C.CNTK.LAST_CONV_NODE_NAME = "conv5.y"
     __C.CNTK.START_TRAIN_CONV_NODE_NAME = __C.CNTK.FEATURE_NODE_NAME
@@ -198,7 +198,7 @@ __C.TEST = edict()
 
 # Overlap threshold used for non-maximum suppression (suppress boxes with
 # IoU >= this threshold)
-__C.TEST.NMS = 0.3
+__C.TEST.NMS = 0.5
 
 # Test using bounding-box regressors
 __C.TEST.BBOX_REG = True
