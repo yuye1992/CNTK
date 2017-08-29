@@ -696,7 +696,7 @@ def test_conv_free_static_and_dynamic_axes(warmup_input_size, free_dimension_inc
     assert np.allclose(output_test, output_ref, atol = 1e-4)
 
 FREE_STATIC_AXES_SEQUENCE_UNPACK_CONVOLUTION_DATA = [    
-    # 2D convolution with two free static axes and one batch (dynamic) axis.
+    # Convolution with free static axes using sequence unpack.
     (8,         # num_features: Defines the input size used for first run with free static axes. 3- and 4-element vector for 2D and 3D convolution, respectively.
      8,         # sequence_len: Number of sequences.
      [3, 3],    # filter_size: kernel size for convolution. Length defines 2D or 3D convolution.

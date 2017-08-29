@@ -1420,7 +1420,8 @@ namespace CNTK
             computeOutputShapeFunc = &Microsoft::MSR::CNTK::ConvolveGeometry::ComputeInputShape;
 
         auto outputShape = AsNDShape(computeOutputShapeFunc(AsTensorShape(operandShape), AsTensorShape(kernelShape), AsTensorShape(outputMapCount),
-            AsTensorShape(strides), sharing, autoPad, AsTensorShape(lowerPad), AsTensorShape(upperPad), ceilOutputDim, false, false));
+            AsTensorShape(strides), sharing, autoPad, AsTensorShape(lowerPad), AsTensorShape(upperPad), ceilOutputDim,
+            operandShape.HasFreeDimension(), false));
 
         // Any input dimensions that are free/inferred pass through as free/inferred
         for (size_t i = 0; i < operandShape.Rank(); ++i)

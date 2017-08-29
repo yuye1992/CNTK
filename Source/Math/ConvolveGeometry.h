@@ -493,6 +493,8 @@ public:
                                          bool ceilOutDim = false, const bool needsDynamicValidation = false, const bool isFinalValidationPass = false)
     {
         UNUSED(ceilOutDim);
+        UNUSED(needsDynamicValidation);
+        UNUSED(isFinalValidationPass);
         if (outputShape.GetRank() != kernelShape.GetRank())
             InvalidArgument("Convolution output and kernel tensors must have the same rank.");
         if (mapCount.GetRank() != 1 && outputShape.GetRank() != mapCount.GetRank())
@@ -512,16 +514,6 @@ public:
         for (size_t i = 0; i < outputShape.GetRank(); i++)
         {
             assert(outputShape[i] >= 1);
-            if (kernelShape[i] > outputShape[i])
-            {
-                if (isFinalValidationPass || !needsDynamicValidation)
-                    InvalidArgument("Convolution operation requires that kernel dim %d <= input dim %d.", (int)kernelShape[i], (int)outputShape[i]);
-                else
-                {
-                    dimsInput[i] = 1; // 1 is a placeholder till all shapes are resolved.
-                    continue;
-                }
-            }
 
             size_t delta = stride[stride.GetRank() == 1 ? 0 : i];
             size_t dim = outputShape[i];
