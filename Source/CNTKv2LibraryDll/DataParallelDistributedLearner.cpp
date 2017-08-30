@@ -133,22 +133,27 @@ namespace CNTK
             ConvertToOrdered(gradientValues, m_gradientBuffer);
 
             std::vector<NDArrayViewPtr> valuesToAggregate;
-			std::vector<NDArrayViewPtr> sparseValuesToAggregate;
-			for (const auto& i : m_gradientBuffer)
-			{
-				auto storageFormat = i.second->GetStorageFormat();
-				if (storageFormat == StorageFormat::Dense)
-				{
-					valuesToAggregate.push_back(i.second);
-				}
-				else
-				{
-					if (storageFormat != StorageFormat::SparseBlockCol)
-						LogicError("Unsupported sparse gradient format");
+            std::vector<NDArrayViewPtr> sparseValuesToAggregate;
+            for (const auto& i : m_gradientBuffer)
+            {
+                auto storageFormat = i.second->GetStorageFormat();
+                if (storageFormat == StorageFormat::Dense)
+                {
+                    valuesToAggregate.push_back(i.second);
+                }
+                else
+                {
+                    if (storageFormat != StorageFormat::SparseBlockCol)
+                        LogicError("Unsupported sparse gradient format");
 
-					sparseValuesToAggregate.push_back(i.second);
-				}
-			}
+                    // NOTE: CPU sparse block column stores block Ids in size_t and it's different from GPU SBC
+                    // We should refactor the CPU SBC code to align with GPU in future
+                    if (i.second->Device().Type() == DeviceKind::CPU)
+                        LogicError("Unsupported CPU sparse block column aggregation");
+
+                    sparseValuesToAggregate.push_back(i.second);
+                }
+            }
             valuesToAggregate.push_back(info.evalCriterionValue);
             valuesToAggregate.push_back(info.trainingLossValue);
 
@@ -158,18 +163,37 @@ namespace CNTK
             m_communicator->AggregateInPlace(valuesToAggregate, m_communicator->Workers());
             info.numberOfSamples = static_cast<size_t>(*valuesToAggregate.back()->WritableDataBuffer<double>());
 
-			if (!sparseValuesToAggregate.empty())
-			{
-				for (auto sparseValue : sparseValuesToAggregate)
-				{
-					// all_reduce max to compute the non-zero columns
+            if (!sparseValuesToAggregate.empty())
+            {
+                //m_communicator->AggregateSBCInPlace(sparseValuesToAggregate, m_communicator->Workers());
 
+                /*
+                    const float* nzFloat;
+                    const double* nzDouble;
+                    const SparseIndexType* blockId2Col;
+                    const SparseIndexType* col2BlockId;
+                    size_t numBlocks;
+                    if (sparseValue->GetDataType() == DataType::Float)
+                    {
+                        auto tuple = sparseValue->SparseBlockColumnDataBuffers<float>();
+                        nzFloat = std::get<0>(tuple);
+                        blockId2Col = std::get<1>(tuple);
+                        col2BlockId = std::get<2>(tuple);
+                        numBlocks = std::get<3>(tuple);
+                    }
+                    else if (sparseValue->GetDataType() == DataType::Double)
+                    {
+                        auto tuple = sparseValue->SparseBlockColumnDataBuffers<double>();
+                        nzDouble = std::get<0>(tuple);
+                        blockId2Col = std::get<1>(tuple);
+                        col2BlockId = std::get<2>(tuple);
+                        numBlocks = std::get<3>(tuple);
+                    }
 
-					// estimate receive buffer size
-					// all_gather to broadcast non-zero gradients
-					// aggregate the gradients
-				}
-			}
+                    // all_gather to broadcast non-zero gradients
+                    // aggregate the gradients
+                */
+            }
         }
 
 #ifndef  CNTK_UWP

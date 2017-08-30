@@ -567,17 +567,17 @@ namespace CNTK
             return SyncGuard::IsSyncEnabled();
         }
 
-		std::atomic<bool> s_useSparseGradientAggregationInDataParallelSGD(true);
+        std::atomic<bool> s_useSparseGradientAggregationInDataParallelSGD(true);
 
-		void UseSparseGradientAggregationInDataParallelSGD(bool enable)
-		{
-			s_useSparseGradientAggregationInDataParallelSGD = enable;
-		}
+        void UseSparseGradientAggregationInDataParallelSGD(bool enable)
+        {
+            s_useSparseGradientAggregationInDataParallelSGD = enable;
+        }
 
-		bool ShouldUseSparseGradientAggregationInDataParallelSGD()
-		{
-			return s_useSparseGradientAggregationInDataParallelSGD;
-		}
+        bool ShouldUseSparseGradientAggregationInDataParallelSGD()
+        {
+            return s_useSparseGradientAggregationInDataParallelSGD;
+        }
 
         static std::atomic<bool> s_threadsAreSet(false);
         bool MaxNumCPUThreadsSet()

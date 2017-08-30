@@ -28,7 +28,7 @@ namespace CNTK
         std::vector<std::pair<Parameter, NDArrayViewPtr>> m_gradientBuffer;
         std::vector<Parameter> m_parameters;
 
-		bool m_convertSparseToDense;
+        bool m_convertSparseToDense;
 
         DistributedLearnerBase(const DistributedLearnerBase&) = delete; DistributedLearnerBase& operator=(const DistributedLearnerBase&) = delete; DistributedLearnerBase& operator=(DistributedLearnerBase&&) = delete; DistributedLearnerBase(DistributedLearnerBase&& other) = delete;
     };

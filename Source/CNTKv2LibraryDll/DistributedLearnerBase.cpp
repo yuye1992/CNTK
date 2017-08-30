@@ -11,7 +11,7 @@ namespace CNTK
 {
     DistributedLearnerBase::DistributedLearnerBase(DistributedCommunicatorPtr communicator, LearnerPtr learner, size_t distributeAfterSamples, bool convertSparseToDense)
         : DistributedLearner(communicator, learner, distributeAfterSamples),
-		  m_convertSparseToDense(convertSparseToDense)
+          m_convertSparseToDense(convertSparseToDense)
     {
         if (!m_learner)
             InvalidArgument("Learner cannot be null.");

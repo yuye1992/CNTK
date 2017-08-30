@@ -19,22 +19,6 @@ using namespace Microsoft::MSR::CNTK;
 
 namespace CNTK
 {
-    static MPI_Op GetMpiOp(DistributedCommunicator::AggregateOp op)
-    {
-        static MPI_Op table[] =
-        {
-            MPI_SUM,  // Sum = 0,
-            MPI_PROD, // Product,
-            MPI_MAX,  // Max,
-            MPI_MIN,  // Min
-        };
-
-        if ((int)op < 0 || (int)op >= ARRAYSIZE(table))
-            LogicError("Invalid AggregateOp %d", op);
-
-        return table[(int)op];
-    }
-
     void Recreate(const std::vector<NDArrayViewPtr>& values, std::vector<NDArrayViewPtr>& output)
     {
         output.resize(values.size());
@@ -164,8 +148,7 @@ namespace CNTK
 
     void MPICommunicatorImpl::Aggregate(const std::vector<NDArrayViewPtr>& values,
         std::vector<NDArrayViewPtr>& outputValues,
-        const std::unordered_set<DistributedWorkerDescriptor>& sendToWorkers,
-        AggregateOp op)
+        const std::unordered_set<DistributedWorkerDescriptor>& sendToWorkers)
     {
         if (outputValues.empty())
         {
@@ -191,7 +174,7 @@ namespace CNTK
         {
             LogicError("Invalid device type (%u).", (unsigned int)device.Type());
         }
-        AggregateImpl(values, outputValues, sendToWorkers, op);
+        AggregateImpl(values, outputValues, sendToWorkers);
     }
 
     DistributedCommunicatorPtr MPICommunicatorImpl::SubGroup(const std::unordered_set<DistributedWorkerDescriptor>&) const
@@ -299,17 +282,15 @@ namespace CNTK
 
     void MPICommunicatorImpl::AggregateInPlace(
         const std::vector<NDArrayViewPtr>& values,
-        const std::unordered_set<DistributedWorkerDescriptor>& sendToWorkers,
-        AggregateOp op)
+        const std::unordered_set<DistributedWorkerDescriptor>& sendToWorkers)
     {
-        AggregateImpl(values, values, sendToWorkers, op);
+        AggregateImpl(values, values, sendToWorkers);
     }
 
     void MPICommunicatorImpl::AggregateImpl(
         const std::vector<NDArrayViewPtr>& inputValues,
         const std::vector<NDArrayViewPtr>& outputValues,
-        const std::unordered_set<DistributedWorkerDescriptor>& sendToWorkers,
-        AggregateOp op)
+        const std::unordered_set<DistributedWorkerDescriptor>& sendToWorkers)
     {
         CheckWorkers(sendToWorkers);
 
@@ -410,12 +391,12 @@ namespace CNTK
             if (dataType == DataType::Float)
             {
                 AllReduceData(static_cast<float*>(inputData), static_cast<float*>(outputData), numElements,
-                    allReduceRequests, (inputValue->Device() == DeviceDescriptor::CPUDevice()), op);
+                    allReduceRequests, (inputValue->Device() == DeviceDescriptor::CPUDevice()));
             }
             else if (dataType == DataType::Double)
             {
                 AllReduceData(static_cast<double*>(inputData), static_cast<double*>(outputData), numElements,
-                    allReduceRequests, (inputValue->Device() == DeviceDescriptor::CPUDevice()), op);
+                    allReduceRequests, (inputValue->Device() == DeviceDescriptor::CPUDevice()));
             }
             else
                 LogicError("MPICommunicator: Unknown DataType.");
@@ -565,11 +546,11 @@ namespace CNTK
     }
 
     template <typename ElemType>
-    void MPICommunicatorImpl::AllReduceData(ElemType* inputData, ElemType* outputData, size_t numElements, std::vector<MPI_Request> &allReduceRequests, bool dataOnCPU, AggregateOp op)
+    void MPICommunicatorImpl::AllReduceData(ElemType* inputData, ElemType* outputData, size_t numElements, std::vector<MPI_Request> &allReduceRequests, bool dataOnCPU, MPI_Op op)
     {
         if (m_nccl->IsSupported() && !dataOnCPU)
         {
-            m_nccl->AllReduce(inputData, outputData, numElements, GetMpiOp(op));
+            m_nccl->AllReduce(inputData, outputData, numElements, op);
 
             return;
         }
@@ -577,17 +558,17 @@ namespace CNTK
         if (m_mpi->UseGpuGdr())
         {
             if (inputData == outputData)
-                m_mpi->AllReduce(outputData, numElements, GetMpiOp(op));
+                m_mpi->AllReduce(outputData, numElements, op);
             else
-                m_mpi->AllReduce(inputData, outputData, numElements, GetMpiOp(op));
+                m_mpi->AllReduce(inputData, outputData, numElements, op);
 
             return;
         }
 
         allReduceRequests.push_back(MPI_Request());
         if (inputData == outputData)
-            m_mpi->AllReduceAsync(outputData, numElements, &allReduceRequests.back(), GetMpiOp(op));
+            m_mpi->AllReduceAsync(outputData, numElements, &allReduceRequests.back(), op);
         else
-            m_mpi->AllReduceAsync(inputData, outputData, numElements, &allReduceRequests.back(), GetMpiOp(op));
+            m_mpi->AllReduceAsync(inputData, outputData, numElements, &allReduceRequests.back(), op);
     }
 }

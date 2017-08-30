@@ -738,6 +738,12 @@ namespace CNTK
         CNTK_API std::tuple<const ElementType *, const SparseIndexType*, const SparseIndexType*, size_t> SparseCSCDataBuffers() const;
 
         ///
+        /// Returns a read-only pointer to the data buffer in sparse block column format underlying 'this' view
+        /// 
+        template <typename ElementType>
+        CNTK_API std::tuple<const ElementType*, const SparseIndexType*, const SparseIndexType*, size_t> SparseBlockColumnDataBuffers() const;
+
+        ///
         /// Returns the descriptor of the device that 'this' view resides on
         ///
         DeviceDescriptor Device() const { return m_device; }
@@ -5578,26 +5584,16 @@ namespace CNTK
             std::vector<DictionaryPtr>& output,
             const std::unordered_set<DistributedWorkerDescriptor>& sendToWorkers) = 0;
 
-		enum class AggregateOp : int
-		{
-			Sum = 0,
-            Product,
-			Max,
-			Min,
-		};
-
         // A collective communication API to aggregate values across each worker of this communicator. 
         // The aggregated values are only sent to the specified workers; for all others the returned Values are null
         CNTK_API virtual void AggregateInPlace(
             const std::vector<NDArrayViewPtr>& values,
-            const std::unordered_set<DistributedWorkerDescriptor>& sendToWorkers,
-			AggregateOp op = AggregateOp::Sum) = 0;
+            const std::unordered_set<DistributedWorkerDescriptor>& sendToWorkers) = 0;
 
         CNTK_API virtual void Aggregate(
             const std::vector<NDArrayViewPtr>& values,
             std::vector<NDArrayViewPtr>& outputValues,
-            const std::unordered_set<DistributedWorkerDescriptor>& sendToWorkers,
-			AggregateOp op = AggregateOp::Sum) = 0;
+            const std::unordered_set<DistributedWorkerDescriptor>& sendToWorkers) = 0;
 
         virtual ~DistributedCommunicator() {}
 

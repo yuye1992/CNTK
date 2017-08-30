@@ -51,14 +51,12 @@ namespace CNTK
         // A collective communication API to aggregate values across each worker of this communicator. The aggregated values are only sent to the specified workers; for all others the returned Values are null
         virtual void AggregateInPlace(
             const std::vector<NDArrayViewPtr>& values,
-            const std::unordered_set<DistributedWorkerDescriptor>& sendToWorkers,
-			AggregateOp op = AggregateOp::Sum) override;
+            const std::unordered_set<DistributedWorkerDescriptor>& sendToWorkers) override;
 
         virtual void Aggregate(
             const std::vector<NDArrayViewPtr>& inValues,
             std::vector<NDArrayViewPtr>& outValues,
-            const std::unordered_set<DistributedWorkerDescriptor>& sendToWorkers,
-			AggregateOp op = AggregateOp::Sum) override;
+            const std::unordered_set<DistributedWorkerDescriptor>& sendToWorkers) override;
 
         virtual void Barrier() override;
 
@@ -70,8 +68,7 @@ namespace CNTK
         void AggregateImpl(
             const std::vector<NDArrayViewPtr>& inputValues,
             const std::vector<NDArrayViewPtr>& outputValues,
-            const std::unordered_set<DistributedWorkerDescriptor>& sendToWorkers,
-            AggregateOp op = AggregateOp::Sum);
+            const std::unordered_set<DistributedWorkerDescriptor>& sendToWorkers);
 
         struct Buffer
         {
@@ -140,6 +137,6 @@ namespace CNTK
         void UnpackFromContinuousBuffer(Microsoft::MSR::CNTK::Matrix<ElemType>* aggregationBuffer, const std::vector<NDArrayViewPtr>& outputValues, std::vector<size_t>& packedGradientsIndex);
 
         template <typename ElemType>
-        void AllReduceData(ElemType* inputData, ElemType* outputData, size_t numElements, std::vector<MPI_Request> &allReduceRequests, bool dataOnCPU, AggregateOp op);
+        void AllReduceData(ElemType* inputData, ElemType* outputData, size_t numElements, std::vector<MPI_Request> &allReduceRequests, bool dataOnCPU, MPI_Op op = MPI_SUM);
     };
 }
