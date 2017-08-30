@@ -4705,8 +4705,6 @@ namespace CNTK
 
         CNTK_API Dictionary& GetOptions() { return m_additionalOptions.dictOptions; }
         CNTK_API const Dictionary& GetOptions() const { return m_additionalOptions.dictOptions; }
-        CNTK_API Dictionary& GetContext() { return m_learningContext; }
-        CNTK_API const Dictionary& GetContext() const { return m_learningContext; }
 
         ///In the litature, usually the learner parameters, such as the learning rates, moumentum and momentum variance, 
         ///are chosen for the specified minibatch size. However, for efficient impelmentation and for distributed training,
@@ -4748,8 +4746,6 @@ namespace CNTK
         size_t m_minibatchCount;
         size_t m_sweepCount;
         AdditionalLearningOptions m_additionalOptions;
-        ///A dictionary to hold and update learning context.
-        Dictionary m_learningContext;
         mutable std::unordered_set<ProgressWriterPtr> m_progressWriters;
     };
 
