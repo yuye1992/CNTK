@@ -1421,7 +1421,7 @@ namespace CNTK
 
         auto outputShape = AsNDShape(computeOutputShapeFunc(AsTensorShape(operandShape), AsTensorShape(kernelShape), AsTensorShape(outputMapCount),
             AsTensorShape(strides), sharing, autoPad, AsTensorShape(lowerPad), AsTensorShape(upperPad), ceilOutputDim,
-            operandShape.HasFreeDimension(), false));
+            operandShape.HasFreeDimension(), true));
 
         // Any input dimensions that are free/inferred pass through as free/inferred
         for (size_t i = 0; i < operandShape.Rank(); ++i)
