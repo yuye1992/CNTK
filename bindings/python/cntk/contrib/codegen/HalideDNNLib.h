@@ -50,8 +50,7 @@ namespace CNTK
         partial.compute_at(output, matrixRowIndex).vectorize(matrixSubColumnIndex, c_VectorizationWidth);
 
         output.bound(matrixRowIndex, 0, matrixRowDimension);
-        output.compute_root().vectorize(matrixRowIndex, c_VectorizationWidth);
-        output.output_buffer().set_bounds(0, 0, matrixRowDimension);
+        output.compute_root().output_buffer().set_bounds(0, 0, matrixRowDimension);
         return output;
     }
 
@@ -96,29 +95,36 @@ namespace CNTK
         return splice;
     }
 
-    inline Halide::Func ElementTimes(const Halide::Func& operand1, const Halide::Func& operand2)
+    inline Halide::Func ElementTimes(const Halide::Func& operand1, const Halide::Func& operand2, int vectorSize)
     {
         Halide::Var index;
         Halide::Func result("ElementTimes");
         result(index) = operand1(index) * operand2(index);
-        result.compute_root().vectorize(index, c_VectorizationWidth);
+        //if (vectorSize > c_VectorizationWidth)
+        //    result.compute_root().vectorize(index, c_VectorizationWidth);
+        result.bound(index, 0, vectorSize);
         return result;
     }
 
-    inline Halide::Func Plus(const Halide::Func& operand1, const Halide::Func& operand2)
+    inline Halide::Func Plus(const Halide::Func& operand1, const Halide::Func& operand2, int vectorSize)
     {
         Halide::Var index;
         Halide::Func result("Plus");
         result(index) = operand1(index) + operand2(index);
-        result.compute_root().vectorize(index, c_VectorizationWidth);
+        //if (vectorSize > c_VectorizationWidth)
+        //    result.compute_root().vectorize(index, c_VectorizationWidth);
+        result.bound(index, 0, vectorSize);
         return result;
     }
 
-    inline Halide::Func Minus(const Halide::Func& operand1, const Halide::Func& operand2)
+    inline Halide::Func Minus(const Halide::Func& operand1, const Halide::Func& operand2, int vectorSize)
     {
         Halide::Var index;
         Halide::Func result("Minus");
         result(index) = operand1(index) - operand2(index);
+        //if (vectorSize > c_VectorizationWidth)
+        //    result.compute_root().vectorize(index, c_VectorizationWidth);
+        result.bound(index, 0, vectorSize);
         return result;
     }
 

@@ -208,6 +208,36 @@ void MeasurePerf(const std::function<void()>& workload, const std::string& str, 
         stdDev);
 }
 
+BOOST_AUTO_TEST_CASE(SpeechLstmModelProfiling)
+{
+    const int InputDimension = 80;
+    const int OutputDimension = 9404;
+
+    // Halide
+    LstmSpeechEvaluator e;
+    e.init("LstmSpeechEvaluator.json");
+
+    std::vector<float> frame;
+    frame.resize(InputDimension);
+
+    for (size_t j = 0; j < InputDimension; ++j)
+        frame[j] = (rand() % 256) / (float)256;
+
+    Halide::ImageParam features(Halide::type_of<float>(), 1);
+    features.set(Halide::Buffer<float>(frame.data(), InputDimension));
+
+    Halide::Buffer<float> result1(OutputDimension);
+
+    auto halide = [&]()
+    {
+        e.Evaluate(0, features, result1);
+    };
+
+    halide();
+    halide();
+    halide();
+}
+
 BOOST_AUTO_TEST_CASE(SpeechLstmModelPerformance)
 {
     const int InputDimension = 80;
@@ -386,26 +416,63 @@ BOOST_AUTO_TEST_CASE(TestQuantizedMatrixMultiplication)
     BOOST_REQUIRE_CLOSE(result(1), -122.085f, 1);
 }
 
-
-BOOST_AUTO_TEST_CASE(TestPlus, *utf::tolerance(0.00001))
+BOOST_AUTO_TEST_CASE(TestPlus)
 {
-    float ca[] = { 1, 2, 3 };
-    float cb[] = { 4, 5, 6 };
+    float ca[] = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
+    float cb[] = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
 
     ImageParam a(Halide::type_of<float>(), 1);
     ImageParam b(Halide::type_of<float>(), 1);
 
-    auto result = Plus(a, b);
-    a.set(Buffer<float>((float*)ca, 3));
-    b.set(Buffer<float>((float*)cb, 3));
+    auto result = Plus(a, b, 10);
+    a.set(Buffer<float>((float*)ca, 10));
+    b.set(Buffer<float>((float*)cb, 10));
 
-    Buffer<float> output(3);
+    Buffer<float> output(10);
     result.realize(output);
 
-    BOOST_REQUIRE_EQUAL(output(0), 5);
-    BOOST_REQUIRE_EQUAL(output(1), 7);
-    BOOST_REQUIRE_EQUAL(output(2), 9);
+    for(int i = 0; i < 10; ++i)
+        BOOST_REQUIRE_EQUAL(output(i), ca[i] + cb[i]);
 }
+
+BOOST_AUTO_TEST_CASE(TestMinus)
+{
+    float ca[] = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
+    float cb[] = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
+
+    ImageParam a(Halide::type_of<float>(), 1);
+    ImageParam b(Halide::type_of<float>(), 1);
+
+    auto result = Minus(a, b, 10);
+    a.set(Buffer<float>((float*)ca, 10));
+    b.set(Buffer<float>((float*)cb, 10));
+
+    Buffer<float> output(10);
+    result.realize(output);
+
+    for (int i = 0; i < 10; ++i)
+        BOOST_REQUIRE_EQUAL(output(i), 0);
+}
+
+BOOST_AUTO_TEST_CASE(TestElementTimes)
+{
+    float ca[] = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
+    float cb[] = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
+
+    ImageParam a(Halide::type_of<float>(), 1);
+    ImageParam b(Halide::type_of<float>(), 1);
+
+    auto result = ElementTimes(a, b, 10);
+    a.set(Buffer<float>((float*)ca, 10));
+    b.set(Buffer<float>((float*)cb, 10));
+
+    Buffer<float> output(10);
+    result.realize(output);
+
+    for (int i = 0; i < 10; ++i)
+        BOOST_REQUIRE_EQUAL(output(i), ca[i] * cb[i]);
+}
+
 
 BOOST_AUTO_TEST_CASE(TestSlice, *utf::tolerance(0.00001))
 {
@@ -464,6 +531,40 @@ BOOST_AUTO_TEST_CASE(TestVecMultiply, *utf::tolerance(0.00001))
     BOOST_REQUIRE_EQUAL(output(0), 8);
     BOOST_REQUIRE_EQUAL(output(1), 10);
     BOOST_REQUIRE_EQUAL(output(2), 8);
+}
+
+BOOST_AUTO_TEST_CASE(TestMatrixByVectorProfiling)
+{
+    const int InputDimension = 1024;
+    const int OutputDimension = 512;
+
+    std::vector<float> vec;
+    vec.resize(InputDimension);
+
+    for (size_t j = 0; j < vec.size(); ++j)
+        vec[j] = (rand() % 256) / (float)256;
+
+    std::vector<float> matrix;
+    matrix.resize(InputDimension * OutputDimension);
+
+    for (size_t j = 0; j < matrix.size(); ++j)
+        matrix[j] = (rand() % 256) / (float)256;
+
+    Halide::ImageParam features(Halide::type_of<float>(), 1);
+    Halide::ImageParam weights(Halide::type_of<float>(), 2);
+
+    Halide::Target t;
+    t = Halide::get_jit_target_from_environment().with_feature(Halide::Target::Profile);
+    auto exp = MatrixByVectorTimes(weights, features, OutputDimension, InputDimension);
+
+    weights.set(Halide::Buffer<float>(matrix.data(), InputDimension, OutputDimension));
+    features.set(Halide::Buffer<float>(vec.data(), InputDimension));
+    Halide::Buffer<float> result(OutputDimension);
+
+    auto workload = [&]() { exp.realize({ result }, t); };
+
+    for (int i = 0; i < 10; ++i)
+        workload();
 }
 
 BOOST_AUTO_TEST_SUITE_END()

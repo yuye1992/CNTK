@@ -352,7 +352,7 @@ class HalideExpressionGenerator(NodeVisitor):
         operands = get_predecessors(self.graph, node.uid)
         if len(operands) != 2:
             raise ValueError('Operation "%s" expects 2 operands, given %s', op_name, str(operands))
-        exp = 'Halide::Func %s("%s"); %s = %s(%s, %s)' % tuple([node.uid, node.uid, node.uid, op_name] + [self.uid_to_exp[o] for o in operands])
+        exp = 'Halide::Func %s("%s"); %s = %s(%s, %s, %d)' % tuple([node.uid, node.uid, node.uid, op_name] + [self.uid_to_exp[o] for o in operands] + [self.total_num_elements(node.shape)])
         if len(self.graph.successors(node.uid)) > 1: # Make sure we do not recalculate the same values twice.
             exp += ';\n%s.compute_root()' % node.uid
         self.listing += exp + ';\n'

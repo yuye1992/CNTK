@@ -37,10 +37,10 @@ auto b_Parameter5 = Halide::Buffer<float>(m_Parameter5.data(), 2, 2, "Parameter5
 Halide::Func Parameter5("Parameter5"); Parameter5(var1, var2) = b_Parameter5(var1, var2);
 
 Halide::Func Times103("Times103"); Times103 = MatrixByVectorTimes(Parameter5,Input3,2,2);
-Halide::Func Plus105("Plus105"); Plus105 = Plus(Times103, Parameter6);
+Halide::Func Plus105("Plus105"); Plus105 = Plus(Times103, Parameter6, 2);
 Halide::Func Tanh107("Tanh107"); Tanh107 = Tanh(Plus105);
 Halide::Func Times121("Times121"); Times121 = MatrixByVectorTimes(Parameter25,Tanh107,1,2);
-Halide::Func Plus123("Plus123"); Plus123 = Plus(Times121, Parameter26);
+Halide::Func Plus123("Plus123"); Plus123 = Plus(Times121, Parameter26, 1);
  
  return Halide::Pipeline({ Plus123/*Block128_Output_0*/ }); 
  }
