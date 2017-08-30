@@ -733,3 +733,33 @@ def test_convolution_dilated(input_size, conv_size, result, device_id, precision
 
     unittest_helper(input_op, forward_input, expected_forward,
                     None, device_id=device_id, precision=precision)
+
+FREE_STATIC_AXES_SEQUENCE_UNPACK_CONVOLUTION_DATA = [    
+    # Convolution with free static axes using sequence unpack.
+    (8,         # num_features: Defines the input size used for first run with free static axes. 3- and 4-element vector for 2D and 3D convolution, respectively.
+     8,         # sequence_len: Number of sequences.
+     [3, 3],    # filter_size: kernel size for convolution. Length defines 2D or 3D convolution.
+     16,        # num_output_channels
+     2          # batch_size
+     )
+]
+# This test point exercises convolution with multiple free static axes and batch (dynamic) axis), and ensures that the result is the same as with fixed axes.
+@pytest.mark.parametrize("num_features, sequence_len, filter_size, num_output_channels, batch_size", FREE_STATIC_AXES_SEQUENCE_UNPACK_CONVOLUTION_DATA)
+def test_conv_free_static_with_sequence_unpack(num_features, sequence_len, filter_size, num_output_channels, batch_size, device_id, precision):
+    dt = PRECISION_TO_TYPE[precision]
+    dev = cntk_device(device_id)
+
+    x_ref = C.input_variable((1, sequence_len, num_features), dtype=dt)
+    conv_map_ref = C.constant(np.random.randn(num_output_channels, 1, filter_size[0], filter_size[1]).astype(dt))
+    w2_ref = C.convolution(conv_map_ref, x_ref, auto_padding=[False])
+    x0_ref = np.arange(batch_size*1*sequence_len*num_features).astype(dt).reshape(batch_size, 1, sequence_len, num_features)
+    output_ref = w2_ref.eval({x_ref: x0_ref}, device=dev)
+
+
+    x_test = C.sequence.input_variable(num_features, dtype=dt)
+    y_test, mask_test = C.sequence.unpack(x_test, 0).outputs
+    z_test = C.reshape(y_test, (1, ), 0, 0)
+    w2_test = C.convolution(conv_map_ref, z_test, auto_padding=[False])
+    output_test = w2_test.eval({x_test: np.squeeze(x0_ref)}, device=dev)
+    
+    assert np.allclose(output_test, output_ref, atol=1e-4)
