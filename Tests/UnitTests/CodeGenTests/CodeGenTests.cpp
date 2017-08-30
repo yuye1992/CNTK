@@ -12,7 +12,9 @@
 #undef max
 
 #include "XorEvaluator.h"
+#include "QuantizedXorEvaluator.h"
 #include "LstmSpeechEvaluator.h"
+#include "QuantizedLstmSpeechEvaluator.h"
 
 #include "CNTKLibrary.h"
 
@@ -35,6 +37,10 @@ BOOST_AUTO_TEST_CASE(XorOperation)
     XorEvaluator e;
     e.init("XorEvaluator.json");
 
+    // Quantized
+    QuantizedXorEvaluator qe;
+    qe.init("XorEvaluator.json");
+
     Halide::ImageParam features(Halide::type_of<float>(), 1);
     std::vector<float> v = { 0.f, 1.f };
     features.set(Halide::Buffer<float>(v.data(), 2));
@@ -44,9 +50,15 @@ BOOST_AUTO_TEST_CASE(XorOperation)
     e.Evaluate(features, result);
     auto result10 = result(0);
 
+    qe.Evaluate(features, result);
+    auto result30 = result(0);
+
     v[0] = 1.f;
     e.Evaluate(features, result);
     auto result11 = result(0);
+
+    qe.Evaluate(features, result);
+    auto result31 = result(0);
 
     // CNTK
     auto model = Function::Load(L"xor.model", DeviceDescriptor::CPUDevice());
@@ -73,6 +85,9 @@ BOOST_AUTO_TEST_CASE(XorOperation)
 
     BOOST_REQUIRE_CLOSE(result10, result20, 0.1);
     BOOST_REQUIRE_CLOSE(result11, result21, 0.1);
+
+    BOOST_REQUIRE_CLOSE_FRACTION(result30, result20, 0.001);
+    BOOST_REQUIRE_CLOSE_FRACTION(result31, result21, 0.01);
 }
 
 BOOST_AUTO_TEST_CASE(SpeechLstmModel)
@@ -83,6 +98,9 @@ BOOST_AUTO_TEST_CASE(SpeechLstmModel)
     // Halide
     LstmSpeechEvaluator e;
     e.init("LstmSpeechEvaluator.json");
+
+    QuantizedLstmSpeechEvaluator qe;
+    qe.init("LstmSpeechEvaluator.json");
 
     // CNTK
     auto model = Function::Load(L"lstm_speech.model", DeviceDescriptor::CPUDevice());
@@ -115,6 +133,15 @@ BOOST_AUTO_TEST_CASE(SpeechLstmModel)
         Halide::Buffer<float> result(out.data(), OutputDimension);
         e.Evaluate(timestamp, features, result);
 
+        std::vector<float> output1(OutputDimension, 0);
+        for (int j = 0; j < OutputDimension; ++j)
+            output1[j] = result(j);
+
+        qe.Evaluate(timestamp, features, result);
+        std::vector<float> output2(OutputDimension, 0);
+        for (int j = 0; j < OutputDimension; ++j)
+            output2[j] = result(j);
+
         // CNTK evaluation
         auto data = MakeSharedObject<NDArrayView>(DataType::Float, NDShape({ f.size() }), f.data(),
             sizeof(float) * InputDimension, DeviceDescriptor::CPUDevice());
@@ -127,14 +154,11 @@ BOOST_AUTO_TEST_CASE(SpeechLstmModel)
         model->Forward(i, o, DeviceDescriptor::CPUDevice());
         auto result2 = o[output]->Data()->DataBuffer<float>();
 
-        std::vector<float> output1(OutputDimension, 0), output2(OutputDimension, 0);
+        std::vector<float> output3(OutputDimension, 0);
         for (int j = 0; j < OutputDimension; ++j)
-        {
-            output1[j] = result(j);
-            output2[j] = result2[j];
-        }
+            output3[j] = result2[j];
 
-        return std::make_pair(output1, output2);
+        return std::make_tuple(output1, output2, output3);
     };
 
     // Perform evaluation
@@ -144,10 +168,11 @@ BOOST_AUTO_TEST_CASE(SpeechLstmModel)
         int timestamp = 0;
         for (auto& f : frames)
         {
-            auto result1 = evaluateFrame(timestamp++, f);
-            for (int j = 0; j < result1.first.size(); ++j)
+            auto result = evaluateFrame(timestamp++, f);
+            for (int j = 0; j < std::get<0>(result).size(); ++j)
             {
-                BOOST_REQUIRE_CLOSE(result1.first[j], result1.second[j], 0.1);
+                BOOST_REQUIRE_CLOSE_FRACTION(std::get<0>(result)[j], std::get<1>(result)[j], 2.);
+                BOOST_REQUIRE_CLOSE(std::get<0>(result)[j], std::get<2>(result)[j], 0.1);
             }
         }
     }
@@ -252,6 +277,9 @@ BOOST_AUTO_TEST_CASE(SpeechLstmModelPerformance)
     LstmSpeechEvaluator e;
     e.init("LstmSpeechEvaluator.json");
 
+    QuantizedLstmSpeechEvaluator qe;
+    qe.init("LstmSpeechEvaluator.json");
+
     std::vector<float> frame;
     frame.resize(InputDimension);
 
@@ -271,6 +299,17 @@ BOOST_AUTO_TEST_CASE(SpeechLstmModelPerformance)
     };
 
     halide();
+
+    std::vector<float> out3;
+    out3.resize(OutputDimension);
+    Halide::Buffer<float> result3(out3.data(), OutputDimension);
+
+    auto quantized = [&]()
+    {
+        qe.Evaluate(0, features, result3);
+    };
+
+    quantized();
 
     // CNTK
     auto model = Function::Load(L"lstm_speech.model", DeviceDescriptor::CPUDevice());
@@ -299,6 +338,7 @@ BOOST_AUTO_TEST_CASE(SpeechLstmModelPerformance)
     for (int j = 0; j < OutputDimension; ++j)
     {
         BOOST_REQUIRE_CLOSE(result1(j), result2[j], 0.1);
+        BOOST_REQUIRE_CLOSE_FRACTION(result1(j), result3(j), 1.);
     }
 
     // All is set up correctly. Run the workloads for perf.
@@ -306,8 +346,9 @@ BOOST_AUTO_TEST_CASE(SpeechLstmModelPerformance)
         const int workloads = 5;
         for (int j = 0; j < workloads; j++)
         {
-            MeasurePerf(halide, "Halide workload " + std::to_string(j) + ":", 100);
-            MeasurePerf(cntk, "CNTK workload " + std::to_string(j) + ":", 100);
+            MeasurePerf(halide,    "Halide workload           " + std::to_string(j), 100);
+            MeasurePerf(quantized, "Halide quantized workload " + std::to_string(j), 100);
+            MeasurePerf(cntk,      "CNTK workload             " + std::to_string(j), 100);
         }
     }
 }

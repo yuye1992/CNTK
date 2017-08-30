@@ -47,7 +47,9 @@ namespace CNTK
         // Schedule
         vec.compute_root();
         partial.bound(matrixSubColumnIndex, 0, c_VectorizationWidth);
-        partial.compute_at(output, matrixRowIndex).vectorize(matrixSubColumnIndex, c_VectorizationWidth);
+        partial.compute_at(output, matrixRowIndex)
+            .vectorize(matrixSubColumnIndex, c_VectorizationWidth)
+            .unroll(matrixSubColumnIndex);
 
         output.bound(matrixRowIndex, 0, matrixRowDimension);
         output.compute_root().output_buffer().set_bounds(0, 0, matrixRowDimension);
@@ -95,36 +97,27 @@ namespace CNTK
         return splice;
     }
 
-    inline Halide::Func ElementTimes(const Halide::Func& operand1, const Halide::Func& operand2, int vectorSize)
+    inline Halide::Func ElementTimes(const Halide::Func& operand1, const Halide::Func& operand2, int /*vectorSize*/)
     {
         Halide::Var index;
         Halide::Func result("ElementTimes");
         result(index) = operand1(index) * operand2(index);
-        if (vectorSize > c_VectorizationWidth)
-            result.compute_root().vectorize(index, c_VectorizationWidth, Halide::TailStrategy::ShiftInwards);
-        result.bound(index, 0, vectorSize);
         return result;
     }
 
-    inline Halide::Func Plus(const Halide::Func& operand1, const Halide::Func& operand2, int vectorSize)
+    inline Halide::Func Plus(const Halide::Func& operand1, const Halide::Func& operand2, int /*vectorSize*/)
     {
         Halide::Var index;
         Halide::Func result("Plus");
         result(index) = operand1(index) + operand2(index);
-        //if (vectorSize > c_VectorizationWidth)
-        //    result.compute_root().vectorize(index, c_VectorizationWidth);
-        result.bound(index, 0, vectorSize);
         return result;
     }
 
-    inline Halide::Func Minus(const Halide::Func& operand1, const Halide::Func& operand2, int vectorSize)
+    inline Halide::Func Minus(const Halide::Func& operand1, const Halide::Func& operand2, int /*vectorSize*/)
     {
         Halide::Var index;
         Halide::Func result("Minus");
         result(index) = operand1(index) - operand2(index);
-        //if (vectorSize > c_VectorizationWidth)
-        //    result.compute_root().vectorize(index, c_VectorizationWidth);
-        result.bound(index, 0, vectorSize);
         return result;
     }
 
@@ -135,18 +128,17 @@ namespace CNTK
         int matrixColumnDimension)
     {
         // Widening the quantized type to avoid overflow.
-        Halide::Var index;
-        Halide::Func widen;
+        Halide::Var index("index");
+        Halide::Func widen("widen");
         widen(index) = Halide::cast<int>(vec[0](index));
-        widen.bound(index, 0, matrixColumnDimension);
+        //widen.bound(index, 0, matrixColumnDimension);
 
         auto quantized = MatrixByVectorTimes(matrix[0], widen, matrixRowDimension, matrixColumnDimension);
 
         Halide::Func result("MatrixByVectorTimesQuantized");
         Halide::Var matrixRowIndex("matrixColumnIndex");
-
         result(matrixRowIndex) = quantized(matrixRowIndex) * vec[1]() * matrix[1]();
-        result.bound(matrixRowIndex, 0, matrixRowDimension);
+        //result.bound(matrixRowIndex, 0, matrixRowDimension);
         return result;
     }
 
@@ -177,7 +169,7 @@ namespace CNTK
         };
 
         Halide::Func absMax("absMax");
-        absMax() = print(Halide::max(-minMax()[0], minMax()[1]) * (1 << numReservedBits), "max");
+        absMax() = Halide::max(-minMax()[0], minMax()[1]) * (1 << numReservedBits);
 
         // Quantize, same procedure as in MLP library
         const int numQuantizedTypeBits = sizeof(QuantizedType) * 8;
@@ -186,7 +178,7 @@ namespace CNTK
         auto quantizedTypeMaxValue = std::numeric_limits<QuantizedType>::max();
 
         Halide::Func qStep("qstep");
-        qStep() = print(absMax() / (quantizedTypeMaxValue + 0.5f), "qstep"); // 0.5 is for rounding.
+        qStep() = absMax() / (quantizedTypeMaxValue + 0.5f); // 0.5 is for rounding.
 
         Halide::Func inverseQStep("inverseqstep");
         inverseQStep() = (quantizedTypeMaxValue + 0.5f) / absMax();
@@ -197,9 +189,9 @@ namespace CNTK
         quantized(index) = Halide::cast(Halide::type_of<QuantizedType>(), Halide::cast(Halide::Int(32), (vector(index) * inverseQStep() + quantizedTypeMaxValue + 1.5f) - (1 + quantizedTypeMaxValue)));
 
         // Schedule
+        minMaxHead.compute_root().update().vectorize(subRowIndex, c_VectorizationWidth);
         minMaxHead.bound(subRowIndex, 0, c_VectorizationWidth);
         minMaxHead.vectorize(subRowIndex, c_VectorizationWidth);
-        minMaxHead.compute_root().update().vectorize(subRowIndex, c_VectorizationWidth);
         qStep.compute_root();
         inverseQStep.compute_root();
         return std::vector<Halide::Func>{ quantized, qStep };
@@ -215,7 +207,7 @@ namespace CNTK
         Halide::Func w;
         Halide::Var index;
         w(index) = b(index);
-        w.bound(index, 0, (int)value.size());
+        w.compute_root().bound(index, 0, (int)value.size());
 
         auto quantize = Halide::Pipeline(Quantize<OriginalType, QuantizedType>(w, size, numReservedBits));
 
