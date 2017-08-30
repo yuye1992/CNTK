@@ -100,8 +100,8 @@ namespace CNTK
         Halide::Var index;
         Halide::Func result("ElementTimes");
         result(index) = operand1(index) * operand2(index);
-        //if (vectorSize > c_VectorizationWidth)
-        //    result.compute_root().vectorize(index, c_VectorizationWidth);
+        if (vectorSize > c_VectorizationWidth)
+            result.compute_root().vectorize(index, c_VectorizationWidth, Halide::TailStrategy::ShiftInwards);
         result.bound(index, 0, vectorSize);
         return result;
     }

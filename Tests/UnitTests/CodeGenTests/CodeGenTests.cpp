@@ -97,8 +97,11 @@ BOOST_AUTO_TEST_CASE(SpeechLstmModel)
 
     {
         for (int i = 0; i < NumberOfFrames; ++i)
+        {
+            frames[i].resize(InputDimension);
             for (size_t j = 0; j < frames[i].size(); ++j)
                 frames[i][j] = (rand() % 256) / (float)256;
+        }
     }
 
     Halide::ImageParam features(Halide::type_of<float>(), 1);
@@ -107,7 +110,9 @@ BOOST_AUTO_TEST_CASE(SpeechLstmModel)
     {
         features.set(Halide::Buffer<float>(f.data(), InputDimension));
 
-        Halide::Buffer<float> result(OutputDimension);
+        std::vector<float> out;
+        out.resize(OutputDimension);
+        Halide::Buffer<float> result(out.data(), OutputDimension);
         e.Evaluate(timestamp, features, result);
 
         // CNTK evaluation
@@ -256,7 +261,9 @@ BOOST_AUTO_TEST_CASE(SpeechLstmModelPerformance)
     Halide::ImageParam features(Halide::type_of<float>(), 1);
     features.set(Halide::Buffer<float>(frame.data(), InputDimension));
 
-    Halide::Buffer<float> result1(OutputDimension);
+    std::vector<float> out;
+    out.resize(OutputDimension);
+    Halide::Buffer<float> result1(out.data(), OutputDimension);
 
     auto halide = [&]()
     {
@@ -535,8 +542,8 @@ BOOST_AUTO_TEST_CASE(TestVecMultiply, *utf::tolerance(0.00001))
 
 BOOST_AUTO_TEST_CASE(TestMatrixByVectorProfiling)
 {
-    const int InputDimension = 1024;
-    const int OutputDimension = 512;
+    const int InputDimension = 256;
+    const int OutputDimension = 9404;
 
     std::vector<float> vec;
     vec.resize(InputDimension);
@@ -554,7 +561,8 @@ BOOST_AUTO_TEST_CASE(TestMatrixByVectorProfiling)
     Halide::ImageParam weights(Halide::type_of<float>(), 2);
 
     Halide::Target t;
-    t = Halide::get_jit_target_from_environment().with_feature(Halide::Target::Profile);
+    t = Halide::get_jit_target_from_environment()
+        .with_feature(Halide::Target::Profile);
     auto exp = MatrixByVectorTimes(weights, features, OutputDimension, InputDimension);
 
     weights.set(Halide::Buffer<float>(matrix.data(), InputDimension, OutputDimension));

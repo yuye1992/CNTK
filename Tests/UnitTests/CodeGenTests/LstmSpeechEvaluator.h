@@ -434,10 +434,14 @@ namespace CNTK
 
             auto get_value = [&](const std::string& name)
             {
-                std::vector<float> result;
+                std::vector<float> value;
                 for (auto& v : root.get_child(name))
-                    result.push_back(v.second.get_value<float>());
-                return result;
+                    value.push_back(v.second.get_value<float>());
+
+                std::vector<float> aligned;
+                aligned.reserve((value.size() / c_VectorizationWidth + 1) * c_VectorizationWidth);
+                aligned.assign(value.begin(), value.end());
+                return aligned;
             };
             set_constant555(get_value("Constant555"));
             set_parameter550(get_value("Parameter550"));
@@ -521,7 +525,9 @@ namespace CNTK
             m_PastValue82.set(m_bufferPastValue82[((timestamp - 1) % m_bufferPastValue82.size())]);
             m_bufferTimestamp(0) = timestamp;
             Halide::Target t;
-            t = Halide::get_jit_target_from_environment().with_feature(Halide::Target::Profile);
+            t = Halide::get_jit_target_from_environment();
+                //.with_feature(Halide::Target::Profile)
+                //.with_feature(Halide::Target::NoAsserts)
             m_graph.realize({ ScaledLogLikelihood, m_bufferPastValue112[timestamp % m_bufferPastValue112.size()], m_bufferPastValue198[timestamp % m_bufferPastValue198.size()], m_bufferPastValue228[timestamp % m_bufferPastValue228.size()], m_bufferPastValue314[timestamp % m_bufferPastValue314.size()], m_bufferPastValue344[timestamp % m_bufferPastValue344.size()], m_bufferPastValue430[timestamp % m_bufferPastValue430.size()], m_bufferPastValue460[timestamp % m_bufferPastValue460.size()], m_bufferPastValue82[timestamp % m_bufferPastValue82.size()] }, t);
         }
 
