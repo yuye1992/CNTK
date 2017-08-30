@@ -515,7 +515,7 @@ namespace CNTK
         /// Static method to specify a list of excluded devices that cannot be used as globally default (neither auto-selected
         /// nor explicitly specified by 'TrySetDefaultDevice'). For example, to avoid auto-selecting the CPU, invoke 
         /// 'SetExcludedDevices({DeviceDescriptor::CPUDevice()})'. However, after the default device has been selected and 
-        /// frozen (by a call to UseDefaultDevic()), invoking this methods has no effect, it becomes essentially a no-op.
+        /// frozen (by a call to UseDefaultDevice()), invoking this methods has no effect, it becomes essentially a no-op.
         ///
         CNTK_API static void SetExcludedDevices(const std::vector<DeviceDescriptor>& excluded);
 
@@ -1608,6 +1608,8 @@ namespace CNTK
                 FreePtrAsType<std::vector<DictionaryValue>>();
             else if (m_valueType == Type::Dictionary)
                 FreePtrAsType<Dictionary>();
+            else if (m_valueType == Type::NDArrayView)
+                FreePtrAsType<NDArrayView>();
             else if (m_valueType == Type::CNTKFunction)
                 FreePtrAsType<FunctionPtr>();
             else if (m_valueType == Type::TrainingParameterSchedule)
