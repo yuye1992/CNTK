@@ -94,13 +94,13 @@ void NcclComm::AllReduceImpl(void* inputbuffer, void *outputbuffer, size_t count
     public:
         NcclTypeLookup()
         {
-            ncclTypes[DataType::FLOAT]  = ncclFloat;
-            ncclTypes[DataType::DOUBLE] = ncclDouble;
-            ncclTypes[DataType::INT]    = ncclInt;
+            ncclTypes[(int)DataType::FLOAT]  = ncclFloat;
+            ncclTypes[(int)DataType::DOUBLE] = ncclDouble;
+            ncclTypes[(int)DataType::INT]    = ncclInt;
         }
         Lookup(DataType dtype)
         {
-            return ncclTypes[dtype];
+            return ncclTypes[(int)dtype];
         }
     };
 
