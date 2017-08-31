@@ -24,7 +24,13 @@ class NcclComm
 {
 #ifdef USE_NCCL
 private:
-    enum class DataType : int {FLOAT, DOUBLE};
+    enum class DataType : int
+    {
+        FLOAT = 0,
+        DOUBLE,
+        INT,
+        COUNT,
+    };
     void AllReduceImpl(void* inputbuffer, void* outputbuffer, size_t count, DataType dtype, MPI_Op op);
     void BroadcastImpl(void* buffer, size_t count, MPI_Datatype dtype, int root);
     cudaStream_t m_stream;
@@ -58,9 +64,13 @@ public:
     {
 #ifdef USE_NCCL
         DataType dtype = DataType::FLOAT;
-        if (std::is_same<ElemType, double>::value)
+        if (std::is_same<ElemType, float>::value)
+            dtype = DataType::FLOAT;
+        else if (std::is_same<ElemType, double>::value)
             dtype = DataType::DOUBLE;
-        else if (!std::is_same<ElemType, float>::value)
+        else if (std::is_same<ElemType, int>::value)
+            dtype = DataType::INT;
+        else
             RuntimeError("NcclComm Unsupported reduction type");
 
         for (size_t i=0; i<grads.size(); ++i)

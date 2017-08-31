@@ -88,15 +88,25 @@ bool NcclComm::IsSupported()
 void NcclComm::AllReduceImpl(void* inputbuffer, void *outputbuffer, size_t count, DataType dtype, MPI_Op op)
 {
     ncclResult_t res;
-    if (dtype == DataType::FLOAT)
+    class NcclTypeLookup
     {
-        res = ncclAllReduce(inputbuffer, outputbuffer, count, ncclFloat, ncclRedOpFromMpiOp(op), m_ncclComm, m_stream);
-    }
-    else
-    {
-        assert(dtype == DataType::DOUBLE);
-        res = ncclAllReduce(inputbuffer, outputbuffer, count, ncclDouble, ncclRedOpFromMpiOp(op), m_ncclComm, m_stream);
-    }
+        ncclDataType_t ncclTypes[DataType::COUNT];
+    public:
+        NcclTypeLookup()
+        {
+            ncclTypes[DataType::FLOAT]  = ncclFloat;
+            ncclTypes[DataType::DOUBLE] = ncclDouble;
+            ncclTypes[DataType::INT]    = ncclInt;
+        }
+        Lookup(DataType dtype)
+        {
+            return ncclTypes[dtype];
+        }
+    };
+
+    static NcclTypeLookup s_ncclTypeLookup;
+
+    res = ncclAllReduce(inputbuffer, outputbuffer, count, s_ncclTypeLookup.Lookup(dtype), ncclRedOpFromMpiOp(op), m_ncclComm, m_stream);
 
     if (res != ncclSuccess)
         RuntimeError("NcclComm ncclAllReduce failed: %s", ncclGetErrorString(res));
