@@ -48,9 +48,13 @@ public:
     {
 #ifdef USE_NCCL
         DataType dtype = DataType::FLOAT;
-        if (std::is_same<ElemType, double>::value)
+        if (std::is_same<ElemType, float>::value)
+            dtype = DataType::FLOAT;
+        else if (std::is_same<ElemType, double>::value)
             dtype = DataType::DOUBLE;
-        else if (!std::is_same<ElemType, float>::value)
+        else if (std::is_same<ElemType, int>::value)
+            dtype = DataType::INT;
+        else
             RuntimeError("NcclComm Unsupported reduction type");
 
         AllReduceImpl(inputBuffer, outputBuffer, count, dtype, op);
