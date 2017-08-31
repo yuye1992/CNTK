@@ -4711,12 +4711,12 @@ namespace CNTK
         CNTK_API Dictionary& GetOptions() { return m_additionalOptions.dictOptions; }
         CNTK_API const Dictionary& GetOptions() const { return m_additionalOptions.dictOptions; }
 
-        ///In the litature, usually the learner parameters, such as the learning rates, moumentum and momentum variance, 
+        ///In the litature, usually the learner parameters, such as the learning rates, moumentum and momentum variance,
         ///are chosen for the specified minibatch size. However, for efficient impelmentation and for distributed training,
         ///CNTK can vary the actual minibatch sizes for better computational efficiency. Therefore CNTK allows users to set
-        ///the reference minibatch size, CNTK will try its best to adjust the learning parameters internally to match the 
+        ///the reference minibatch size, CNTK will try its best to adjust the learning parameters internally to match the
         ///behavior of the learning parameters with the specified specified minibatch size while the actualy minibatch size
-        ///can vary for better computational performance. If refMinibatchSize is set to 0, CNTK will apply the parameters 
+        ///can vary for better computational performance. If refMinibatchSize is set to 0, CNTK will apply the parameters
         ///over the whole minibatch as it is without any underlying scaling. 
         ///Note the underlying TrainingParameterSchedule's reference minibatch size setting can over this reference minibatch size
         ///setting and be specialized to its own reference minibatch size. However, this is only suggested for advanced

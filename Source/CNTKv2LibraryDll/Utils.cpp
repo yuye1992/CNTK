@@ -270,7 +270,7 @@ namespace CNTK
     }
 
     template <typename T>
-    TrainingParameterSchedule<T>::TrainingParameterSchedule(T value, size_t refMinibatchSize) 
+    TrainingParameterSchedule<T>::TrainingParameterSchedule(T value, size_t refMinibatchSize)
         : m_schedule({ make_pair(0, value) }), m_epochSize(FullDataSweep), mRefMinibatchSize(refMinibatchSize)
     {
     }
@@ -322,9 +322,8 @@ namespace CNTK
     {
         for (auto& entry : m_schedule)
         {
-            T new_val = func(entry.second);
-            entry.second = new_val;
-            entry;
+            T newVal = func(entry.second);
+            entry.second = newVal;
         }
         return *this;
     }
