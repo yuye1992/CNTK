@@ -8,6 +8,8 @@
 namespace CNTK
 {
     const int c_VectorizationWidth = 8;
+    const int c_BlockSize = 256;
+    const int c_UnrollSize = 8;
 
     inline Halide::Func MatrixByVectorTimes(Halide::Func matrix, Halide::Func vec, int matrixRowDimension, int matrixColumnDimension)
     {
@@ -23,37 +25,74 @@ namespace CNTK
             return output;
         }
 
+        Halide::Var i("i" + suffix), j("j" + suffix);
+
         Halide::Func partial("MatrixByVectorTimesPartial" + suffix);
-        Halide::Var matrixRowIndex("matrixRowIndex" + suffix);
-        Halide::Var matrixSubColumnIndex("matrixSubColumnIndex" + suffix);
         Halide::RDom k1(0, matrixColumnDimension / c_VectorizationWidth);
 
-        Halide::Expr partialMul = vec(matrixSubColumnIndex + (k1 * c_VectorizationWidth)) * matrix(matrixSubColumnIndex + (k1 * c_VectorizationWidth), matrixRowIndex);
-        partial(matrixSubColumnIndex, matrixRowIndex) = Halide::sum(partialMul, "partialSum");
-        partial.bound(matrixSubColumnIndex, 0, c_VectorizationWidth);
+        Halide::Func prod("prod" + suffix);
+        prod(j, i) = vec(j) * matrix(j, i);
+
+        partial(j, i) += prod(j + (k1 * c_VectorizationWidth), i);
 
         Halide::Func head("MatrixByVectorTimesHead" + suffix);
         Halide::RDom k2(0, c_VectorizationWidth);
-        head(matrixRowIndex) = Halide::sum(partial(k2, matrixRowIndex), "headSum");
+        head(i) += partial(k2, i);
 
-        Halide::Func tail("VectorByMatrixTimesTail" + suffix);
+        //Halide::Func tail("VectorByMatrixTimesTail" + suffix);
         Halide::RDom k3((matrixColumnDimension / c_VectorizationWidth) * c_VectorizationWidth, matrixColumnDimension % c_VectorizationWidth);
-        auto tailMul = vec(k3) * matrix(k3, matrixRowIndex);
-        tail(matrixRowIndex) = Halide::sum(tailMul, "tailSum");
+        //auto tailMul = vec(k3) * matrix(k3, i);
+        //tail(i) = Halide::sum(tailMul, "tailSum");
 
         Halide::Func output("MatrixByVectorTimes" + suffix);
-        output(matrixRowIndex) = head(matrixRowIndex) + tail(matrixRowIndex);
+        //output(i) = head(i) + tail(i);
+        output(i) = head(i);
+        output(i) += prod(k3, i);
+
+        Halide::Var t;
+        output.bound(i, 0, matrixRowDimension);
+
+        output
+            .specialize(Halide::Expr(matrixRowDimension) >= c_VectorizationWidth)
+            .vectorize(i, c_VectorizationWidth, Halide::TailStrategy::GuardWithIf)
+            .specialize(Halide::Expr(matrixRowDimension) >= c_BlockSize)
+            .split(i, t, i, c_BlockSize / c_VectorizationWidth);
+
+        output
+            .update()
+            .specialize(Halide::Expr(matrixRowDimension) >= c_VectorizationWidth)
+            .vectorize(i, c_VectorizationWidth, Halide::TailStrategy::GuardWithIf)
+            .specialize(Halide::Expr(matrixRowDimension) >= c_BlockSize)
+            .split(i, t, i, c_BlockSize / c_VectorizationWidth);
 
         // Schedule
         vec.compute_root();
-        partial.bound(matrixSubColumnIndex, 0, c_VectorizationWidth);
-        partial.compute_at(output, matrixRowIndex)
-            .vectorize(matrixSubColumnIndex, c_VectorizationWidth)
-            .unroll(matrixSubColumnIndex);
+        partial.bound(j, 0, c_VectorizationWidth);
+        partial.compute_at(output, i)
+            .unroll(j)
+            //.unroll(i)
+            .update()
+            .reorder(j, i, k1)
+            //.unroll(i)
+            .unroll(j);
 
-        output.bound(matrixRowIndex, 0, matrixRowDimension);
+        head.compute_at(output, i);
+        //    .update().unroll(i);
+
+        partial
+            .vectorize(j, c_VectorizationWidth)
+            .update()
+            .vectorize(j, c_VectorizationWidth);
+
+        if (matrixRowDimension >= c_VectorizationWidth)
+        {
+            head.vectorize(i, c_VectorizationWidth, Halide::TailStrategy::GuardWithIf);
+            head.update().vectorize(i, c_VectorizationWidth, Halide::TailStrategy::GuardWithIf);
+        }
+
+        //output.bound(i, 0, matrixRowDimension);
         output.compute_root().output_buffer().set_bounds(0, 0, matrixRowDimension);
-        output.vectorize(matrixRowIndex, c_VectorizationWidth).parallel(matrixRowIndex);
+        //output.vectorize(i, c_VectorizationWidth);
         return output;
     }
 
