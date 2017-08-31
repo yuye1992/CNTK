@@ -53,6 +53,7 @@ namespace CNTK
 
         output.bound(matrixRowIndex, 0, matrixRowDimension);
         output.compute_root().output_buffer().set_bounds(0, 0, matrixRowDimension);
+        output.vectorize(matrixRowIndex, c_VectorizationWidth).parallel(matrixRowIndex);
         return output;
     }
 
