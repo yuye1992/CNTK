@@ -44,7 +44,7 @@ typedef unsigned char byte;
 
 // special markers in BlockId2ColOrRow()/ColOrRow2BlockId()
 static const GPUSPARSE_INDEX_TYPE SparseIndex_NotAssigned = -1;
-static const GPUSPARSE_INDEX_TYPE SparseIndex_Pending = INT_MAX;
+static const GPUSPARSE_INDEX_TYPE SparseIndex_Pending = -2;
 
 namespace Microsoft { namespace MSR { namespace CNTK {
 

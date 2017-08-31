@@ -450,7 +450,9 @@ namespace CNTK
     {
         if (m_mpi->NumNodesInUse() == 1) // No need to aggregate anything.
             return;
-
+#ifdef CPUONLY
+        LogicError("Unimplmented sparse block column aggregation on CPUDevice");
+#else
         // a handy struct to access sparse block column matrix internal data
         struct SBCInfo
         {
@@ -587,6 +589,7 @@ namespace CNTK
             }
         }
         m_mpi->WaitAll(); // wait until all aggregation finished
+#endif
     }
 
     void MPICommunicatorImpl::Barrier()

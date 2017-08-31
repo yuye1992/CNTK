@@ -38,7 +38,7 @@ public:
     void Sync(); // waits for outstanding reductions to complete
     
     template <typename ElemType>
-    void AllReduce(ElemType* inputBuffer, ElemType* outputBuffer, size_t count, MPI_Op op)
+    void AllReduce(ElemType* inputBuffer, ElemType* outputBuffer, size_t count, MPI_Op op = MPI_SUM)
     {
 #ifdef USE_NCCL
         DataType dtype = DataType::FLOAT;
@@ -54,7 +54,7 @@ public:
     }
 
     template <typename ElemType>
-    void AllReduce(const std::vector<Matrix<ElemType>*>& grads, MPI_Op op)
+    void AllReduce(const std::vector<Matrix<ElemType>*>& grads, MPI_Op op = MPI_SUM)
     {
 #ifdef USE_NCCL
         DataType dtype = DataType::FLOAT;
