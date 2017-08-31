@@ -53,6 +53,9 @@ namespace CNTK
             const std::vector<NDArrayViewPtr>& values,
             const std::unordered_set<DistributedWorkerDescriptor>& sendToWorkers) override;
 
+        virtual void AllReduceSparseBlockColumn(
+            std::vector<NDArrayViewPtr>& sbcValues) override;
+
         virtual void Aggregate(
             const std::vector<NDArrayViewPtr>& inValues,
             std::vector<NDArrayViewPtr>& outValues,
@@ -92,6 +95,8 @@ namespace CNTK
 
         // NcclComm
         std::unique_ptr<Microsoft::MSR::CNTK::NcclComm> m_nccl;
+
+        std::vector<Buffer> m_intermediateSBCIndexCPUBuffers;
 
     protected:
         DeviceDescriptor GetNonCPUDevice(const std::vector<NDArrayViewPtr>& values)

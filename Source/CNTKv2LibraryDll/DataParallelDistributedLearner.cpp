@@ -165,34 +165,7 @@ namespace CNTK
 
             if (!sparseValuesToAggregate.empty())
             {
-                //m_communicator->AggregateSBCInPlace(sparseValuesToAggregate, m_communicator->Workers());
-
-                /*
-                    const float* nzFloat;
-                    const double* nzDouble;
-                    const SparseIndexType* blockId2Col;
-                    const SparseIndexType* col2BlockId;
-                    size_t numBlocks;
-                    if (sparseValue->GetDataType() == DataType::Float)
-                    {
-                        auto tuple = sparseValue->SparseBlockColumnDataBuffers<float>();
-                        nzFloat = std::get<0>(tuple);
-                        blockId2Col = std::get<1>(tuple);
-                        col2BlockId = std::get<2>(tuple);
-                        numBlocks = std::get<3>(tuple);
-                    }
-                    else if (sparseValue->GetDataType() == DataType::Double)
-                    {
-                        auto tuple = sparseValue->SparseBlockColumnDataBuffers<double>();
-                        nzDouble = std::get<0>(tuple);
-                        blockId2Col = std::get<1>(tuple);
-                        col2BlockId = std::get<2>(tuple);
-                        numBlocks = std::get<3>(tuple);
-                    }
-
-                    // all_gather to broadcast non-zero gradients
-                    // aggregate the gradients
-                */
+                m_communicator->AllReduceSparseBlockColumn(sparseValuesToAggregate);
             }
         }
 

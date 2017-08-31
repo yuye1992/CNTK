@@ -38,8 +38,13 @@ typedef unsigned char byte;
 #define MINLOGEXP -9.2103
 #define LSMALL -0.5E10
 
+// TODO: merge these two types
 #define GPUSPARSE_INDEX_TYPE int // cuSparse only supports int array indexes
 #define CPUSPARSE_INDEX_TYPE int // to be consistent with cuSparse but limited the possible size of the matrix.
+
+// special markers in BlockId2ColOrRow()/ColOrRow2BlockId()
+static const GPUSPARSE_INDEX_TYPE SparseIndex_NotAssigned = -1;
+static const GPUSPARSE_INDEX_TYPE SparseIndex_Pending = INT_MAX;
 
 namespace Microsoft { namespace MSR { namespace CNTK {
 

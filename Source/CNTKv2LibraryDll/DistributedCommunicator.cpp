@@ -445,7 +445,151 @@ namespace CNTK
         UnpackFromContinuousBuffer(m_aggregationBufferDouble.get(), outputValues, packedDoubleGradientsIndex);
     }
 
-    void  MPICommunicatorImpl::Barrier()
+    void MPICommunicatorImpl::AllReduceSparseBlockColumn(
+        std::vector<NDArrayViewPtr>& sbcValues)
+    {
+        if (m_mpi->NumNodesInUse() == 1) // No need to aggregate anything.
+            return;
+
+        // a handy struct to access sparse block column matrix internal data
+        struct SBCInfo
+        {
+            const float* nzFloat;
+            const double* nzDouble;
+            const SparseIndexType* blockId2Col;
+            const SparseIndexType* col2BlockId;
+            size_t numBlocks;
+            size_t numRows;
+            size_t numCols;
+
+            SBCInfo(NDArrayViewPtr sbc)
+            {
+                if (sbc->Device() == DeviceDescriptor::CPUDevice())
+                    LogicError("Unimplmented sparse block column aggregation on CPUDevice");
+
+                if (sbc->GetDataType() == DataType::Float)
+                {
+                    auto tuple = sbc->SparseBlockColumnDataBuffers<float>();
+                    nzFloat = std::get<0>(tuple);
+                    nzDouble = nullptr;
+                    blockId2Col = std::get<1>(tuple);
+                    col2BlockId = std::get<2>(tuple);
+                    numBlocks = std::get<3>(tuple);
+                    numRows = std::get<4>(tuple);
+                    numCols = std::get<5>(tuple);
+                }
+                else if (sbc->GetDataType() == DataType::Double)
+                {
+                    auto tuple = sbc->SparseBlockColumnDataBuffers<double>();
+                    nzFloat = nullptr;
+                    nzDouble = std::get<0>(tuple);
+                    blockId2Col = std::get<1>(tuple);
+                    col2BlockId = std::get<2>(tuple);
+                    numBlocks = std::get<3>(tuple);
+                    numRows = std::get<4>(tuple);
+                    numCols = std::get<5>(tuple);
+                }
+                else
+                    LogicError("MPICommunicator: Unknown DataType.");
+            }
+        };
+
+        // First, AllReduce(Max) to get the aggregated non-zero columns
+        std::vector<MPI_Request> indexAllReduceRequests;
+        std::vector<SBCInfo> sbcInfos;
+        for (auto sbc : sbcValues)
+        {
+            SBCInfo sbcInfo(sbc);
+
+            AllReduceData<SparseIndexType>(
+                const_cast<SparseIndexType*>(sbcInfo.col2BlockId),
+                const_cast<SparseIndexType*>(sbcInfo.col2BlockId),
+                sbcInfo.numCols,
+                indexAllReduceRequests,
+                false,
+                MPI_MAX);
+
+            sbcInfos.push_back(sbcInfo);
+        }
+
+        if (m_nccl->IsSupported())
+        {
+            m_nccl->Sync();
+        }
+
+        size_t numIndexAllReduceRequestsCompleted = 0;
+        while (numIndexAllReduceRequestsCompleted < indexAllReduceRequests.size())
+        {
+            int idx = MPI_UNDEFINED;
+            m_mpi->WaitAny(indexAllReduceRequests.data(), (int)indexAllReduceRequests.size(), &idx);
+
+            if (idx == MPI_UNDEFINED)
+            {
+                break;
+            }
+
+            numIndexAllReduceRequestsCompleted++;
+
+            assert(idx < sbcValues.size());
+            auto sbc = sbcValues[idx];
+
+            // copy to CPU to count aggregated columns and allocate space for values
+            auto& sbcInfo = sbcInfos[idx];
+            SparseIndexType* aggregatedCol2BlockId = nullptr;
+
+            auto requiredSize = sbcInfo.numCols * sizeof(SparseIndexType);
+            auto allocateSize = 2 * requiredSize; // we allocate intermediate CPU buffer for both Col2BlockId and BlockId2Col
+            if (m_intermediateSBCIndexCPUBuffers[idx].totalSize < allocateSize)
+                m_intermediateSBCIndexCPUBuffers[idx] = AllocateIntermediateBuffer(sbc->Device().Id(), allocateSize);
+            aggregatedCol2BlockId = reinterpret_cast<SparseIndexType*>(m_intermediateSBCIndexCPUBuffers[idx].data.get());
+            cudaMemcpy(aggregatedCol2BlockId, sbcInfo.col2BlockId, requiredSize, cudaMemcpyDeviceToHost);
+
+            // update col2blockId and count blocks
+            size_t numBlocks = 0;
+            for (size_t col = 0; col < sbcInfo.numCols; col++)
+            {
+                if (aggregatedCol2BlockId[col] != SparseIndex_NotAssigned)
+                {
+                    // note that the order has been changed after aggregation. This is to make sure the indices are the same for all workers
+                    aggregatedCol2BlockId[col] = numBlocks;
+                    numBlocks++;
+                }
+            }
+
+            // adjust sbc with the new col2BlockId
+            sbc->AdjustSparseBlockColumn(aggregatedCol2BlockId, numBlocks);
+        }
+
+        // aggregate nzvalue
+        std::vector<MPI_Request> nzvalueAllReduceRequests;
+        for (auto sbc : sbcValues)
+        {
+            // update the info as nzvalue may got reallocated
+            SBCInfo sbcInfo(sbc);
+
+            if (sbc->GetDataType() == DataType::Float)
+            {
+                AllReduceData<float>(
+                    const_cast<float*>(sbcInfo.nzFloat),
+                    const_cast<float*>(sbcInfo.nzFloat),
+                    sbcInfo.numRows * sbcInfo.numBlocks,
+                    nzvalueAllReduceRequests,
+                    false);
+            }
+            else
+            {
+                AllReduceData<double>(
+                    const_cast<double*>(sbcInfo.nzDouble),
+                    const_cast<double*>(sbcInfo.nzDouble),
+                    sbcInfo.numRows * sbcInfo.numBlocks,
+                    nzvalueAllReduceRequests,
+                    false);
+            }
+        }
+        m_mpi->WaitAll(); // wait until all aggregation finished
+    }
+
+    void MPICommunicatorImpl::Barrier()
     {
         m_mpi->WaitAll();
     }
