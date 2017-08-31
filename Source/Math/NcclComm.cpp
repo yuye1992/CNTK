@@ -21,15 +21,11 @@ static void operator||(cudaError_t rc, const char *msg)
 
 ncclRedOp_t ncclRedOpFromMpiOp(MPI_Op op)
 {
-    switch (op)
-    {
-    case MPI_SUM: return ncclSum;
-    case MPI_MAX: return ncclMax;
-    case MPI_MIN: return ncclMin;
-    case MPI_PROD: return ncclProd;
-    default:
-        RuntimeError("Invalid MPI_Op %d", op);
-    }
+    if (op == MPI_SUM) return ncclSum;
+    else if (op == MPI_MAX) return ncclMax;
+    else if (op == MPI_MIN) return ncclMin;
+    else if (op == MPI_PROD) return ncclProd;
+    else RuntimeError("Invalid MPI_Op");
 }
 
 NcclComm::NcclComm(int deviceId, const MPIWrapperPtr& mpi)
