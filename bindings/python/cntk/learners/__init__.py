@@ -33,8 +33,7 @@ from ..internal.swig_helper import map_if_possible
 class UnitType(Enum):
 
     '''
-    deprecated:: 2.2
-      UnitType is deprecated.
+    Deprecated.
 
     Indicates whether the values in the schedule are specified on the per-sample or
     per-minibatch basis.
@@ -331,10 +330,51 @@ def training_parameter_schedule(schedule, ref_minibatch_size = None, epoch_size=
     raise ValueError(
         'schedule must be either a float or a list, not %s' % type(schedule))
 
+@typemap
+def learning_parameter_schedule(schedule, ref_minibatch_size=0, epoch_size=None):
+    '''
+    Create a learning parameter schedule.
+
+    Args:
+        schedule (float or list): if float, is the parameter schedule to be used
+         for all samples. In case of list [p_1, p_2, .., p_n], the i-th parameter p_i in the list is used as the
+         value from the (``epoch_size`` * (i-1) + 1)-th sample to the (``epoch_size`` * i)-th sample. If list contains 
+         pair, i.e. [(num_epoch_1, p_1), (num_epoch_n, p_2), .., (num_epoch_n, p_n)], the i-th parameter is used as a 
+         value from the (``epoch_size`` * (num_epoch_0 + ... + num_epoch_2 + ... + num_epoch_(i-1) + 1)-th sample to the 
+         (``epoch_size`` * num_epoch_i)-th sample (taking num_epoch_0 = 0 as a special initialization).
+        ref_minibatch_size (int): an integer to specify the reference minibatch size that schedule are designed for; 
+         CNTK will scale the schedule internally so as to simulate the behavior of the schedule as much as possible
+         to match the designed effect. 
+        epoch_size (int): see parameter ``epoch_size`` in
+         :func:`training_parameter_schedule`.
+
+    Returns:
+        learning parameter schedule
+    '''
+    if isinstance(schedule, cntk_py.training_double_parameter_schedule):
+        return schedule
+
+    if isinstance(schedule, (int, float)):
+        if epoch_size is not None:
+            warnings.warn('When providing the schedule as a number, epoch_size is ignored', RuntimeWarning)
+        schedule = cntk_py.training_double_parameter_schedule(*[schedule, ref_minibatch_size])
+        return schedule
+
+    epoch_size = epoch_size if epoch_size is not None else cntk_py.training_double_parameter_schedule.full_data_sweep
+    if isinstance(schedule, list):
+        schedule = _prepare_training_parameter_list(schedule)
+        args = [schedule, epoch_size, ref_minibatch_size]
+        schedule = cntk_py.training_double_parameter_schedule(*args)
+        return schedule
+
+    raise ValueError(
+        'schedule must be either a float or a list, not %s' % type(schedule))
 
 @typemap
 def learning_rate_schedule(lr, ref_minibatch_size = None, epoch_size=None, unit=None):
     '''
+    Deprecated. 
+    
     Create a learning rate schedule (using the same semantics as
     :func:`training_parameter_schedule`).
 
@@ -364,6 +404,8 @@ def learning_rate_schedule(lr, ref_minibatch_size = None, epoch_size=None, unit=
 @typemap
 def momentum_schedule(momentum, epoch_size=None, ref_minibatch_size = None):
     '''
+    Deprecated. 
+    
     Create a per-minibatch momentum schedule (using the same semantics as
     :func:`training_parameter_schedule` with the `unit=UnitType.minibatch`).
 
@@ -632,7 +674,7 @@ def momentum_sgd(parameters, lr, momentum, unit_gain=default_unit_gain_value(),
     _verify_momentum_type(momentum)
     gaussian_noise_injection_std_dev = \
         training_parameter_schedule(
-            gaussian_noise_injection_std_dev, UnitType.minibatch)
+            gaussian_noise_injection_std_dev)
 
     additional_options = cntk_py.AdditionalLearningOptions()
     additional_options.l1_regularization_weight = l1_regularization_weight
@@ -706,7 +748,7 @@ def nesterov(parameters, lr, momentum, unit_gain=default_unit_gain_value(),
     _verify_momentum_type(momentum)
     gaussian_noise_injection_std_dev = \
         training_parameter_schedule(
-            gaussian_noise_injection_std_dev, UnitType.minibatch)
+            gaussian_noise_injection_std_dev)
 
     additional_options = cntk_py.AdditionalLearningOptions()
     additional_options.l1_regularization_weight = l1_regularization_weight
@@ -768,7 +810,7 @@ def adadelta(parameters, lr=learning_rate_schedule(1, UnitType.sample), rho=0.95
     '''
     gaussian_noise_injection_std_dev = \
         training_parameter_schedule(
-            gaussian_noise_injection_std_dev, UnitType.minibatch)
+            gaussian_noise_injection_std_dev)
     lr, ref_minibatch_size = _infer_learning_rate_schedule_and_ref_minibatch_size(use_mean_gradient, ref_minibatch_size, lr)
 
     additional_options = cntk_py.AdditionalLearningOptions()
@@ -835,7 +877,7 @@ def adagrad(parameters, lr, need_ave_multiplier=True,
     lr, ref_minibatch_size = _infer_learning_rate_schedule_and_ref_minibatch_size(use_mean_gradient, ref_minibatch_size, lr)
     gaussian_noise_injection_std_dev = \
         training_parameter_schedule(
-            gaussian_noise_injection_std_dev, UnitType.minibatch)
+            gaussian_noise_injection_std_dev)
 
     additional_options = cntk_py.AdditionalLearningOptions()
     additional_options.l1_regularization_weight = l1_regularization_weight
@@ -906,7 +948,7 @@ def fsadagrad(parameters, lr, momentum, unit_gain=default_unit_gain_value(),
     _verify_momentum_type(variance_momentum)
     gaussian_noise_injection_std_dev = \
         training_parameter_schedule(
-            gaussian_noise_injection_std_dev, UnitType.minibatch)
+            gaussian_noise_injection_std_dev)
 
     additional_options = cntk_py.AdditionalLearningOptions()
     additional_options.l1_regularization_weight = l1_regularization_weight
@@ -986,7 +1028,7 @@ def adam(parameters, lr, momentum, unit_gain=default_unit_gain_value(),
     _verify_momentum_type(variance_momentum)
     gaussian_noise_injection_std_dev = \
         training_parameter_schedule(
-            gaussian_noise_injection_std_dev, UnitType.minibatch)
+            gaussian_noise_injection_std_dev)
 
     additional_options = cntk_py.AdditionalLearningOptions()
     additional_options.l1_regularization_weight = l1_regularization_weight
@@ -1052,7 +1094,7 @@ def rmsprop(parameters, lr,
 
     gaussian_noise_injection_std_dev = \
         training_parameter_schedule(
-            gaussian_noise_injection_std_dev, UnitType.minibatch)
+            gaussian_noise_injection_std_dev)
 
     additional_options = cntk_py.AdditionalLearningOptions()
     additional_options.l1_regularization_weight = l1_regularization_weight
