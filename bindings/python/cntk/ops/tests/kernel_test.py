@@ -576,26 +576,26 @@ def test_conv_cudnn_batch_size_change(device_id):
 
 FREE_STATIC_AXES_CONVOLUTION_DATA = [
     # 2D convolution with single free static axis.
-    ([5, 101, 151], # warmup_input_size: Defines the input size used for first run with free static axes. 3- and 4-element vector for 2D and 3D convolution, respectively. 
+    ([3, 101, 151], # warmup_input_size: Defines the input size used for first run with free static axes. 3- and 4-element vector for 2D and 3D convolution, respectively. 
      [200],         # free_dimension_increment: Increments to the input size for the second/actual/test run. Length defines the number of free static axes.
      [5, 5],        # filter_size: kernel size for convolution. Length defines 2D or 3D convolution.
-     128            # num_output_channels
+     32            # num_output_channels
      ),
     # 2D convolution with two free static axes.
     ([3, 51, 101], 
-     [100, 121], 
+     [30, 20], 
      [3, 3], 
-     128
+     64
      ),
     # 3D convolution with three free static axes.
     ([3, 51, 101, 71],
-     [100, 21, 31],
+     [10, 20, 40],
      [3, 3, 3],
-     16
+     8
      ),
     # 3D convolution with two free static axes.
     ([5, 51, 61, 91],
-     [20, 12],
+     [6, 8],
      [3, 3, 3],
      8
      ),
@@ -603,7 +603,7 @@ FREE_STATIC_AXES_CONVOLUTION_DATA = [
     ([2, 101, 121, 151],
      [10],
      [3, 3, 3],
-     8
+     4
      )
 ]
 # This test point exercises 2D and 3D convolution with single and multiple free static axes, and ensures that the result is the same as with fixed axes.
@@ -647,11 +647,11 @@ def test_conv_free_static_axes(warmup_input_size, free_dimension_increment, filt
 
 FREE_STATIC_AXES_WITH_DYNAMIC_AXIS_CONVOLUTION_DATA = [    
     # 2D convolution with two free static axes and one batch (dynamic) axis.
-    ([3, 51, 71], # warmup_input_size: Defines the input size used for first run with free static axes. 3- and 4-element vector for 2D and 3D convolution, respectively.
+    ([3, 31, 51], # warmup_input_size: Defines the input size used for first run with free static axes. 3- and 4-element vector for 2D and 3D convolution, respectively.
      [10, 12],    # free_dimension_increment: Increments to the input size for the second/actual/test run. Length defines the number of free static axes.
      [3, 3],      # filter_size: kernel size for convolution. Length defines 2D or 3D convolution.
-     32,          # num_output_channels
-     [4, 33]      # Half-open range for random selection of of batch-sizes (for reference and warmup)
+     16,          # num_output_channels
+     [2, 10]      # Half-open range for random selection of of batch-sizes (for reference and warmup)
      ),        
 ]
 # This test point exercises convolution with multiple free static axes and batch (dynamic) axis), and ensures that the result is the same as with fixed axes.
@@ -736,10 +736,10 @@ def test_convolution_dilated(input_size, conv_size, result, device_id, precision
 
 FREE_STATIC_AXES_SEQUENCE_UNPACK_CONVOLUTION_DATA = [    
     # Convolution with free static axes using sequence unpack.
-    (8,         # num_features: Defines the input size used for first run with free static axes. 3- and 4-element vector for 2D and 3D convolution, respectively.
-     8,         # sequence_len: Number of sequences.
+    (6,         # num_features: Defines the input size used for first run with free static axes. 3- and 4-element vector for 2D and 3D convolution, respectively.
+     4,         # sequence_len: Number of sequences.
      [3, 3],    # filter_size: kernel size for convolution. Length defines 2D or 3D convolution.
-     16,        # num_output_channels
+     8,        # num_output_channels
      2          # batch_size
      )
 ]
