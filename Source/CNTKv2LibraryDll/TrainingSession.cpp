@@ -57,7 +57,7 @@ namespace CNTK
         const MinibatchSourcePtr& crossValidationSource,
         const MinibatchSizeSchedule& crossValidationSchedule,
         size_t crossValidationFrequency,
-        DataUnit crossValidationFrequencyUnit = DataUnit::Sample,
+        DataUnit crossValidationFrequencyUnit,
         size_t maxSamples,
         const std::unordered_map<Variable, StreamInformation>& inputVarToStream):
         m_source(crossValidationSource),

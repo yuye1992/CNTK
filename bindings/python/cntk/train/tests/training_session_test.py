@@ -271,6 +271,27 @@ def test_session_progress_print(tmpdir, device_id):
 
     assert(writer.training_summary_counter == 6)
 
+def test_session_progress_print_on_minibatch_unit(tmpdir, device_id):
+    device = cntk_device(device_id)
+    writer = MockProgressWriter()
+    t, feature, label = create_sample_model(device, writer)
+    mbs = mb_source(tmpdir, "training", max_samples=INFINITELY_REPEAT)
+
+    input_map = {
+        feature: mbs.streams.features,
+        label: mbs.streams.labels
+    }
+
+    test_dir = str(tmpdir)
+
+    C.training_session(
+        trainer=t, mb_source=mbs,
+        mb_size=C.minibatch_size_schedule(4),
+        model_inputs_to_streams=input_map, max_samples=60,
+        progress_frequency=(10, cntk_py.DataUnit_Minibatch)
+    ).train(device)
+
+    assert(writer.training_summary_counter == 15)
 
 def test_session_restart_from_end_checkpoint(tmpdir, device_id):
     device = cntk_device(device_id)
