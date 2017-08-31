@@ -98,7 +98,7 @@ void NcclComm::AllReduceImpl(void* inputbuffer, void *outputbuffer, size_t count
             ncclTypes[(int)DataType::DOUBLE] = ncclDouble;
             ncclTypes[(int)DataType::INT]    = ncclInt;
         }
-        Lookup(DataType dtype)
+        ncclDataType_t Lookup(DataType dtype)
         {
             return ncclTypes[(int)dtype];
         }
