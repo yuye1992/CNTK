@@ -33,11 +33,11 @@ from ..internal.swig_helper import map_if_possible
 class UnitType(Enum):
 
     '''
-    Indicates whether the values in the schedule are specified on the per-sample or
-    per-minibatch basis.
-    
     deprecated:: 2.2
       UnitType is deprecated.
+
+    Indicates whether the values in the schedule are specified on the per-sample or
+    per-minibatch basis.
     '''
 
     sample = 'sample'

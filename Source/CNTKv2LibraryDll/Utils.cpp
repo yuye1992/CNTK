@@ -270,14 +270,14 @@ namespace CNTK
     }
 
     template <typename T>
-    TrainingParameterSchedule<T>::TrainingParameterSchedule(T value, size_t ref_mbsize) 
-        : m_schedule({ make_pair(0, value) }), m_epochSize(FullDataSweep), m_ref_mbsize(ref_mbsize)
+    TrainingParameterSchedule<T>::TrainingParameterSchedule(T value, size_t refMinibatchSize) 
+        : m_schedule({ make_pair(0, value) }), m_epochSize(FullDataSweep), mRefMinibatchSize(refMinibatchSize)
     {
     }
 
     template <typename T>
     TrainingParameterSchedule<T>::TrainingParameterSchedule(const vector<T>& schedule, size_t epochSize, size_t ref_mbsize)
-        : m_epochSize(epochSize), m_ref_mbsize(ref_mbsize)
+        : m_epochSize(epochSize), mRefMinibatchSize(ref_mbsize)
     {
         std::vector<std::pair<size_t, T>> s(schedule.size());
         for (auto i = 0; i < schedule.size(); ++i)
@@ -289,8 +289,8 @@ namespace CNTK
     }
 
     template <typename T>
-    TrainingParameterSchedule<T>::TrainingParameterSchedule(const vector<std::pair<size_t, T>>& schedule, size_t epochSize, size_t ref_mbsize)
-        :  m_epochSize(epochSize), m_ref_mbsize(ref_mbsize)
+    TrainingParameterSchedule<T>::TrainingParameterSchedule(const vector<std::pair<size_t, T>>& schedule, size_t epochSize, size_t refMinibatchSize)
+        :  m_epochSize(epochSize), mRefMinibatchSize(refMinibatchSize)
     {
         ConstructSchedule(schedule);
     }
@@ -353,7 +353,7 @@ namespace CNTK
     // cannot be defaulted due to a bug in VS2013 (https://connect.microsoft.com/VisualStudio/feedback/details/1255564)
     template <typename T>
     TrainingParameterSchedule<T>::TrainingParameterSchedule(TrainingParameterSchedule<T>&& that)
-        :m_schedule(move(that.m_schedule)), m_epochSize(that.m_epochSize), m_ref_mbsize(that.m_ref_mbsize)
+        :m_schedule(move(that.m_schedule)), m_epochSize(that.m_epochSize), mRefMinibatchSize(that.mRefMinibatchSize)
     {
     }
 
@@ -366,7 +366,7 @@ namespace CNTK
     {
         m_schedule = move(that.m_schedule);
         m_epochSize = that.m_epochSize;
-        m_ref_mbsize = that.m_ref_mbsize;
+        mRefMinibatchSize = that.mRefMinibatchSize;
         return *this;
     }
 
@@ -384,7 +384,7 @@ namespace CNTK
         dict[versionKey] = CurrentVersion();
         dict[typeKey] = s_trainingParameterScheduleTypeValue;
         dict[epochSizeKey] = m_epochSize;
-        dict[refMBSizeKey] = m_ref_mbsize;
+        dict[refMBSizeKey] = mRefMinibatchSize;
         dict[scheduleKey] = schedule;
         return dict;
     }
@@ -422,7 +422,7 @@ namespace CNTK
     TrainingParameterSchedule<T>::TrainingParameterSchedule(const Dictionary& dictionary)
     {
         m_epochSize = dictionary[epochSizeKey].Value<size_t>();
-        m_ref_mbsize = dictionary[refMBSizeKey].Value<size_t>();
+        mRefMinibatchSize = dictionary[refMBSizeKey].Value<size_t>();
         Dictionary schedule = dictionary[scheduleKey].Value<Dictionary>();
         for (const auto& kv : schedule)
         {
