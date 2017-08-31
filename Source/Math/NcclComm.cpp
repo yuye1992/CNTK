@@ -90,7 +90,7 @@ void NcclComm::AllReduceImpl(void* inputbuffer, void *outputbuffer, size_t count
     ncclResult_t res;
     class NcclTypeLookup
     {
-        ncclDataType_t ncclTypes[DataType::COUNT];
+        ncclDataType_t ncclTypes[(int)DataType::COUNT];
     public:
         NcclTypeLookup()
         {
