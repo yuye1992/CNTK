@@ -31,35 +31,39 @@ namespace CNTK
 
     CheckpointConfig::CheckpointConfig(
         const std::wstring& checkPointFileName,
-        size_t checkpointFrequencyInSamples,
+        size_t checkpointFrequency,
+        DataUnit checkpointFrequencyUnit,
         bool restoreFromCheckpointIfExists,
         bool preserveAllCheckpoints) :
         m_preserveAll(preserveAllCheckpoints),
         m_restore(restoreFromCheckpointIfExists),
         m_fileName(checkPointFileName),
-        m_frequency(checkpointFrequencyInSamples)
+        m_frequency(checkpointFrequency),
+        m_frequencyUnit(checkpointFrequencyUnit)
     {
         if (m_fileName.empty())
         {
-            if (checkpointFrequencyInSamples != 0 && checkpointFrequencyInSamples != std::numeric_limits<size_t>::max())
+            if (checkpointFrequency != 0 && checkpointFrequency != std::numeric_limits<size_t>::max())
                 InvalidArgument("Checkpoint file name must not be empty if checkpoint frequency is non zero.");
 
             if (preserveAllCheckpoints)
                 InvalidArgument("Checkpoint file name must not be empty if 'preserve all checkpoints' option is specified.");
 
-            checkpointFrequencyInSamples = 0;
+            checkpointFrequency = 0;
         }
     }
 
     CrossValidationConfig::CrossValidationConfig(
         const MinibatchSourcePtr& crossValidationSource,
         const MinibatchSizeSchedule& crossValidationSchedule,
-        size_t crossValidationFrequencyInSamples,
+        size_t crossValidationFrequency,
+        DataUnit crossValidationFrequencyUnit = DataUnit::Sample,
         size_t maxSamples,
         const std::unordered_map<Variable, StreamInformation>& inputVarToStream):
         m_source(crossValidationSource),
         m_mbSize(crossValidationSchedule),
-        m_frequency(crossValidationFrequencyInSamples),
+        m_frequency(crossValidationFrequency),
+        m_frequencyUnit(crossValidationFrequencyUnit),
         m_maxSamples(maxSamples),
         m_varToStream(inputVarToStream)
     {
@@ -82,6 +86,7 @@ namespace CNTK
         const std::unordered_map<Variable, StreamInformation>& inputVarToStream,
         size_t maxNumTrainingSamples,
         size_t progressFrequency,
+        DataUnit progressFrequencyUnit,
         const CheckpointConfig& checkpointing,
         const CrossValidationConfig& crossValidation,
         const TestConfig& test)
@@ -92,6 +97,7 @@ namespace CNTK
             inputVarToStream,
             maxNumTrainingSamples,
             progressFrequency,
+            progressFrequencyUnit,
             checkpointing, crossValidation, test);
     }
 
@@ -102,6 +108,7 @@ namespace CNTK
         const std::unordered_map<Variable, StreamInformation>& inputVarToStream,
         size_t maxNumTrainingSamples,
         size_t progressFrequency,
+        DataUnit progressFrequencyUnit,
         const CheckpointConfig& checkpointing,
         const CrossValidationConfig& crossValidation,
         const TestConfig& test) :
@@ -111,6 +118,7 @@ namespace CNTK
         m_varToStream(inputVarToStream),
         m_maxNumSamples(maxNumTrainingSamples),
         m_progressFrequency(progressFrequency),
+        m_progressFrequencyUnit(progressFrequencyUnit),
         m_checkpoint(checkpointing),
         m_cv(crossValidation),
         m_parallelAfterSamples(0),
@@ -149,7 +157,7 @@ namespace CNTK
 
         // Fill-in required actions.
         if (m_checkpoint.m_frequency != 0)
-            m_actions.push_back({ m_checkpoint.m_frequency, 0, 0,
+            m_actions.push_back({ m_checkpoint.m_frequency, m_checkpoint.m_frequencyUnit, 0, 0,
                 [this](size_t currentIndex, const DeviceDescriptor&)
                 {
                     SaveCheckpoint(currentIndex);
@@ -164,12 +172,12 @@ namespace CNTK
         // Report progress before we run cross validation if any.
         if (m_progressFrequency != 0)
         {
-            m_actions.push_back({ m_progressFrequency, 0, 0,
+            m_actions.push_back({ m_progressFrequency, m_progressFrequencyUnit, 0, 0,
                 [this](size_t currentIndex, const DeviceDescriptor&) { ReportProgress(currentIndex); return true; } });
         }
 
         if (m_cv.m_frequency != 0)
-            m_actions.push_back({ m_cv.m_frequency , 0, 0,
+            m_actions.push_back({ m_cv.m_frequency, m_cv.m_frequencyUnit, 0, 0,
                 [this](size_t currentIndex, const DeviceDescriptor& d) { return CrossValidate(currentIndex, d); } });
     }
 
@@ -212,17 +220,18 @@ namespace CNTK
 #endif
 
             // Peform actions if required.
-            size_t totalNumberOfSamples = Trainer()->TotalNumberOfSamplesSeen();
             for (auto& action : m_actions)
             {
-                size_t index = totalNumberOfSamples / action.frequency;
+                size_t totalNumberOfUnitCounts = Trainer()->TotalNumberOfUnitsSeen(action.frequencyUnit);
+
+                size_t index = totalNumberOfUnitCounts / action.frequency;
                 if (index != action.currentIndex)
                 {
                     // If any action wants to have early exit - we stop training.
                     earlyExit |= !action.action(action.currentIndex, computeDevice);
 
                     action.currentIndex = index;
-                    action.sampleCountWhenLastCalled = totalNumberOfSamples;
+                    action.unitCountWhenLastCalled = totalNumberOfUnitCounts;
                 }
             }
         }
@@ -232,8 +241,9 @@ namespace CNTK
             // Let's do all actions on the last probably a partial data at the end.
             for (auto& action: m_actions)
             {
-                if (Trainer()->TotalNumberOfSamplesSeen() % action.frequency != 0 &&
-                    Trainer()->TotalNumberOfSamplesSeen() != action.sampleCountWhenLastCalled)
+                size_t totalUnitCounts = Trainer()->TotalNumberOfUnitsSeen(action.frequencyUnit);
+                if (totalUnitCounts % action.frequency != 0 &&
+                    totalUnitCounts != action.unitCountWhenLastCalled)
                     action.action(action.currentIndex, computeDevice);
             }
         }
@@ -489,7 +499,7 @@ namespace CNTK
         for (auto& action : m_actions)
         {
             action.currentIndex = totalNumberOfSamples / action.frequency;
-            action.sampleCountWhenLastCalled = totalNumberOfSamples - totalNumberOfSamples % action.frequency;
+            action.unitCountWhenLastCalled = totalNumberOfSamples - totalNumberOfSamples % action.frequency;
         }
     }
 }

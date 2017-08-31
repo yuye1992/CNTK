@@ -182,7 +182,8 @@ class TrainingSession(cntk_py.TrainingSession):
         mb_size (:class:`~cntk.cntk_py.minibatch_size_schedule` or int): minibatch size schedule for training
         model_inputs_to_streams (dict): mapping between input variables and input streams
         max_samples (int): maximum number of samples used for training
-        progress_frequency (int): frequency in samples for aggregated progress printing
+        progress_frequency (int): the number of samples, minibatches, sweeps of epochs per which aggregated progress is printed
+        progress_frequency_unit (:class:`~cntk.DataUnit`): data unit that is used to count the frequency, 
         checkpoint_config (:class:`CheckpointConfig`): checkpoint configuration
         cv_config (:class:`CrossValidationConfig`): cross validation configuration
         test_config (:class:`TestConfig`): test configuration
@@ -190,6 +191,7 @@ class TrainingSession(cntk_py.TrainingSession):
     def __init__(self, trainer, mb_source, mb_size,
                  model_inputs_to_streams, max_samples,
                  progress_frequency, 
+                 progress_frequency_unit,
                  checkpoint_config,
                  cv_config,
                  test_config):
@@ -230,6 +232,7 @@ class TrainingSession(cntk_py.TrainingSession):
         super(TrainingSession, self).__init__(trainer, mb_source, schedule,
             model_inputs_to_streams, max_samples,  
             progress_frequency, 
+            progress_frequency_unit,
             checkpoint_config,
             cv_config,
             test_config)

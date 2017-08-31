@@ -244,7 +244,7 @@ namespace CNTK
         }
 
         auto currentWorkerNumSamples = m_prevMinibatchNumSamples;
-        auto prevTotalNumSamples = TotalNumberOfSamplesSeen();
+        auto prevTotalNumSamples = TotalNumberOfUnitsSeen(DataUnit::Sample);
 
         MinibatchInfo info{ arguments.empty(), sweepEnd, m_prevMinibatchNumSamples, trainingLoss, evalCriterion };
         bool updated = m_parameterLearners->Update(gradients, info);
@@ -260,7 +260,7 @@ namespace CNTK
 
         // Did we do a distributed sync?
         // We determine this by checking if the increase in total #samples is > #samples processed by local worker
-        auto currentTotalNumSamples = TotalNumberOfSamplesSeen();
+        auto currentTotalNumSamples = TotalNumberOfUnitsSeen(DataUnit::Sample);
         if ((currentTotalNumSamples - prevTotalNumSamples) > currentWorkerNumSamples)
         {
             for (auto& progressWriter : m_progressWriters)
@@ -512,6 +512,24 @@ namespace CNTK
     size_t Trainer::TotalNumberOfSamplesSeen() const
     {
         return m_parameterLearners->ParameterLearners().front()->TotalNumberOfSamplesSeen();
+    }
+
+    size_t Trainer::TotalNumberOfUnitsSeen(DataUnit unit) const
+    {
+        switch(unit) 
+        {
+        case DataUnit::Minibatch:
+            return m_parameterLearners->ParameterLearners().front()->TotalNumberOfMinibatchesSeen();
+            break;
+        case DataUnit::Sweep:
+            return m_parameterLearners->ParameterLearners().front()->TotalNumberOfSweepsSeen();
+            break;
+        case DataUnit::Sample:
+            return m_parameterLearners->ParameterLearners().front()->TotalNumberOfSamplesSeen();
+        default:
+            //should not be here; whenever a new data unit is defined, there should be a new case in this function.
+            LogicError("Unsupported data unit: %d", unit);
+        }
     }
 
     TrainerPtr CreateTrainer(const FunctionPtr& model, const FunctionPtr& lossFunction, const std::vector<LearnerPtr>& parameterLearners,
