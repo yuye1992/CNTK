@@ -50,21 +50,29 @@ namespace CNTK
         info.trainingLossValue = MakeSharedObject<NDArrayView>(0, dataType, NDShape{}, DeviceDescriptor::CPUDevice());
     }
 
-    void DistributedLearnerBase::ConvertToOrdered(const std::unordered_map<Parameter, NDArrayViewPtr>& gradientValues, std::vector<std::pair<Parameter, NDArrayViewPtr>>& result)
+    void DistributedLearnerBase::ConvertToOrdered(const std::unordered_map<Parameter, NDArrayViewPtr>& gradientValues, std::vector<std::pair<Parameter, NDArrayViewPtr>>& result, std::unordered_map<Parameter, NDArrayViewPtr>* convertedGradientValues)
     {
         result.reserve(gradientValues.size());
         result.clear();
+        convertedGradientValues->clear();
         for (auto g : gradientValues)
         {
             NDArrayViewPtr p = g.second;
             // convert sparse gradient to dense for accumulation
             if (m_convertSparseToDense && p->GetStorageFormat() != StorageFormat::Dense)
             {
+                if (convertedGradientValues == nullptr)
+                    LogicError("Unexpected sparse to dense conversion in aggregation");
+
                 NDArrayViewPtr pDense = MakeSharedObject<NDArrayView>(0, p->GetDataType(), p->Shape(), p->Device());
                 pDense->CopyFrom(*p);
                 p = pDense;
             }
-            result.push_back(std::make_pair(g.first, p));
+            auto pair = std::make_pair(g.first, p);
+            result.push_back(pair);
+
+            if (convertedGradientValues)
+                convertedGradientValues->insert(pair);
         }
 
         std::sort(result.begin(), result.end(),
