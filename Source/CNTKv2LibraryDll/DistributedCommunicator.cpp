@@ -14,6 +14,7 @@
 #include "GPUDataTransferer.h"
 #include <numeric>
 #include "Utils.h"
+#include "PerformanceProfiler.h"
 
 using namespace Microsoft::MSR::CNTK;
 
@@ -303,6 +304,8 @@ namespace CNTK
         if (numValues == 0)
             return;
 
+        auto profGradientPacking = Microsoft::MSR::CNTK::ProfilerTimeBegin();
+
         std::vector<NDArrayViewPtr> valuesToAggregate; // Corresponding to inputValues
         std::vector<NDArrayViewPtr> valuesAfterAggregate; // Corresponding to outputValues
         size_t packedFloatGradientsSizeInBytes = 0;
@@ -339,6 +342,10 @@ namespace CNTK
         PackToContinuousBuffer(m_aggregationBufferFloat.get(), packedFloatGradientsIndex, inputValues, outputValues, valuesToAggregate, valuesAfterAggregate);
         PackToContinuousBuffer(m_aggregationBufferDouble.get(), packedDoubleGradientsIndex, inputValues, outputValues, valuesToAggregate, valuesAfterAggregate);
 
+        Microsoft::MSR::CNTK::ProfilerTimeEnd(profGradientPacking, "Gradient aggregation packing");
+
+        auto profGradientCopy = Microsoft::MSR::CNTK::ProfilerTimeBegin();
+
         numValues = valuesToAggregate.size();
 
         Initialize(valuesToAggregate);
@@ -364,6 +371,10 @@ namespace CNTK
 
         // For all values residing on GPU initiate async transfer to CPU buffers if needed
         CopyDataFromGPUToCPU(valuesToAggregate);
+
+        Microsoft::MSR::CNTK::ProfilerTimeEnd(profGradientCopy, "Gradient copy");
+
+        auto profGradientAllReduce = Microsoft::MSR::CNTK::ProfilerTimeBegin();
 
         std::vector<MPI_Request> allReduceRequests;
         for (auto i = 0; i < numValues; ++i)
@@ -402,10 +413,15 @@ namespace CNTK
                 LogicError("MPICommunicator: Unknown DataType.");
         }
 
+        Microsoft::MSR::CNTK::ProfilerTimeEnd(profGradientAllReduce, "Gradient all reduce");
+
         if (m_nccl->IsSupported())
         {
+            auto profGradientSync = Microsoft::MSR::CNTK::ScopeProfile("Gradient NCCL sync");
             m_nccl->Sync();
         }
+
+        auto profGradientCopyBack = Microsoft::MSR::CNTK::ProfilerTimeBegin();
 
         // wait for async all reduce to complete. As soon as one of the requests is finished,
         // check if corresponding value is gpu bound and, if it is the case, initiate a cpu-to-gpu transfer.
@@ -433,6 +449,11 @@ namespace CNTK
                 transferer->CopyCPUToGPUAsync(buffer.data.get(), size, GetDataBuffer(view));
             }
         }
+
+        Microsoft::MSR::CNTK::ProfilerTimeEnd(profGradientCopyBack, "Gradient copy back");
+
+        auto profGradientWaitCopyBack = Microsoft::MSR::CNTK::ProfilerTimeBegin();
+
         // TODO: Should not wait, simply publishing event on the compute stream should be sufficient
         for (auto i = 0; i < numValues; ++i)
         {
@@ -440,9 +461,15 @@ namespace CNTK
                 m_gpuDataTransferers[i]->WaitForCopyCPUToGPUAsync();
         }
 
+        Microsoft::MSR::CNTK::ProfilerTimeEnd(profGradientWaitCopyBack, "Gradient wait copy back");
+
+        auto profGradientUnpack = Microsoft::MSR::CNTK::ProfilerTimeBegin();
+
         // Unpack the continuous buffer
         UnpackFromContinuousBuffer(m_aggregationBufferFloat.get(), outputValues, packedFloatGradientsIndex);
         UnpackFromContinuousBuffer(m_aggregationBufferDouble.get(), outputValues, packedDoubleGradientsIndex);
+
+        Microsoft::MSR::CNTK::ProfilerTimeEnd(profGradientUnpack, "Gradient unpack");
     }
 
     void MPICommunicatorImpl::AllReduceSparseBlockColumn(
