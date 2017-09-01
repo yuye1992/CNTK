@@ -23,37 +23,45 @@ namespace CNTK
             return output;
         }
 
-        Halide::Func partial("MatrixByVectorTimesPartial" + suffix);
-        Halide::Var matrixRowIndex("matrixRowIndex" + suffix);
-        Halide::Var matrixSubColumnIndex("matrixSubColumnIndex" + suffix);
+        Halide::Var i("i" + suffix), j("j" + suffix);
+        Halide::Func prod("prod" + suffix);
+        prod(j, i) = vec(j) * matrix(j, i);
+
+        Halide::Func partial("partial" + suffix);
         Halide::RDom k1(0, matrixColumnDimension / c_VectorizationWidth);
+        partial(j, i) += prod(j + (k1 * c_VectorizationWidth), i);
 
-        Halide::Expr partialMul = vec(matrixSubColumnIndex + (k1 * c_VectorizationWidth)) * matrix(matrixSubColumnIndex + (k1 * c_VectorizationWidth), matrixRowIndex);
-        partial(matrixSubColumnIndex, matrixRowIndex) = Halide::sum(partialMul, "partialSum");
-        partial.bound(matrixSubColumnIndex, 0, c_VectorizationWidth);
-
-        Halide::Func head("MatrixByVectorTimesHead" + suffix);
+        Halide::Func head("head" + suffix);
         Halide::RDom k2(0, c_VectorizationWidth);
-        head(matrixRowIndex) = Halide::sum(partial(k2, matrixRowIndex), "headSum");
+        head(i) += partial(k2, i);
 
-        Halide::Func tail("VectorByMatrixTimesTail" + suffix);
+        Halide::Func output("res" + suffix);
         Halide::RDom k3((matrixColumnDimension / c_VectorizationWidth) * c_VectorizationWidth, matrixColumnDimension % c_VectorizationWidth);
-        auto tailMul = vec(k3) * matrix(k3, matrixRowIndex);
-        tail(matrixRowIndex) = Halide::sum(tailMul, "tailSum");
+        output(i) = head(i);
+        output(i) += prod(k3, i);
 
-        Halide::Func output("MatrixByVectorTimes" + suffix);
-        output(matrixRowIndex) = head(matrixRowIndex) + tail(matrixRowIndex);
+        output.bound(i, 0, matrixRowDimension);
 
         // Schedule
         vec.compute_root();
-        partial.bound(matrixSubColumnIndex, 0, c_VectorizationWidth);
-        partial.compute_at(output, matrixRowIndex)
-            .vectorize(matrixSubColumnIndex, c_VectorizationWidth)
-            .unroll(matrixSubColumnIndex);
+        partial.bound(j, 0, c_VectorizationWidth);
+        partial.compute_at(output, i)
+            .vectorize(j, c_VectorizationWidth)
+            .unroll(j)
+            .update()
+            .vectorize(j, c_VectorizationWidth)
+            .unroll(j);
 
-        output.bound(matrixRowIndex, 0, matrixRowDimension);
+        head.compute_at(output, i);
+        if (matrixRowDimension >= c_VectorizationWidth)
+        {
+            head.vectorize(i, c_VectorizationWidth, Halide::TailStrategy::GuardWithIf);
+            head.update()
+                .vectorize(i, c_VectorizationWidth, Halide::TailStrategy::GuardWithIf);
+            output.vectorize(i, c_VectorizationWidth, Halide::TailStrategy::GuardWithIf);
+        }
+
         output.compute_root().output_buffer().set_bounds(0, 0, matrixRowDimension);
-        output.vectorize(matrixRowIndex, c_VectorizationWidth).parallel(matrixRowIndex);
         return output;
     }
 
