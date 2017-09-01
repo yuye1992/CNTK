@@ -6,14 +6,11 @@
 """
 Classes and functions for expression generation from a CNTK model.
 """
-from cntk import *
-from cntk import cntk_py
 from pdb import set_trace
-import cntk.variables
 import networkx as nx
 import itertools
 import functools
-import json
+from model_transforms import *
 
 class NodeVisitor:
     '''
@@ -35,11 +32,12 @@ class NodeVisitor:
             nodes(list): uids of nodes for evaluation. Nodes are evaluated
               in the given list order.
         '''
-        from cntk import cntk_py
+        for node in nodes:
+            if not isinstance(node, ModelNode):
+                self.visit_node(node)
+                continue
 
-        for n in nodes:
-            node = self.graph.node[n]['data']
-            if isinstance(node, cntk_py.Function):
+            if node.is_function:
                 if not node.is_primitive:
                     raise ValueError('Unexpected non primitive function %s' % node)
                 self.visit_primitive_function(node)
@@ -52,7 +50,7 @@ class NodeVisitor:
             elif node.is_output:
                 self.visit_output(node)
             else:
-                self.visit_node(node)
+                raise ValueError('Unexpected node')
 
     def visit_parameter(self, node):
         raise NotImplemented()
