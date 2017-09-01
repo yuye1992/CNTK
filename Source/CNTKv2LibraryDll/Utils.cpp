@@ -334,23 +334,23 @@ namespace CNTK
 
     // cannot be defaulted due to a bug in VS2013 (https://connect.microsoft.com/VisualStudio/feedback/details/1255564)
     template <typename T>
-    TrainingParameterSchedule<T>::TrainingParameterSchedule(TrainingParameterSchedule<T>&& that)
-        :m_schedule(move(that.m_schedule)), m_epochSize(that.m_epochSize), mRefMinibatchSize(that.mRefMinibatchSize)
-    {
-    }
+    TrainingParameterSchedule<T>::TrainingParameterSchedule(TrainingParameterSchedule<T>&& that) = default;
+    //    :m_schedule(move(that.m_schedule)), m_epochSize(that.m_epochSize), mRefMinibatchSize(that.mRefMinibatchSize)
+    //{
+    //}
 
     template <typename T>
     TrainingParameterSchedule<T>& TrainingParameterSchedule<T>::operator=(const TrainingParameterSchedule<T>& that) = default;
  
     // cannot be defaulted due to a bug in VS2013 (https://connect.microsoft.com/VisualStudio/feedback/details/1255564)
     template <typename T>
-    TrainingParameterSchedule<T>& TrainingParameterSchedule<T>::operator=(TrainingParameterSchedule<T>&& that)
-    {
-        m_schedule = move(that.m_schedule);
-        m_epochSize = that.m_epochSize;
-        mRefMinibatchSize = that.mRefMinibatchSize;
-        return *this;
-    }
+    TrainingParameterSchedule<T>& TrainingParameterSchedule<T>::operator=(TrainingParameterSchedule<T>&& that) = default;
+    //{
+    //    m_schedule = move(that.m_schedule);
+    //    m_epochSize = that.m_epochSize;
+    //    mRefMinibatchSize = that.mRefMinibatchSize;
+    //    return *this;
+    //}
 
     static const std::wstring s_trainingParameterScheduleTypeValue = L"TrainingParameterSchedule";
 
