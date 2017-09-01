@@ -525,9 +525,9 @@ namespace CNTK
             m_PastValue82.set(m_bufferPastValue82[((timestamp - 1) % m_bufferPastValue82.size())]);
             m_bufferTimestamp(0) = timestamp;
             Halide::Target t;
-            t = Halide::get_jit_target_from_environment();
-                //.with_feature(Halide::Target::Profile)
-                //.with_feature(Halide::Target::NoAsserts)
+            t = Halide::get_jit_target_from_environment()
+                //.with_feature(Halide::Target::Profile);
+                .with_feature(Halide::Target::NoAsserts);
             m_graph.realize({ ScaledLogLikelihood, m_bufferPastValue112[timestamp % m_bufferPastValue112.size()], m_bufferPastValue198[timestamp % m_bufferPastValue198.size()], m_bufferPastValue228[timestamp % m_bufferPastValue228.size()], m_bufferPastValue314[timestamp % m_bufferPastValue314.size()], m_bufferPastValue344[timestamp % m_bufferPastValue344.size()], m_bufferPastValue430[timestamp % m_bufferPastValue430.size()], m_bufferPastValue460[timestamp % m_bufferPastValue460.size()], m_bufferPastValue82[timestamp % m_bufferPastValue82.size()] }, t);
         }
 
