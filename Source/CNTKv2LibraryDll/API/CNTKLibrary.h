@@ -4718,13 +4718,19 @@ namespace CNTK
         CNTK_API void SetRefMinibatchSize(std::size_t refMinibatchSize) { GetOptions().Add(RefMBSizeK, refMinibatchSize); }
         CNTK_API std::size_t GetRefMinibatchSize() const { return GetOptions().GetOrElse(RefMBSizeK, UnspecifiedRefMinibatchSize); }
 
-        ///Return whether the learner is in literature compatible mode to use mean gradient and potentially other adjustment of the parameters if necessary.
+        CNTK_API void SetLearningRateSchedule(const LearningRateSchedule& learningRateSchedule) { m_learningRateSchedule = learningRateSchedule; }
+        CNTK_API const LearningRateSchedule& GetLearningRateSchedule() const { return m_learningRateSchedule; }
+
+        ///
+        ///Return whether the learner is in literature compatible mode to use mean gradient and potentially other adjustment 
+        ///of the parameters if necessary.
+        ///Individual schedule can override the learner's setting.
         CNTK_API bool IsCompatibleMode() const
         {
             return GetRefMinibatchSize() == UnspecifiedRefMinibatchSize;
         }
 
-        ///Return whether the learner is in literature compatible mode to use mean gradient and potentially other adjustment of the parameters if necessary.
+        ///Return whether the learning schedule indicates a literature compatible mode to use mean gradient and potentially other adjustment of the parameters if necessary.
         template<typename T>
         static bool IsCompatibleMode(const TrainingParameterSchedule<T>& schedule) 
         {

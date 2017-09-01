@@ -96,6 +96,8 @@
 %attribute(CNTK::TrainingParameterSchedule<double>, std::size_t, ref_minibatch_size, GetRefMinibatchSize, SetRefMinibatchSize);
 %attribute(CNTK::TrainingParameterSchedule<std::size_t>, std::size_t, ref_minibatch_size, GetRefMinibatchSize, SetRefMinibatchSize);
 %attribute(CNTK::Learner, std::size_t, ref_minibatch_size, GetRefMinibatchSize, SetRefMinibatchSize);
+// for internal test purpose
+%attribute(CNTK::Learner, CNTK::LearningRateSchedule, _learning_rate_schedule, GetLearningRateSchedule, SetLearningRateSchedule);
 
 %ignore CNTK::GetCheckedMode;
 
