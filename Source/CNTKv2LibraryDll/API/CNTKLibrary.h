@@ -746,7 +746,7 @@ namespace CNTK
         ///
         /// adjusts the sparse block column matrix with the new Col2BlockId
         ///
-        void AdjustSparseBlockColumn(const SparseIndexType* cpuCol2BlockId, size_t numBlocks);
+        CNTK_API void AdjustSparseBlockColumn(const SparseIndexType* cpuCol2BlockId, size_t numBlocks);
 
         ///
         /// Returns the descriptor of the device that 'this' view resides on
