@@ -90,6 +90,118 @@ BOOST_AUTO_TEST_CASE(XorOperation)
     BOOST_REQUIRE_CLOSE_FRACTION(result31, result21, 0.01);
 }
 
+BOOST_AUTO_TEST_CASE(HaliveVsMlp)
+{
+    // Not a real test yet, a manual check that
+    // quantized output looks the same as in MLP.
+    const int InputDimension = 80;
+    const int OutputDimension = 9404;
+
+    QuantizedLstmSpeechEvaluator qe;
+    qe.init("LstmSpeechEvaluator.json");
+
+    // Input
+    const int NumberOfFrames = 80;
+    std::vector<float> frame = 
+    {
+        0.336803824f,
+        0.390805095f,
+        0.511451483f,
+        0.427405655f,
+        0.0278947111f,
+        0.000000000f,
+        0.000000000f,
+        0.0269803014f,
+        0.167097509f,
+        0.315470099f,
+        0.379547745f,
+        0.359533519f,
+        0.389804989f,
+        0.487798691f,
+        0.529781878f,
+        0.554115415f,
+        0.505439460f,
+        0.400578171f,
+        0.285043806f,
+        0.309477210f,
+        0.0319889635f,
+        0.000000000f,
+        0.000000000f,
+        0.000000000f,
+        0.000000000f,
+        0.000000000f,
+        0.000000000f,
+        0.000000000f,
+        0.000000000f,
+        0.000000000f,
+        0.000000000f,
+        0.000000000f,
+        0.000000000f,
+        0.000000000f,
+        0.000000000f,
+        0.000000000f,
+        0.000000000f,
+        0.000000000f,
+        0.000000000f,
+        0.000000000f,
+        0.000000000f,
+        0.000000000f,
+        0.000000000f,
+        0.000000000f,
+        0.000000000f,
+        0.000000000f,
+        0.406772763f,
+        0.792660713f,
+        1.05635154f,
+        1.27690935f,
+        1.40350020f,
+        1.38595510f,
+        0.950824618f,
+        0.000000000f,
+        0.000000000f,
+        0.0610411242f,
+        1.01292658f,
+        1.82237661f,
+        2.64981270f,
+        3.15758562f,
+        3.15416884f,
+        2.32574773f,
+        0.991042674f,
+        2.11878896f,
+        2.16958523f,
+        0.696103752f,
+        1.97473192f,
+        2.22087717f,
+        1.42947054f,
+        3.30909586f,
+        3.59500527f,
+        2.33565593f,
+        3.54734874f,
+        3.98422337f,
+        3.40557742f,
+        3.85401320f,
+        3.68012881f,
+        2.35471392f,
+        0.900254428f,
+        2.35498857f,
+    };
+
+    Halide::ImageParam features(Halide::type_of<float>(), 1);
+
+    features.set(Halide::Buffer<float>(frame.data(), InputDimension));
+
+    std::vector<float> out;
+    out.resize(OutputDimension);
+    Halide::Buffer<float> result(out.data(), OutputDimension);
+
+    qe.Evaluate(0, features, result);
+
+    for (size_t i = 0; i < out.size(); ++i)
+        std::cout << out[i] << std::endl;
+
+}
+
+
 BOOST_AUTO_TEST_CASE(SpeechLstmModel)
 {
     const int InputDimension = 80;
