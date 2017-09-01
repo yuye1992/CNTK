@@ -3265,7 +3265,7 @@ __global__ void _adjustCol2BlockId(
 
     int oldBlockId = oldCol2BlockId[id];
     int newBlockId = newCol2BlockId[id];
-    if (newBlockId != SparseIndex_NotAssigned)
+    if (oldBlockId != SparseIndex_NotAssigned)
     {
         newBlockId2Col[newBlockId] = id;
         const ElemType* oldValue = oldNZ + numRows * oldBlockId;

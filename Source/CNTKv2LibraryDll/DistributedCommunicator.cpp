@@ -540,9 +540,8 @@ namespace CNTK
             SparseIndexType* aggregatedCol2BlockId = nullptr;
 
             auto requiredSize = sbcInfo.numCols * sizeof(SparseIndexType);
-            auto allocateSize = 2 * requiredSize; // we allocate intermediate CPU buffer for both Col2BlockId and BlockId2Col
-            if (m_intermediateSBCIndexCPUBuffers[idx].totalSize < allocateSize)
-                m_intermediateSBCIndexCPUBuffers[idx] = AllocateIntermediateBuffer(sbc->Device().Id(), allocateSize);
+            if (m_intermediateSBCIndexCPUBuffers[idx].totalSize < requiredSize)
+                m_intermediateSBCIndexCPUBuffers[idx] = AllocateIntermediateBuffer(sbc->Device().Id(), requiredSize);
             aggregatedCol2BlockId = reinterpret_cast<SparseIndexType*>(m_intermediateSBCIndexCPUBuffers[idx].data.get());
             cudaMemcpy(aggregatedCol2BlockId, sbcInfo.col2BlockId, requiredSize, cudaMemcpyDeviceToHost);
 
