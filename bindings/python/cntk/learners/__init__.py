@@ -29,11 +29,12 @@ from .. import cntk_py, NDArrayView, asarray
 from cntk.internal import typemap
 from ..internal.swig_helper import map_if_possible
 
-
 @unique
 class UnitType(Enum):
 
     '''
+    Deprecated.
+
     Indicates whether the values in the schedule are specified on the per-sample or
     per-minibatch basis.
     '''
@@ -86,8 +87,7 @@ def set_default_use_mean_gradient_value(value):
 
 def _verify_learning_rate_type(learning_rate):
     if not isinstance(learning_rate,
-                      (cntk_py.training_parameter_per_sample_schedule,
-                       cntk_py.training_parameter_per_minibatch_schedule)):
+                      cntk_py.training_double_parameter_schedule):
 
         raise ValueError('learning_rate type (%s) not supported. '
                          'learning_rate must be a training schedule '
@@ -101,8 +101,7 @@ def _verify_learning_rate_type(learning_rate):
 
 def _verify_momentum_type(momentum):
     if not isinstance(momentum,
-                      (cntk_py.training_parameter_per_minibatch_schedule,
-                       cntk_py.momentum_as_time_constant_schedule)):
+                      cntk_py.training_double_parameter_schedule):
 
         raise ValueError('momentum type (%s) not supported. '
                          'momentum must be a training schedule '
@@ -226,27 +225,56 @@ class UserLearner(cntk_py.Learner):
         '''
         raise NotImplementedError('UserLearner.update must be overriden')
 
+def _prepare_training_parameter_list(schedule):
+    if isinstance(schedule, list):
+        return [(1, v) if isinstance(v, (float, int)) else v for v in schedule]
+    else:
+        return schedule
+
+#for back compatibility
+def _infer_and_verify_ref_minibatch_size_and_unit(ref_minibatch_size, unit):
+
+    #For back compatibility: when unit is in the position of ref_minibatch_size of the training_parameter_schedule argument list:
+    if ref_minibatch_size is not None and (isinstance(ref_minibatch_size, UnitType) or (isinstance(ref_minibatch_size, str) and UnitType(ref_minibatch_size) in [UnitType.sample, UnitType.minibatch])):
+        unit = ref_minibatch_size
+        ref_minibatch_size = None
+    is_ref_minibatch_size_explicit = (ref_minibatch_size is not None)
+    unit = UnitType(unit) if unit is not None else unit
+    if unit is not None:
+        is_ref_minibatch_size_explicit = True #by legacy API specification
+        if unit == UnitType.minibatch:
+            #ref_minibatch_size should be 0 or None, otherwise raise error
+            if ref_minibatch_size is not None and ref_minibatch_size != cntk_py.training_double_parameter_schedule.unspecified_ref_minibatch_size:
+                raise ValueError('Backcompatibility error: unit is specified to be per Minibatch but ref_minibatch_size is not specified to be unspecified_ref_minibatch_size.')
+            ref_minibatch_size = cntk_py.training_double_parameter_schedule.unspecified_ref_minibatch_size
+        elif unit == UnitType.sample:
+            if ref_minibatch_size is not None and ref_minibatch_size != 1:
+                raise ValueError('Backcompatibility error: unit is specified to be sample but ref_minibatch_size is not specified to be 1.')
+            ref_minibatch_size = 1
+    if ref_minibatch_size is None:
+        ref_minibatch_size = cntk_py.training_double_parameter_schedule.unspecified_ref_minibatch_size
+    return ref_minibatch_size, unit, is_ref_minibatch_size_explicit
 
 @typemap
-def training_parameter_schedule(schedule, unit, epoch_size=None):
+def training_parameter_schedule(schedule, ref_minibatch_size = None, epoch_size=None, unit=None):
     '''
     Create a training parameter schedule containing either per-sample (default)
     or per-minibatch values.
 
     Examples:
         >>> # Use a fixed value 0.01 for all samples
-        >>> s = training_parameter_schedule(0.01, UnitType.sample)
+        >>> s = training_parameter_schedule(0.01, ref_minibatch_size=1)
         >>> s[0], s[1]
         (0.01, 0.01)
 
         >>> # Use 0.01 for the first 1000 samples, then 0.001 for the remaining ones
-        >>> s = training_parameter_schedule([0.01, 0.001], UnitType.sample, 1000)
+        >>> s = training_parameter_schedule([0.01, 0.001], ref_minibatch_size=1, epoch_size=1000)
         >>> s[0], s[1], s[1000], s[1001]
         (0.01, 0.01, 0.001, 0.001)
 
         >>> # Use 0.1 for the first 12 epochs, then 0.01 for the next 15,
         >>> # followed by 0.001 for the remaining ones, with a 100 samples in an epoch
-        >>> s = training_parameter_schedule([(12, 0.1), (15, 0.01), (1, 0.001)], UnitType.sample, 100)
+        >>> s = training_parameter_schedule([(12, 0.1), (15, 0.01), (1, 0.001)],  ref_minibatch_size=1, epoch_size=100)
         >>> s[0], s[1199], s[1200], s[2699], s[2700], s[5000]
         (0.1, 0.1, 0.01, 0.01, 0.001, 0.001)
 
@@ -255,9 +283,15 @@ def training_parameter_schedule(schedule, unit, epoch_size=None):
          for all samples. In case of list, the elements are used as the
          values for ``epoch_size`` samples. If list contains pair, the second element is
          used as a value for (``epoch_size`` x first element) samples
+        ref_minibatch_size (int): an integer to specify the reference minibatch size that schedule are designed for; 
+          CNTK will scale the schedule internally so as to simulate the behavior of the schedule as much as possible
+          to match the designed effect. 
         unit (:class:`UnitType`): one of two
           * ``sample``: the returned schedule contains per-sample values
           * ``minibatch``: the returned schedule contains per-minibatch values.
+
+            deprecated:: 2.2
+                Use ref_minibatch_size parameter to specify the reference minbiatch size.
         epoch_size (optional, int): number of samples as a scheduling unit.
          Parameters in the schedule change their values every ``epoch_size``
          samples. If no ``epoch_size`` is provided, this parameter is substituted
@@ -272,44 +306,89 @@ def training_parameter_schedule(schedule, unit, epoch_size=None):
     See also:
         :func:`learning_rate_schedule`
     '''
-    if unit == UnitType.sample:
-        if isinstance(schedule, cntk_py.training_parameter_per_sample_schedule):
-            return schedule
-    else:
-        if isinstance(schedule, cntk_py.training_parameter_per_minibatch_schedule):
-            return schedule
+    ref_minibatch_size, unit, is_ref_minibatch_size_explicit = _infer_and_verify_ref_minibatch_size_and_unit(ref_minibatch_size, unit)
+
+    if isinstance(schedule, cntk_py.training_double_parameter_schedule):
+        schedule.is_ref_minibatch_size_explicit = is_ref_minibatch_size_explicit
+        return schedule
 
     if isinstance(schedule, (int, float)):
         if epoch_size is not None:
             warnings.warn('When providing the schedule as a number, epoch_size is ignored', RuntimeWarning)
-        if UnitType(unit) is UnitType.sample:
-            return cntk_py.training_parameter_per_sample_schedule(schedule)
-        else:
-            return cntk_py.training_parameter_per_minibatch_schedule(schedule)
+        schedule = cntk_py.training_double_parameter_schedule(*[schedule, ref_minibatch_size])
+        schedule.is_ref_minibatch_size_explicit = is_ref_minibatch_size_explicit
+        return schedule
 
-    args = [schedule] if epoch_size is None else [schedule, epoch_size]
-
+    epoch_size = epoch_size if epoch_size is not None else cntk_py.training_double_parameter_schedule.full_data_sweep
     if isinstance(schedule, list):
-        if UnitType(unit) is UnitType.sample:
-            return cntk_py.training_parameter_per_sample_schedule(*args)
-        else:
-            return cntk_py.training_parameter_per_minibatch_schedule(*args)
+        schedule = _prepare_training_parameter_list(schedule)
+        args = [schedule, epoch_size, ref_minibatch_size]
+        res = cntk_py.training_double_parameter_schedule(*args)
+        res.is_ref_minibatch_size_explicit = is_ref_minibatch_size_explicit
+        return res
 
     raise ValueError(
         'schedule must be either a float or a list, not %s' % type(schedule))
 
+@typemap
+def learning_parameter_schedule(schedule, ref_minibatch_size=0, epoch_size=None):
+    '''
+    Create a learning parameter schedule.
+
+    Args:
+        schedule (float or list): if float, is the parameter schedule to be used
+         for all samples. In case of list [p_1, p_2, .., p_n], the i-th parameter p_i in the list is used as the
+         value from the (``epoch_size`` * (i-1) + 1)-th sample to the (``epoch_size`` * i)-th sample. If list contains 
+         pair, i.e. [(num_epoch_1, p_1), (num_epoch_n, p_2), .., (num_epoch_n, p_n)], the i-th parameter is used as a 
+         value from the (``epoch_size`` * (num_epoch_0 + ... + num_epoch_2 + ... + num_epoch_(i-1) + 1)-th sample to the 
+         (``epoch_size`` * num_epoch_i)-th sample (taking num_epoch_0 = 0 as a special initialization).
+        ref_minibatch_size (int): an integer to specify the reference minibatch size that schedule are designed for; 
+         CNTK will scale the schedule internally so as to simulate the behavior of the schedule as much as possible
+         to match the designed effect. 
+        epoch_size (int): see parameter ``epoch_size`` in
+         :func:`training_parameter_schedule`.
+
+    Returns:
+        learning parameter schedule
+    '''
+    if isinstance(schedule, cntk_py.training_double_parameter_schedule):
+        return schedule
+
+    if isinstance(schedule, (int, float)):
+        if epoch_size is not None:
+            warnings.warn('When providing the schedule as a number, epoch_size is ignored', RuntimeWarning)
+        schedule = cntk_py.training_double_parameter_schedule(*[schedule, ref_minibatch_size])
+        return schedule
+
+    epoch_size = epoch_size if epoch_size is not None else cntk_py.training_double_parameter_schedule.full_data_sweep
+    if isinstance(schedule, list):
+        schedule = _prepare_training_parameter_list(schedule)
+        args = [schedule, epoch_size, ref_minibatch_size]
+        schedule = cntk_py.training_double_parameter_schedule(*args)
+        return schedule
+
+    raise ValueError(
+        'schedule must be either a float or a list, not %s' % type(schedule))
 
 @typemap
-def learning_rate_schedule(lr, unit, epoch_size=None):
+def learning_rate_schedule(lr, ref_minibatch_size = None, epoch_size=None, unit=None):
     '''
+    Deprecated. 
+    
     Create a learning rate schedule (using the same semantics as
     :func:`training_parameter_schedule`).
 
     Args:
         lr (float or list): see parameter ``schedule`` in
          :func:`training_parameter_schedule`.
+        ref_minibatch_size (int): an integer to specify the reference minibatch size that schedule are designed for; 
+          CNTK will scale the schedule internally so as to simulate the behavior of the schedule as much as possible
+          to match the designed effect. 
         unit (:class:`UnitType`): see parameter
          ``unit`` in :func:`training_parameter_schedule`.
+
+            deprecated:: 2.2
+                Use ref_minibatch_size parameter to specify the reference minbiatch size instead.
         epoch_size (int): see parameter ``epoch_size`` in
          :func:`training_parameter_schedule`.
 
@@ -319,12 +398,14 @@ def learning_rate_schedule(lr, unit, epoch_size=None):
     See also:
         :func:`training_parameter_schedule`
     '''
-    return training_parameter_schedule(lr, unit, epoch_size)
+    return training_parameter_schedule(lr, ref_minibatch_size, epoch_size, unit)
 
 
 @typemap
-def momentum_schedule(momentum, epoch_size=None):
+def momentum_schedule(momentum, epoch_size=None, ref_minibatch_size = None):
     '''
+    Deprecated. 
+    
     Create a per-minibatch momentum schedule (using the same semantics as
     :func:`training_parameter_schedule` with the `unit=UnitType.minibatch`).
 
@@ -333,6 +414,9 @@ def momentum_schedule(momentum, epoch_size=None):
          :func:`training_parameter_schedule`.
         epoch_size (int): see parameter ``epoch_size`` in
          :func:`training_parameter_schedule`.
+        ref_minibatch_size (int): an integer to specify the reference minibatch size that schedule are designed for; 
+          CNTK will scale the schedule internally so as to simulate the behavior of the schedule as much as possible
+          to match the designed effect. 
 
     If you want to provide momentum values in a minibatch-size
     agnostic way, use :func:`momentum_as_time_constant_schedule`.
@@ -357,7 +441,7 @@ def momentum_schedule(momentum, epoch_size=None):
     Returns:
         momentum schedule
     '''
-    return training_parameter_schedule(momentum, UnitType.minibatch, epoch_size)
+    return training_parameter_schedule(momentum, ref_minibatch_size, epoch_size)
 
 
 @typemap
@@ -367,11 +451,26 @@ def momentum_as_time_constant_schedule(momentum, epoch_size=None):
     (using the same semantics as :func:`training_parameter_schedule`
     with `unit=UnitType.sample`).
 
+    Deprecated:: 2.2
+        This is for legacy API.
+        In this legacy API, ::
+
+            momentum_time_constant = -minibatch_size/np.log(momentum_rate)
+            momentum = momentum_as_time_constant_schedule(momentum_time_constant)
+
+        The equivalent code in the latest API, ::
+
+            momentum = momentum_schedule(momentum_rate, ref_minibatch_size = minibatch_size)
+
+
     Args:
         momentum (float or list): see parameter ``schedule`` in
          :func:`training_parameter_schedule`.
         epoch_size (int): see parameter ``epoch_size`` in
          :func:`training_parameter_schedule`.
+        ref_minibatch_size (int): an integer to specify the reference minibatch size that schedule are designed for; 
+          CNTK will scale the schedule internally so as to simulate the behavior of the schedule as much as possible
+          to match the designed effect. 
 
     CNTK specifies momentum in a minibatch-size agnostic way as the time
     constant (in samples) of a unit-gain 1st-order IIR filter. The value
@@ -392,17 +491,25 @@ def momentum_as_time_constant_schedule(momentum, epoch_size=None):
     Returns:
         momentum as time constant schedule
     '''
-    if isinstance(momentum, (cntk_py.momentum_as_time_constant_schedule)):
+    if isinstance(momentum, (cntk_py.training_double_parameter_schedule)):
+        momentum.is_ref_minibatch_size_explicit = False
         return momentum
 
     if isinstance(momentum, (int, float)):
         if epoch_size is not None:
             warnings.warn('When providing the schedule as a number, epoch_size is ignored', RuntimeWarning)
-        return cntk_py.momentum_as_time_constant_schedule(momentum)
+        momentum = cntk_py.momentum_as_time_constant_schedule(momentum)
+        momentum.is_ref_minibatch_size_explicit = False
+        return momentum
 
+    epoch_size = epoch_size if epoch_size is not None else cntk_py.training_double_parameter_schedule.full_data_sweep
     if isinstance(momentum, list):
-        args = [momentum] if epoch_size is None else [momentum, epoch_size]
-        return cntk_py.momentum_as_time_constant_schedule(*args)
+        momentum = _prepare_training_parameter_list(momentum)
+        args = [momentum, epoch_size, 1] #momentum constant schedule's reference minibatch size is always per sample
+        momentum = cntk_py.training_double_parameter_schedule(*args)
+        momentum = cntk_py.momentum_as_time_constant_schedule(momentum)
+        momentum.is_ref_minibatch_size_explicit = False
+        return momentum
 
     raise ValueError(
         'momentum must be either a float or a list, not %s' % type(momentum))
@@ -410,11 +517,58 @@ def momentum_as_time_constant_schedule(momentum, epoch_size=None):
 # TODO figure out how to pass infty to C++ in a portable way
 
 
+def _infer_ref_minibatch_size_from_legacy_use_mean_gradient(ref_minibatch_size, use_mean_gradient):
+    #the legacy parameter will overrride the default None reference minibatch source
+    if use_mean_gradient == True:
+        if ref_minibatch_size is not None and ref_minibatch_size != cntk_py.Learner.unspecified_ref_minibatch_size:
+            Warning(
+                'Learner reference minibatch size is specified while use_mean_gradient (depreated option) is specified to True. Learner reference minibatch size will override the mean gradient behavior')
+            return ref_minibatch_size
+        return cntk_py.Learner.unspecified_ref_minibatch_size
+    else:
+        return ref_minibatch_size
+
+def _infer_training_parameter_schedule(number_or_schedule, ref_minibatch_size):
+    if isinstance(number_or_schedule, (int, float)):
+        #default is per sample if the reference minibatch size is not specified.
+        ref_minibatch_size = 1 if ref_minibatch_size is None else ref_minibatch_size
+        return training_parameter_schedule(number_or_schedule, ref_minibatch_size)
+    elif isinstance(number_or_schedule,
+                      cntk_py.training_double_parameter_schedule):
+        if ref_minibatch_size is not None and not number_or_schedule.is_ref_minibatch_size_explicit:
+            #have the training parameter schedule inherit the learner's reference minibatch size if it is not specified
+            #different reference minibatch source sizes in learner and in the training paramter schedule are for the convenience of advanced users
+            number_or_schedule.ref_minibatch_size = ref_minibatch_size
+        return number_or_schedule
+    else:
+        raise ValueError('training parameter schedule type (%s) not supported. '
+                         'training parameter schedule must be a training schedule '
+                         % type(number_or_schedule))
+
+def _infer_ref_minibatch_size_from_schedule(schedule, ref_minibatch_size):
+    if ref_minibatch_size is None and schedule.is_ref_minibatch_size_explicit:
+        return schedule.ref_minibatch_size
+    else:
+        #if it is not specified in the learning rate schedule explicitly, then take 1 (per sample) as default
+        return ref_minibatch_size if ref_minibatch_size is not None else 1
+
+def _infer_learning_rate_schedule_and_ref_minibatch_size(use_mean_gradient, ref_minibatch_size, lr):
+    #if non-None reference_minibatch_size will take precedence otherwise according use_mean_gradient if it is True
+    ref_minibatch_size = _infer_ref_minibatch_size_from_legacy_use_mean_gradient(ref_minibatch_size, use_mean_gradient)
+    #if ref_minibatch_size is not None, any schedules with unspecified reference minibatch size will be overrided.
+    lr = _infer_training_parameter_schedule(lr, ref_minibatch_size)
+    _verify_learning_rate_type(lr)
+    #As in the legacy API, the learning rate schedule must specify whether it is per sample or per minibatch,
+    #if ref_minibatch_size is None, learner to take the learning rate schedule's reference minibatch size which is either per sample or per minibatch
+    ref_minibatch_size = _infer_ref_minibatch_size_from_schedule(lr, ref_minibatch_size)
+    return lr, ref_minibatch_size
+
 @typemap
 def sgd(parameters, lr,
         l1_regularization_weight=0.0, l2_regularization_weight=0.0,
         gaussian_noise_injection_std_dev=0.0, gradient_clipping_threshold_per_sample=np.inf,
-        gradient_clipping_with_truncation=True, use_mean_gradient=default_use_mean_gradient_value()):
+        gradient_clipping_with_truncation=True, use_mean_gradient=default_use_mean_gradient_value(),
+        ref_minibatch_size=None):
     '''sgd(parameters, lr, l1_regularization_weight=0, l2_regularization_weight=0, gaussian_noise_injection_std_dev=0, gradient_clipping_threshold_per_sample=np.inf, gradient_clipping_with_truncation=True)
     Creates an SGD learner instance to learn the parameters. See [1] for more
     information on how to set the parameters.
@@ -423,7 +577,7 @@ def sgd(parameters, lr,
         parameters (list of parameters): list of network parameters to tune.
          These can be obtained by the '.parameters()' method of the root
          operator.
-        lr (output of :func:`learning_rate_schedule`): learning rate schedule.
+        lr (float, output of :func:`learning_rate_schedule`): a learning rate in float, or a learning rate schedule.
         l1_regularization_weight (float, optional): the L1 regularization weight per sample,
          defaults to 0.0
         l2_regularization_weight (float, optional): the L2 regularization weight per sample,
@@ -437,6 +591,15 @@ def sgd(parameters, lr,
         use_mean_gradient (bool, default ``False``): use averaged gradient as input to learner.
          Defaults to the value returned by :func:`default_use_mean_gradient_value()`.
 
+            deprecated:: 2.2
+                Use ref_minibatch_size parameter to specify the reference minbiatch size.
+        ref_minibatch_size (int, default ``None``): The minibatch size that the learner's parameters are designed or pre-tuned for. This
+         size is usually set to the same as the minibatch data source's size. CNTK will perform automatic scaling of the parameters
+         to enable efficient model parameter update implementation while approximate the behavior of pre-designed and pre-tuned parameters.
+         In case that ref_minibatch_size is not specified, CNTK will inherit the minibatch size from the learning rate schedule;
+         if the learning rate schedule does not specify the ref_minibatch_size, CNTK will set it to 1. Setting ref_minibatch_size to 0
+         will have the parameters apply as it is preventing CNTK performing any parameter scaling.
+
     Returns:
         :class:`~cntk.learners.Learner`: learner instance that can be passed to
         the :class:`~cntk.train.trainer.Trainer`
@@ -446,10 +609,10 @@ def sgd(parameters, lr,
         <https://www.microsoft.com/en-us/research/publication/stochastic-gradient-tricks>`_. Neural
         Networks: Tricks of the Trade: Springer, 2012.
     '''
-    _verify_learning_rate_type(lr)
+    lr, ref_minibatch_size = _infer_learning_rate_schedule_and_ref_minibatch_size(use_mean_gradient, ref_minibatch_size, lr)
     gaussian_noise_injection_std_dev = \
         training_parameter_schedule(
-            gaussian_noise_injection_std_dev, UnitType.minibatch)
+            gaussian_noise_injection_std_dev)
 
     additional_options = cntk_py.AdditionalLearningOptions()
     additional_options.l1_regularization_weight = l1_regularization_weight
@@ -457,7 +620,8 @@ def sgd(parameters, lr,
     additional_options.gaussian_noise_injection_std_dev = gaussian_noise_injection_std_dev
     additional_options.gradient_clipping_threshold_per_sample = gradient_clipping_threshold_per_sample
     additional_options.gradient_clipping_with_truncation = gradient_clipping_with_truncation
-    additional_options.use_mean_gradient = use_mean_gradient
+    if ref_minibatch_size is not None:
+        additional_options.dict_options[cntk_py.Learner.REF_MB_SIZE] = cntk_py.SizeTWrapper(ref_minibatch_size) #need this to make proper typed DictionaryValue
 
     return cntk_py.sgd_learner(parameters, lr, additional_options)
 
@@ -466,7 +630,8 @@ def sgd(parameters, lr,
 def momentum_sgd(parameters, lr, momentum, unit_gain=default_unit_gain_value(),
                  l1_regularization_weight=0.0, l2_regularization_weight=0.0,
                  gaussian_noise_injection_std_dev=0.0, gradient_clipping_threshold_per_sample=np.inf,
-                 gradient_clipping_with_truncation=True, use_mean_gradient=default_use_mean_gradient_value()):
+                 gradient_clipping_with_truncation=True, use_mean_gradient=default_use_mean_gradient_value(),
+                 ref_minibatch_size=None):
     '''momentum_sgd(parameters, lr, momentum, unit_gain=default_unit_gain_value(), l1_regularization_weight=0.0, l2_regularization_weight=0, gaussian_noise_injection_std_dev=0, gradient_clipping_threshold_per_sample=np.inf, gradient_clipping_with_truncation=True)
     Creates a Momentum SGD learner instance to learn the parameters.
 
@@ -491,15 +656,25 @@ def momentum_sgd(parameters, lr, momentum, unit_gain=default_unit_gain_value(),
         use_mean_gradient (bool, default ``False``): use averaged gradient as input to learner.
          Defaults to the value returned by :func:`default_use_mean_gradient_value()`.
 
+            deprecated:: 2.2
+                Use ref_minibatch_size parameter to specify the reference minbiatch size.
+        ref_minibatch_size (int, default ``None``): The minibatch size that the learner's parameters are designed or pre-tuned for. This
+         size is usually set to the same as the minibatch data source's size. CNTK will perform automatic scaling of the parameters
+         to enable efficient model parameter update implementation while approximate the behavior of pre-designed and pre-tuned parameters.
+         In case that ref_minibatch_size is not specified, CNTK will inherit the minibatch size from the learning rate schedule;
+         if the learning rate schedule does not specify the ref_minibatch_size, CNTK will set it to 1. Setting ref_minibatch_size to 0
+         will have the parameters apply as it is preventing CNTK performing any parameter scaling.
+
     Returns:
         :class:`~cntk.learners.Learner`: learner instance that can be passed to
         the :class:`~cntk.train.trainer.Trainer`
     '''
-    _verify_learning_rate_type(lr)
+    lr, ref_minibatch_size = _infer_learning_rate_schedule_and_ref_minibatch_size(use_mean_gradient, ref_minibatch_size, lr)
+    momentum = _infer_training_parameter_schedule(momentum, ref_minibatch_size)
     _verify_momentum_type(momentum)
     gaussian_noise_injection_std_dev = \
         training_parameter_schedule(
-            gaussian_noise_injection_std_dev, UnitType.minibatch)
+            gaussian_noise_injection_std_dev)
 
     additional_options = cntk_py.AdditionalLearningOptions()
     additional_options.l1_regularization_weight = l1_regularization_weight
@@ -507,7 +682,8 @@ def momentum_sgd(parameters, lr, momentum, unit_gain=default_unit_gain_value(),
     additional_options.gaussian_noise_injection_std_dev = gaussian_noise_injection_std_dev
     additional_options.gradient_clipping_threshold_per_sample = gradient_clipping_threshold_per_sample
     additional_options.gradient_clipping_with_truncation = gradient_clipping_with_truncation
-    additional_options.use_mean_gradient = use_mean_gradient
+    if ref_minibatch_size is not None:
+        additional_options.dict_options[cntk_py.Learner.REF_MB_SIZE] = cntk_py.SizeTWrapper(ref_minibatch_size) #need this to make proper typed DictionaryValue
 
     return cntk_py.momentum_sgd_learner(parameters, lr, momentum, unit_gain,
                                         additional_options)
@@ -517,7 +693,8 @@ def momentum_sgd(parameters, lr, momentum, unit_gain=default_unit_gain_value(),
 def nesterov(parameters, lr, momentum, unit_gain=default_unit_gain_value(),
              l1_regularization_weight=0.0, l2_regularization_weight=0.0,
              gaussian_noise_injection_std_dev=0.0, gradient_clipping_threshold_per_sample=np.inf,
-             gradient_clipping_with_truncation=True, use_mean_gradient=default_use_mean_gradient_value()):
+             gradient_clipping_with_truncation=True, use_mean_gradient=default_use_mean_gradient_value(),
+             ref_minibatch_size=None):
     '''nesterov(parameters, lr, momentum, unit_gain=default_unit_gain_value(), l1_regularization_weight=0, l2_regularization_weight=0, gaussian_noise_injection_std_dev=0, gradient_clipping_threshold_per_sample=np.inf, gradient_clipping_with_truncation=True)
     Creates a Nesterov SGD learner instance to learn the parameters. This was
     originally proposed by Nesterov [1] in 1983 and then shown to work well in
@@ -544,6 +721,15 @@ def nesterov(parameters, lr, momentum, unit_gain=default_unit_gain_value(),
         use_mean_gradient (bool, default ``False``): use averaged gradient as input to learner.
          Defaults to the value returned by :func:`default_use_mean_gradient_value()`.
 
+            deprecated:: 2.2
+                Use ref_minibatch_size parameter to specify the reference minbiatch size.
+        ref_minibatch_size (int, default ``None``): The minibatch size that the learner's parameters are designed or pre-tuned for. This
+         size is usually set to the same as the minibatch data source's size. CNTK will perform automatic scaling of the parameters
+         to enable efficient model parameter update implementation while approximate the behavior of pre-designed and pre-tuned parameters.
+         In case that ref_minibatch_size is not specified, CNTK will inherit the minibatch size from the learning rate schedule;
+         if the learning rate schedule does not specify the ref_minibatch_size, CNTK will set it to 1. Setting ref_minibatch_size to 0
+         will have the parameters apply as it is preventing CNTK performing any parameter scaling.
+
     Returns:
         :class:`~cntk.learners.Learner`: learner instance that can be passed to
         the :class:`~cntk.train.trainer.Trainer`
@@ -557,11 +743,12 @@ def nesterov(parameters, lr, momentum, unit_gain=default_unit_gain_value(),
         of the 30th International Conference on Machine Learning, 2013.
 
     '''
-    _verify_learning_rate_type(lr)
+    lr, ref_minibatch_size = _infer_learning_rate_schedule_and_ref_minibatch_size(use_mean_gradient, ref_minibatch_size, lr)
+    momentum = _infer_training_parameter_schedule(momentum, ref_minibatch_size)
     _verify_momentum_type(momentum)
     gaussian_noise_injection_std_dev = \
         training_parameter_schedule(
-            gaussian_noise_injection_std_dev, UnitType.minibatch)
+            gaussian_noise_injection_std_dev)
 
     additional_options = cntk_py.AdditionalLearningOptions()
     additional_options.l1_regularization_weight = l1_regularization_weight
@@ -569,7 +756,8 @@ def nesterov(parameters, lr, momentum, unit_gain=default_unit_gain_value(),
     additional_options.gaussian_noise_injection_std_dev = gaussian_noise_injection_std_dev
     additional_options.gradient_clipping_threshold_per_sample = gradient_clipping_threshold_per_sample
     additional_options.gradient_clipping_with_truncation = gradient_clipping_with_truncation
-    additional_options.use_mean_gradient = use_mean_gradient
+    if ref_minibatch_size is not None:
+        additional_options.dict_options[cntk_py.Learner.REF_MB_SIZE] = cntk_py.SizeTWrapper(ref_minibatch_size) #need this to make proper typed DictionaryValue
 
     return cntk_py.nesterov_learner(parameters, lr, momentum, unit_gain,
                                     additional_options)
@@ -578,7 +766,8 @@ def nesterov(parameters, lr, momentum, unit_gain=default_unit_gain_value(),
 def adadelta(parameters, lr=learning_rate_schedule(1, UnitType.sample), rho=0.95, epsilon=1e-8,
             l1_regularization_weight=0.0, l2_regularization_weight=0.0,
             gaussian_noise_injection_std_dev=0.0, gradient_clipping_threshold_per_sample=np.inf,
-            gradient_clipping_with_truncation=True, use_mean_gradient=default_use_mean_gradient_value()):
+            gradient_clipping_with_truncation=True, use_mean_gradient=default_use_mean_gradient_value(),
+            ref_minibatch_size=None):
     '''adadelta(parameters, lr, rho, epsilon, l1_regularization_weight=0, l2_regularization_weight=0, gaussian_noise_injection_std_dev=0, gradient_clipping_threshold_per_sample=np.inf, gradient_clipping_with_truncation=True)
     Creates an AdaDelta learner instance to learn the parameters. See [1] for
     more information.
@@ -602,17 +791,27 @@ def adadelta(parameters, lr=learning_rate_schedule(1, UnitType.sample), rho=0.95
         use_mean_gradient (bool, default ``False``): use averaged gradient as input to learner.
          Defaults to the value returned by :func:`default_use_mean_gradient_value()`.
 
+            deprecated:: 2.2
+                Use ref_minibatch_size parameter to specify the reference minbiatch size.
+        ref_minibatch_size (int, default ``None``): The minibatch size that the learner's parameters are designed or pre-tuned for. This
+         size is usually set to the same as the minibatch data source's size. CNTK will perform automatic scaling of the parameters
+         to enable efficient model parameter update implementation while approximate the behavior of pre-designed and pre-tuned parameters.
+         In case that ref_minibatch_size is not specified, CNTK will inherit the minibatch size from the learning rate schedule;
+         if the learning rate schedule does not specify the ref_minibatch_size, CNTK will set it to 1. Setting ref_minibatch_size to 0
+         will have the parameters apply as it is preventing CNTK performing any parameter scaling.
+
     Returns:
         :class:`~cntk.learners.Learner`: learner instance that can be passed to
         the :class:`~cntk.train.trainer.Trainer`
 
-    See also:
+    See also
         [1]  Matthew D. Zeiler, `ADADELTA: An Adaptive Learning Rate Method
         <https://arxiv.org/pdf/1212.5701.pdf>`_.
     '''
     gaussian_noise_injection_std_dev = \
         training_parameter_schedule(
-            gaussian_noise_injection_std_dev, UnitType.minibatch)
+            gaussian_noise_injection_std_dev)
+    lr, ref_minibatch_size = _infer_learning_rate_schedule_and_ref_minibatch_size(use_mean_gradient, ref_minibatch_size, lr)
 
     additional_options = cntk_py.AdditionalLearningOptions()
     additional_options.l1_regularization_weight = l1_regularization_weight
@@ -620,7 +819,9 @@ def adadelta(parameters, lr=learning_rate_schedule(1, UnitType.sample), rho=0.95
     additional_options.gaussian_noise_injection_std_dev = gaussian_noise_injection_std_dev
     additional_options.gradient_clipping_threshold_per_sample = gradient_clipping_threshold_per_sample
     additional_options.gradient_clipping_with_truncation = gradient_clipping_with_truncation
-    additional_options.use_mean_gradient = use_mean_gradient
+    ref_minibatch_size = _infer_ref_minibatch_size_from_legacy_use_mean_gradient(ref_minibatch_size, use_mean_gradient)
+    if ref_minibatch_size is not None:
+        additional_options.dict_options[cntk_py.Learner.REF_MB_SIZE] = cntk_py.SizeTWrapper(ref_minibatch_size) #need this to make proper typed DictionaryValue
 
     return cntk_py.ada_delta_learner(parameters, lr, rho, epsilon,
                                     additional_options)
@@ -630,7 +831,8 @@ def adadelta(parameters, lr=learning_rate_schedule(1, UnitType.sample), rho=0.95
 def adagrad(parameters, lr, need_ave_multiplier=True,
             l1_regularization_weight=0.0, l2_regularization_weight=0.0,
             gaussian_noise_injection_std_dev=0.0, gradient_clipping_threshold_per_sample=np.inf,
-            gradient_clipping_with_truncation=True, use_mean_gradient=default_use_mean_gradient_value()):
+            gradient_clipping_with_truncation=True, use_mean_gradient=default_use_mean_gradient_value(),
+            ref_minibatch_size=None):
     '''adagrad(parameters, lr, need_ave_multiplier=True, l1_regularization_weight=0, l2_regularization_weight=0, gaussian_noise_injection_std_dev=0, gradient_clipping_threshold_per_sample=np.inf, gradient_clipping_with_truncation=True)
     Creates an AdaGrad learner instance to learn the parameters. See [1] for
     more information.
@@ -653,6 +855,15 @@ def adagrad(parameters, lr, need_ave_multiplier=True,
         use_mean_gradient (bool, default ``False``): use averaged gradient as input to learner.
          Defaults to the value returned by :func:`default_use_mean_gradient_value()`.
 
+            deprecated:: 2.2
+                Use ref_minibatch_size parameter to specify the reference minbiatch size.
+        ref_minibatch_size (int, default ``None``): The minibatch size that the learner's parameters are designed or pre-tuned for. This
+         size is usually set to the same as the minibatch data source's size. CNTK will perform automatic scaling of the parameters
+         to enable efficient model parameter update implementation while approximate the behavior of pre-designed and pre-tuned parameters.
+         In case that ref_minibatch_size is not specified, CNTK will inherit the minibatch size from the learning rate schedule;
+         if the learning rate schedule does not specify the ref_minibatch_size, CNTK will set it to 1. Setting ref_minibatch_size to 0
+         will have the parameters apply as it is preventing CNTK performing any parameter scaling.
+
     Returns:
         :class:`~cntk.learners.Learner`: learner instance that can be passed to
         the :class:`~cntk.train.trainer.Trainer`
@@ -663,10 +874,10 @@ def adagrad(parameters, lr, need_ave_multiplier=True,
         <http://www.magicbroom.info/Papers/DuchiHaSi10.pdf>`_. The Journal of
         Machine Learning Research, 2011.
     '''
-    _verify_learning_rate_type(lr)
+    lr, ref_minibatch_size = _infer_learning_rate_schedule_and_ref_minibatch_size(use_mean_gradient, ref_minibatch_size, lr)
     gaussian_noise_injection_std_dev = \
         training_parameter_schedule(
-            gaussian_noise_injection_std_dev, UnitType.minibatch)
+            gaussian_noise_injection_std_dev)
 
     additional_options = cntk_py.AdditionalLearningOptions()
     additional_options.l1_regularization_weight = l1_regularization_weight
@@ -674,7 +885,9 @@ def adagrad(parameters, lr, need_ave_multiplier=True,
     additional_options.gaussian_noise_injection_std_dev = gaussian_noise_injection_std_dev
     additional_options.gradient_clipping_threshold_per_sample = gradient_clipping_threshold_per_sample
     additional_options.gradient_clipping_with_truncation = gradient_clipping_with_truncation
-    additional_options.use_mean_gradient = use_mean_gradient
+    ref_minibatch_size = _infer_ref_minibatch_size_from_legacy_use_mean_gradient(ref_minibatch_size, use_mean_gradient)
+    if ref_minibatch_size is not None:
+        additional_options.dict_options[cntk_py.Learner.REF_MB_SIZE] = cntk_py.SizeTWrapper(ref_minibatch_size) #need this to make proper typed DictionaryValue
 
     return cntk_py.ada_grad_learner(parameters, lr, need_ave_multiplier,
                                     additional_options)
@@ -685,7 +898,8 @@ def fsadagrad(parameters, lr, momentum, unit_gain=default_unit_gain_value(),
               variance_momentum=momentum_as_time_constant_schedule(720000),
               l1_regularization_weight=0.0, l2_regularization_weight=0.0,
               gaussian_noise_injection_std_dev=0.0, gradient_clipping_threshold_per_sample=np.inf,
-              gradient_clipping_with_truncation=True, use_mean_gradient=default_use_mean_gradient_value()):
+              gradient_clipping_with_truncation=True, use_mean_gradient=default_use_mean_gradient_value(),
+              ref_minibatch_size=None):
     '''fsadagrad(parameters, lr, momentum, unit_gain=default_unit_gain_value(), variance_momentum=momentum_as_time_constant_schedule(720000), l1_regularization_weight=0, l2_regularization_weight=0, gaussian_noise_injection_std_dev=0, gradient_clipping_threshold_per_sample=np.inf, gradient_clipping_with_truncation=True)
     Creates an FSAdaGrad learner instance to learn the parameters.
 
@@ -712,17 +926,29 @@ def fsadagrad(parameters, lr, momentum, unit_gain=default_unit_gain_value(),
         use_mean_gradient (bool, default ``False``): use averaged gradient as input to learner.
          Defaults to the value returned by :func:`default_use_mean_gradient_value()`.
 
+            deprecated:: 2.2
+                Use ref_minibatch_size parameter to specify the reference minbiatch size.
+        ref_minibatch_size (int, default ``None``): The minibatch size that the learner's parameters are designed or pre-tuned for. This
+         size is usually set to the same as the minibatch data source's size. CNTK will perform automatic scaling of the parameters
+         to enable efficient model parameter update implementation while approximate the behavior of pre-designed and pre-tuned parameters.
+         In case that ref_minibatch_size is not specified, CNTK will inherit the minibatch size from the learning rate schedule;
+         if the learning rate schedule does not specify the ref_minibatch_size, CNTK will set it to 1. Setting ref_minibatch_size to 0
+         will have the parameters apply as it is preventing CNTK performing any parameter scaling.
+
     Returns:
         :class:`~cntk.learners.Learner`: learner instance that can be passed to
         the :class:`~cntk.train.trainer.Trainer`
 
     '''
-    _verify_learning_rate_type(lr)
+    lr, ref_minibatch_size = _infer_learning_rate_schedule_and_ref_minibatch_size(use_mean_gradient, ref_minibatch_size, lr)
+
+    momentum = _infer_training_parameter_schedule(momentum, ref_minibatch_size)
     _verify_momentum_type(momentum)
+    variance_momentum = _infer_training_parameter_schedule(variance_momentum, ref_minibatch_size)
     _verify_momentum_type(variance_momentum)
     gaussian_noise_injection_std_dev = \
         training_parameter_schedule(
-            gaussian_noise_injection_std_dev, UnitType.minibatch)
+            gaussian_noise_injection_std_dev)
 
     additional_options = cntk_py.AdditionalLearningOptions()
     additional_options.l1_regularization_weight = l1_regularization_weight
@@ -730,7 +956,9 @@ def fsadagrad(parameters, lr, momentum, unit_gain=default_unit_gain_value(),
     additional_options.gaussian_noise_injection_std_dev = gaussian_noise_injection_std_dev
     additional_options.gradient_clipping_threshold_per_sample = gradient_clipping_threshold_per_sample
     additional_options.gradient_clipping_with_truncation = gradient_clipping_with_truncation
-    additional_options.use_mean_gradient = use_mean_gradient
+    ref_minibatch_size = _infer_ref_minibatch_size_from_legacy_use_mean_gradient(ref_minibatch_size, use_mean_gradient)
+    if ref_minibatch_size is not None:
+        additional_options.dict_options[cntk_py.Learner.REF_MB_SIZE] = cntk_py.SizeTWrapper(ref_minibatch_size) #need this to make proper typed DictionaryValue
 
     return cntk_py.fsada_grad_learner(parameters, lr, momentum, unit_gain,
                                       variance_momentum, additional_options)
@@ -741,7 +969,8 @@ def adam(parameters, lr, momentum, unit_gain=default_unit_gain_value(),
          variance_momentum=momentum_as_time_constant_schedule(720000),
          l1_regularization_weight=0.0, l2_regularization_weight=0.0,
          gaussian_noise_injection_std_dev=0.0, gradient_clipping_threshold_per_sample=np.inf,
-         gradient_clipping_with_truncation=True, use_mean_gradient=default_use_mean_gradient_value(), epsilon=1e-8, adamax=False):
+         gradient_clipping_with_truncation=True, use_mean_gradient=default_use_mean_gradient_value(), epsilon=1e-8, adamax=False,
+         ref_minibatch_size=None):
     '''adam(parameters, lr, momentum, unit_gain=default_unit_gain_value(), variance_momentum=momentum_as_time_constant_schedule(720000), l1_regularization_weight=0, l2_regularization_weight=0, gaussian_noise_injection_std_dev=0, gradient_clipping_threshold_per_sample=np.inf, gradient_clipping_with_truncation=True, epsilon=1e-8, adamax=False)
     Creates an Adam learner instance to learn the parameters. See [1] for more
     information.
@@ -768,10 +997,19 @@ def adam(parameters, lr, momentum, unit_gain=default_unit_gain_value(),
          with truncation
         use_mean_gradient (bool, default ``False``): use averaged gradient as input to learner.
          Defaults to the value returned by :func:`default_use_mean_gradient_value()`.
+
+            deprecated:: 2.2
+                Use ref_minibatch_size parameter to specify the reference minbiatch size.
         epsilon (float, optional): numerical stability constant,
          defaults to 1e-8
         adamax: when ``True``, use infinity-norm variance momentum update instead of L2. Defaults
          to False
+        ref_minibatch_size (int, default ``None``): The minibatch size that the learner's parameters are designed or pre-tuned for. This
+         size is usually set to the same as the minibatch data source's size. CNTK will perform automatic scaling of the parameters
+         to enable efficient model parameter update implementation while approximate the behavior of pre-designed and pre-tuned parameters.
+         In case that ref_minibatch_size is not specified, CNTK will inherit the minibatch size from the learning rate schedule;
+         if the learning rate schedule does not specify the ref_minibatch_size, CNTK will set it to 1. Setting ref_minibatch_size to 0
+         will have the parameters apply as it is preventing CNTK performing any parameter scaling.
 
     Returns:
         :class:`~cntk.learners.Learner`: learner instance that can be passed to
@@ -782,12 +1020,15 @@ def adam(parameters, lr, momentum, unit_gain=default_unit_gain_value(),
         <https://arxiv.org/abs/1412.6980>`_. International Conference for
         Learning Representations, 2015.
     '''
-    _verify_learning_rate_type(lr)
+    lr, ref_minibatch_size = _infer_learning_rate_schedule_and_ref_minibatch_size(use_mean_gradient, ref_minibatch_size, lr)
+
+    momentum = _infer_training_parameter_schedule(momentum, ref_minibatch_size)
     _verify_momentum_type(momentum)
+    variance_momentum = _infer_training_parameter_schedule(variance_momentum, ref_minibatch_size)
     _verify_momentum_type(variance_momentum)
     gaussian_noise_injection_std_dev = \
         training_parameter_schedule(
-            gaussian_noise_injection_std_dev, UnitType.minibatch)
+            gaussian_noise_injection_std_dev)
 
     additional_options = cntk_py.AdditionalLearningOptions()
     additional_options.l1_regularization_weight = l1_regularization_weight
@@ -795,7 +1036,8 @@ def adam(parameters, lr, momentum, unit_gain=default_unit_gain_value(),
     additional_options.gaussian_noise_injection_std_dev = gaussian_noise_injection_std_dev
     additional_options.gradient_clipping_threshold_per_sample = gradient_clipping_threshold_per_sample
     additional_options.gradient_clipping_with_truncation = gradient_clipping_with_truncation
-    additional_options.use_mean_gradient = use_mean_gradient
+    if ref_minibatch_size is not None:
+        additional_options.dict_options[cntk_py.Learner.REF_MB_SIZE] = cntk_py.SizeTWrapper(ref_minibatch_size) #need this to make proper typed DictionaryValue
 
     return cntk_py.adam_learner(parameters, lr, momentum, unit_gain,
                                 variance_momentum, epsilon, adamax, additional_options)
@@ -807,7 +1049,8 @@ def rmsprop(parameters, lr,
             need_ave_multiplier=True,
             l1_regularization_weight=0.0, l2_regularization_weight=0.0,
             gaussian_noise_injection_std_dev=0.0, gradient_clipping_threshold_per_sample=np.inf,
-            gradient_clipping_with_truncation=True, use_mean_gradient=default_use_mean_gradient_value()):
+            gradient_clipping_with_truncation=True, use_mean_gradient=default_use_mean_gradient_value(),
+            ref_minibatch_size=None):
     '''rmsprop(parameters, lr, gamma, inc, dec, max, min, need_ave_multiplier=True, l1_regularization_weight=0, l2_regularization_weight=0, gaussian_noise_injection_std_dev=0, gradient_clipping_threshold_per_sample=np.inf, gradient_clipping_with_truncation=True)
     Creates an RMSProp learner instance to learn the parameters.
 
@@ -834,14 +1077,24 @@ def rmsprop(parameters, lr,
         use_mean_gradient (bool, default ``False``): use averaged gradient as input to learner.
          Defaults to the value returned by :func:`default_use_mean_gradient_value()`.
 
+            deprecated:: 2.2
+                Use ref_minibatch_size parameter to specify the reference minbiatch size.
+        ref_minibatch_size (int, default ``None``): The minibatch size that the learner's parameters are designed or pre-tuned for. This
+         size is usually set to the same as the minibatch data source's size. CNTK will perform automatic scaling of the parameters
+         to enable efficient model parameter update implementation while approximate the behavior of pre-designed and pre-tuned parameters.
+         In case that ref_minibatch_size is not specified, CNTK will inherit the minibatch size from the learning rate schedule;
+         if the learning rate schedule does not specify the ref_minibatch_size, CNTK will set it to 1. Setting ref_minibatch_size to 0
+         will have the parameters apply as it is preventing CNTK performing any parameter scaling.
+
     Returns:
         :class:`~cntk.learners.Learner`: learner instance that can be passed to
         the :class:`~cntk.train.trainer.Trainer`
     '''
-    _verify_learning_rate_type(lr)
+    lr, ref_minibatch_size = _infer_learning_rate_schedule_and_ref_minibatch_size(use_mean_gradient, ref_minibatch_size, lr)
+
     gaussian_noise_injection_std_dev = \
         training_parameter_schedule(
-            gaussian_noise_injection_std_dev, UnitType.minibatch)
+            gaussian_noise_injection_std_dev)
 
     additional_options = cntk_py.AdditionalLearningOptions()
     additional_options.l1_regularization_weight = l1_regularization_weight
@@ -849,7 +1102,9 @@ def rmsprop(parameters, lr,
     additional_options.gaussian_noise_injection_std_dev = gaussian_noise_injection_std_dev
     additional_options.gradient_clipping_threshold_per_sample = gradient_clipping_threshold_per_sample
     additional_options.gradient_clipping_with_truncation = gradient_clipping_with_truncation
-    additional_options.use_mean_gradient = use_mean_gradient
+    ref_minibatch_size = _infer_ref_minibatch_size_from_legacy_use_mean_gradient(ref_minibatch_size, use_mean_gradient)
+    if ref_minibatch_size is not None:
+        additional_options.dict_options[cntk_py.Learner.REF_MB_SIZE] = cntk_py.SizeTWrapper(ref_minibatch_size) #need this to make proper typed DictionaryValue
 
     return cntk_py.rmsprop_learner(parameters, lr, gamma, inc, dec, max, min,
                                    need_ave_multiplier, additional_options)
@@ -902,7 +1157,8 @@ def universal(update_func, parameters):
         if any(dim<0 for dim in p.shape):
             raise ValueError('parameter %s has inferred dimensions. Please create the learner after all parameter shapes have been determined'%str(p))
         gradients.append(constant(0, shape=p.shape, dtype=p.dtype, name='grad'))
-
+    #TODO: add additional options and learning context to the parameters of the updat_func so that the update function
+    #      can make use of the context and additional options
     result = update_func(parameters, gradients)
 
     return cntk_py.universal_learner(parameters, gradients, result)
