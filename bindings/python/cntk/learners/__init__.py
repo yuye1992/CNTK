@@ -156,8 +156,8 @@ class Learner(cntk_py.Learner):
              learning rate to reset to
         '''
         _verify_learning_rate_type(learning_rate)
-        if learning_rate.reference_minibatch_size == cntk_py.training_double_parameter_schedule.unspecified_ref_minibatch_size:
-            learning_rate.reference_minibatch_size = self.ref_minibatch_size
+        if learning_rate.ref_minibatch_size == cntk_py.training_double_parameter_schedule.unspecified_ref_minibatch_size:
+            learning_rate.ref_minibatch_size = self.ref_minibatch_size
 
         return super(Learner, self).reset_learning_rate(learning_rate)
 
@@ -295,11 +295,12 @@ def training_parameter_schedule(schedule, unit=UnitType.minibatch, epoch_size=No
     if isinstance(schedule, (int, float)):
         if epoch_size is not None:
             warnings.warn('When providing the schedule as a number, epoch_size is ignored', RuntimeWarning)
-        schedule = cntk_py.training_double_parameter_schedule(*[schedule, ref_minibatch_size])
-        return schedule
+        if UnitType(unit):
+            schedule = cntk_py.training_double_parameter_schedule(*[schedule, ref_minibatch_size])
+            return schedule
 
     epoch_size = epoch_size if epoch_size is not None else cntk_py.training_double_parameter_schedule.full_data_sweep
-    if isinstance(schedule, list):
+    if isinstance(schedule, list) and UnitType(unit):
         schedule = _prepare_training_parameter_list(schedule)
         args = [schedule, epoch_size, ref_minibatch_size]
         res = cntk_py.training_double_parameter_schedule(*args)

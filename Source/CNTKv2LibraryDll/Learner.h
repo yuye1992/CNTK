@@ -48,7 +48,7 @@ namespace CNTK
         double LearningRate(size_t minibatchSize) const
         {
             auto learningRate = Learner::LearningRate();
-            std::ignore = minibatchSize; //ignore the minibatch size for now
+            UNUSED(minibatchSize); //ignore the minibatch size for now
             if (IsCompatibleMode(m_learningRateSchedule))
             {
                 //compatible mode, the gradient are already mean gradient so the learning rate are directly applied

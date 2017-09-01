@@ -104,54 +104,62 @@ def test_learner_init():
 
     res = i * w
 
+    #test new API: learning_parameter_schedule
+
+    #explictly specify reference minibatch size and learning rate is in number:
     learner = sgd(res.parameters, lr=0.1, ref_minibatch_size = 25)
-    #if reference size is set, it must not in compatible mode
     assert learner.is_compatible_mode() == False
     assert learner.ref_minibatch_size == 25 #the learner's reference minibatch
+    #with direct learner learning rate number specification, the learning rate schedule get the reference minibatch size from the learner parameters:
+    assert learner._learning_rate_schedule.ref_minibatch_size == 25
     assert learner.learning_rate() == 0.1
 
+    #no explictly specification of reference minibatch size and learning rate is in number:
+    learner = sgd(res.parameters, lr=learning_parameter_schedule(0.1))
+    assert learner.is_compatible_mode() == True
+    assert learner.ref_minibatch_size == 0 #the learner's reference minibatch
+    #with direct learner learning rate number specification, the learning rate schedule get the reference minibatch size from the learner parameters:
+    assert learner._learning_rate_schedule.ref_minibatch_size == 0
+    assert learner.learning_rate() == 0.1
+
+
+    learner = sgd(res.parameters, lr=learning_parameter_schedule(0.1, 20), ref_minibatch_size = 25)
+    assert learner.is_compatible_mode() == False
+    assert learner.ref_minibatch_size == 25 #the learner's reference minibatch
+    #with direct learner learning rate number specification, the learning rate schedule get the reference minibatch size from the learner parameters:
+    assert learner._learning_rate_schedule.ref_minibatch_size == 20
+    assert learner.learning_rate() == 0.1
+
+
+    learner = sgd(res.parameters, lr=learning_parameter_schedule(0.1, 20))
+    assert learner.is_compatible_mode() == True
+    assert learner.ref_minibatch_size == 0 #the learner's reference minibatch
+    #with direct learner learning rate number specification, the learning rate schedule get the reference minibatch size from the learner parameters:
+    assert learner._learning_rate_schedule.ref_minibatch_size == 20
+    assert learner.learning_rate() == 0.1
+
+    #no explictly specification of reference minibatch size and learning rate is in number:
+    learner = sgd(res.parameters, lr=learning_parameter_schedule(0.1))
+    assert learner.is_compatible_mode() == True
+    assert learner.ref_minibatch_size == 0 #the learner's reference minibatch
+    #with direct learner learning rate number specification, the learning rate schedule get the reference minibatch size from the learner parameters:
+    assert learner._learning_rate_schedule.ref_minibatch_size == 0
+    assert learner.learning_rate() == 0.1
+
+
+    #test backward compability
     #if unit is not specified, it will depend on the learner to specify the ref_minibatch_size which by default is 0
     learner = sgd(res.parameters, lr=learning_rate_schedule(0.1))
     assert learner.is_compatible_mode() == True #the deprecated learning_rate_schedule was default to minibatch
     assert learner.ref_minibatch_size == 0 #the default is per sample learning
     assert learner.learning_rate() == 0.1
 
-    #if reference size is not specified, it is set to per minibatch batch by default
-    learner = sgd(res.parameters, lr=learning_parameter_schedule(0.1)) #0 for per minibatch learning
-    # if reference size is not specified, it will depend on the learner to specify the compatible mode which by default is True
-    assert learner.is_compatible_mode() == True
-    assert learner.ref_minibatch_size == 0 #per minibatch learning
-    assert learner.learning_rate() == 0.1
-
-    #now we allow to specify the learning rate directly with numbers in simple case; and the default is per minibatch learning
-    learner = sgd(res.parameters, lr=0.1)
-    #if reference size is not specified, it will depend on the learner to specify the compatible mode which by default is True
-    assert learner.is_compatible_mode()== True
-    assert learner.ref_minibatch_size == 0  # the default is per sample learning
-    assert learner.learning_rate() == 0.1
-
-    #now we allow to specify the learning rate directly with numbers in simple case; and per minibatch learning is enabled by setting the ref_minibatch_size =0
-    #however, this usage is discourage, we will like the users to explicitly specify which minibatch size their learning parameters are design for
-    #so that CNTK can adjust the underlying mechanism accordingly
-    learner = sgd(res.parameters, lr=0.1, ref_minibatch_size=0)
-    #if reference size is not specified, it will depend on the learner to specify the compatible mode which by default is false
-    assert learner.is_compatible_mode()== True #the deprecated per sample schedule should not use compatible mode
-    assert learner.ref_minibatch_size == 0
-    assert learner.learning_rate() == 0.1
-
-
-    #for backcompatibility test
-    learner = sgd(res.parameters, lr=learning_rate_schedule(0.1), ref_minibatch_size=0)
-    assert learner.is_compatible_mode() == True #the deprecated use_mean_gradient_value should  use compatible mode
-    assert learner.learning_rate() == 0.1
-    assert learner.ref_minibatch_size == 0
-
     #for backcompatibility test
     # this will be deprecated in future version
     learner = sgd(res.parameters, lr=learning_rate_schedule(0.1, UnitType.sample))
-    assert learner.is_compatible_mode() == False #the deprecated per sample schedule should not use compatible mode
+    assert learner._learning_rate_schedule.ref_minibatch_size == 1 #the deprecated per sample schedule should not use compatible mode
     assert learner.learning_rate() == 0.1
-    assert learner.ref_minibatch_size == 1
+    assert learner.ref_minibatch_size == 0 #the learner's reference minibatch size is still 0; during the computation, it will override by the learning rate schedule's specification
 
     #for backcompatibility test
     # this will be deprecated in future version
@@ -161,6 +169,8 @@ def test_learner_init():
     assert learner.is_compatible_mode() == True
     assert learner.learning_rate() == 0.1
     assert learner.ref_minibatch_size == 0
+    assert learner._learning_rate_schedule.ref_minibatch_size == 0
+
 
     #for backcompatibility test, in reset learning rate, the learner won't receive the reference minibatch size from the schedule
     #user will need to specify the reference minibatch size explicitly
@@ -170,6 +180,7 @@ def test_learner_init():
     assert learner.learning_rate() == 1.0
     learner.ref_minibatch_size = 0 #reset to be per minibatch
     assert learner.ref_minibatch_size == 0
+    assert learner._learning_rate_schedule.ref_minibatch_size == 0
     assert learner.is_compatible_mode() == True
 
     learner_parameter = learner.parameters
