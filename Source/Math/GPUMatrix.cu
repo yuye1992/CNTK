@@ -3416,9 +3416,9 @@ void GPUMatrix<ElemType>::StochasticBinaryForward(const GPUMatrix<ElemType>& a, 
     SyncGuard syncGuard;
     _stochasticbinaryForward<ElemType><<<blocksPerGrid, GridDim::maxThreadsPerBlock, 0, t_stream>>>(a.Data(), b.Data(), Num, annealSlope);
     
-    size_t blocksPerGrid_n = (size_t)ceil(1.0 * n / GridDim::maxThreadsPerBlock);
-    auto seed = (unsigned long long)std::chrono::duration_cast<std::chrono::milliseconds>(chrono::steady_clock::now().time_since_epoch()).count();
-    _stochasticbinaryForward_checkZero<ElemType><<<blocksPerGrid_n, GridDim::maxThreadsPerBlock, 0, t_stream>>>(b.Data(), m, n, seed);
+    //size_t blocksPerGrid_n = (size_t)ceil(1.0 * n / GridDim::maxThreadsPerBlock);
+    //auto seed = (unsigned long long)std::chrono::duration_cast<std::chrono::milliseconds>(chrono::steady_clock::now().time_since_epoch()).count();
+    //_stochasticbinaryForward_checkZero<ElemType><<<blocksPerGrid_n, GridDim::maxThreadsPerBlock, 0, t_stream>>>(b.Data(), m, n, seed);
 
     //CUDA_CALL(cudaFree(d_rands));
     //CURAND_CALL(curandDestroyGenerator(gens));
