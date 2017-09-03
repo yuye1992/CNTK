@@ -41,7 +41,7 @@ class SimpleTrainer:
         data = C.Value.one_hot(input_indices, num_classes=self.input_dim)
         self.trainer.train_minibatch(data)
 
-def data_parallel_sgd(outdir, gpu):
+def data_parallel_sgd_on_sparse(outdir, gpu):
     if gpu:
         # test with only one GPU
         C.try_set_default_device(C.gpu(0))
@@ -56,8 +56,8 @@ def data_parallel_sgd(outdir, gpu):
     np.save(os.path.join(outdir, str(C.Communicator.rank())), trainer.p.value)
 
 # test entrance
-def test_data_parallel_sgd(tmpdir, device_id):
-    launch_args = ['--outputdir', str(tmpdir), '--mode', 'data_parallel_sgd']
+def test_data_parallel_sgd_on_sparse(tmpdir, device_id):
+    launch_args = ['--outputdir', str(tmpdir), '--mode', 'data_parallel_sgd_on_sparse']
     if device_id >= 0:
         launch_args += ['--gpu']
     mpiexec_execute(__file__, ['-n', '2'], launch_args)
@@ -83,8 +83,8 @@ if __name__=='__main__':
 
     args = vars(parser.parse_args())
     
-    if (args['mode'] == 'data_parallel_sgd'):
-        data_parallel_sgd(args['outputdir'], args['gpu'])
+    if (args['mode'] == 'data_parallel_sgd_on_sparse'):
+        data_parallel_sgd_on_sparse(args['outputdir'], args['gpu'])
     else:
         raise Exception('Unsupported mode ' + args['mode'])
         
