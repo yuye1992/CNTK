@@ -175,6 +175,8 @@ IGNORE_FUNCTION CNTK::Dictionary::cend() const;
 IGNORE_FUNCTION CNTK::Dictionary::Keys();
 #endif
 
+%ignore CNTK::NDArrayView::AdjustSparseBlockColumn;
+
 IGNORE_CLASS CNTK::ParameterInitializer;
 
 %ignore CNTK::SentinelValueForAutoSelectRandomSeed;

@@ -586,6 +586,7 @@ namespace CNTK
 
             if (aggregateOnCPU)
             {
+                // since only GPU sparse block column is supported, copy aggregated nz back to GPU
                 cudaMemcpy(nzGPU, nz, requiredSize, cudaMemcpyHostToDevice);
             }
         }
