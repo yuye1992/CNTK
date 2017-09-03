@@ -565,6 +565,7 @@ void GPUSparseMatrix<ElemType>::AdjustCol2BlockId(const GPUSPARSE_INDEX_TYPE* cp
     TracingGPUMemoryAllocator::Free<ElemType>(GetComputeDeviceId(), Buffer());
 
     SetBuffer(pArray, bufferSizeNeeded);
+    SetSizeAllocated(numNZ);
     SetBlockSize(numBlocks);
 }
 

@@ -27,9 +27,9 @@ def mpiexec_execute(script, mpiexec_params, params, timeout_seconds=TIMEOUT_SECO
 
 class SimpleTrainer:
     def __init__(self):
-        self.input_dim = 5
-        self.embed_dim = 2
-        self.batch_size = 3
+        self.input_dim = 40000
+        self.embed_dim = 100
+        self.batch_size = 20
         i = C.input_variable((self.input_dim,), is_sparse=True)
         self.p = C.parameter(shape=(self.input_dim, self.embed_dim), init=1)
         o = C.times(i, self.p)
