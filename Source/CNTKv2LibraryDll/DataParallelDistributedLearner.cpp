@@ -126,7 +126,7 @@ namespace CNTK
         // sparse gradient may be converted to dense for aggregation
         std::unordered_map<Parameter, NDArrayViewPtr> convertedGradientValues;
 
-        if (m_sampleCount >= m_distributeAfterSamples)
+        if (m_sampleCount >= m_distributeAfterSamples && m_communicator->Workers().size() > 1)
         {
 #ifndef  CNTK_UWP
             auto profGradientAgg = Microsoft::MSR::CNTK::ScopeProfile(Microsoft::MSR::CNTK::profilerEvtMainGradient);
