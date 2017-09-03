@@ -54,7 +54,10 @@ namespace CNTK
     {
         result.reserve(gradientValues.size());
         result.clear();
-        convertedGradientValues->clear();
+
+        if (convertedGradientValues)
+            convertedGradientValues->clear();
+
         for (auto g : gradientValues)
         {
             NDArrayViewPtr p = g.second;
