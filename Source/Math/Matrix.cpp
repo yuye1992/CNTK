@@ -1422,14 +1422,14 @@ void Matrix<ElemType>::SetMatrixFromCSCFormat(const CPUSPARSE_INDEX_TYPE* h_CSCC
 }
 
 template <class ElemType>
-void Matrix<ElemType>::AdjustSparseBlockColumn(const GPUSPARSE_INDEX_TYPE* cpuCol2BlockId, size_t numBlocks)
+void Matrix<ElemType>::AdjustSparseBlockColumn(const GPUSPARSE_INDEX_TYPE* cpuCol2BlockId, size_t numBlocks, bool useBlockId2Col)
 {
     DISPATCH_MATRIX_ON_FLAG(this,
         this,
         NOT_IMPLEMENTED,
         NOT_IMPLEMENTED,
         NOT_IMPLEMENTED,
-        m_GPUSparseMatrix->AdjustCol2BlockId(cpuCol2BlockId, numBlocks));
+        m_GPUSparseMatrix->AdjustCol2BlockId(cpuCol2BlockId, numBlocks, useBlockId2Col));
 }
 
 template <class ElemType>

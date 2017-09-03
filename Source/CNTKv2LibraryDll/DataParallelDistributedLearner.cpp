@@ -132,14 +132,9 @@ namespace CNTK
             auto profGradientAgg = Microsoft::MSR::CNTK::ScopeProfile(Microsoft::MSR::CNTK::profilerEvtMainGradient);
 #endif
 
-            {
-#ifndef  CNTK_UWP
-                auto profGradientConvert = Microsoft::MSR::CNTK::ScopeProfile("Gradient convert");
-#endif
-                if (info.IsEmpty())
-                    PrepaireZeroGradients(gradientValues, info);
-                ConvertToOrdered(gradientValues, m_gradientBuffer, &convertedGradientValues);
-            }
+            if (info.IsEmpty())
+                PrepaireZeroGradients(gradientValues, info);
+            ConvertToOrdered(gradientValues, m_gradientBuffer, &convertedGradientValues);
 
             std::vector<NDArrayViewPtr> valuesToAggregate;
             std::vector<NDArrayViewPtr> sparseValuesToAggregate;
@@ -169,19 +164,11 @@ namespace CNTK
             auto value = MakeSharedObject<NDArrayView>(static_cast<double>(info.numberOfSamples), NDShape{}, DeviceDescriptor::CPUDevice());
             valuesToAggregate.push_back(value);
 
-            {
-#ifndef  CNTK_UWP
-                auto profGradientAggregationDense = Microsoft::MSR::CNTK::ScopeProfile("Gradient aggregation dense");
-#endif
-                m_communicator->AggregateInPlace(valuesToAggregate, m_communicator->Workers());
-                info.numberOfSamples = static_cast<size_t>(*valuesToAggregate.back()->WritableDataBuffer<double>());
-            }
+            m_communicator->AggregateInPlace(valuesToAggregate, m_communicator->Workers());
+            info.numberOfSamples = static_cast<size_t>(*valuesToAggregate.back()->WritableDataBuffer<double>());
 
             if (!sparseValuesToAggregate.empty())
             {
-#ifndef  CNTK_UWP
-                auto profGradientAggregationSparse = Microsoft::MSR::CNTK::ScopeProfile("Gradient aggregation sparse");
-#endif
                 m_communicator->AllReduceSparseBlockColumn(sparseValuesToAggregate);
             }
         }

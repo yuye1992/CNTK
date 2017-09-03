@@ -532,7 +532,7 @@ void GPUSparseMatrix<ElemType>::SetValue(const GPUMatrix<ElemType>& denseMatrix,
 }
 
 template <class ElemType>
-void GPUSparseMatrix<ElemType>::AdjustCol2BlockId(const GPUSPARSE_INDEX_TYPE* cpuCol2BlockId, size_t numBlocks)
+void GPUSparseMatrix<ElemType>::AdjustCol2BlockId(const GPUSPARSE_INDEX_TYPE* cpuCol2BlockId, size_t numBlocks, bool useBlockId2Col)
 {
     if (GetFormat() != MatrixFormat::matrixFormatSparseBlockCol)
         LogicError("Expected sparse block col matrix");
@@ -546,22 +546,26 @@ void GPUSparseMatrix<ElemType>::AdjustCol2BlockId(const GPUSPARSE_INDEX_TYPE* cp
     GPUSPARSE_INDEX_TYPE* newBlockId2Col = (GPUSPARSE_INDEX_TYPE*)(pArray + numNZ);
     GPUSPARSE_INDEX_TYPE* newCol2BlockId = newBlockId2Col + numCols;
 
-    CUDA_CALL(cudaMemset(pArray, 0, numNZ * sizeof(ElemType)));
     CUDA_CALL(cudaMemset(newBlockId2Col, SparseIndex_NotAssigned, numCols * sizeof(GPUSPARSE_INDEX_TYPE)));
     CUDA_CALL(cudaMemcpy(newCol2BlockId, cpuCol2BlockId, numCols * sizeof(GPUSPARSE_INDEX_TYPE), cudaMemcpyHostToDevice));
 
     int blocksPerGrid = (int)ceil(1.0 * numCols / GridDim::maxThreadsPerBlock);
-    SyncGuard syncGuard;
-    _adjustCol2BlockId<ElemType> << <blocksPerGrid, GridDim::maxThreadsPerBlock, 0, t_stream >> >(
+ 
+    // when useBlockId2Col==true, the original col2BlockId is copied to blockId2Col to avoid getting overwritten 
+    // during the inplace aggregation of col2BlockId prior to this
+    _adjustCol2BlockId<ElemType> << <blocksPerGrid, GridDim::maxThreadsPerBlock, 0, t_stream >> > (
         numRows,
         numCols,
-        newCol2BlockId,
-        ColOrRow2BlockId(),
+        useBlockId2Col ? BlockId2ColOrRow() : ColOrRow2BlockId(),
         Data(),
-        newBlockId2Col,
-        pArray);
+        newCol2BlockId,
+        pArray,
+        newBlockId2Col);
+
     TracingGPUMemoryAllocator::Free<ElemType>(GetComputeDeviceId(), Buffer());
+
     SetBuffer(pArray, bufferSizeNeeded);
+    SetBlockSize(numBlocks);
 }
 
 template <class ElemType>

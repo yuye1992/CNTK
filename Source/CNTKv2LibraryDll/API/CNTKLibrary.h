@@ -741,12 +741,12 @@ namespace CNTK
         /// Returns a read-only pointer to the data buffer in sparse block column format underlying 'this' view
         /// 
         template <typename ElementType>
-        CNTK_API std::tuple<const ElementType*, const SparseIndexType*, const SparseIndexType*, size_t, size_t, size_t> SparseBlockColumnDataBuffers() const;
+        CNTK_API std::tuple<const void*, const SparseIndexType*, const SparseIndexType*, size_t, size_t, size_t> SparseBlockColumnDataBuffers() const;
 
         ///
         /// adjusts the sparse block column matrix with the new Col2BlockId
         ///
-        CNTK_API void AdjustSparseBlockColumn(const SparseIndexType* cpuCol2BlockId, size_t numBlocks);
+        CNTK_API void AdjustSparseBlockColumn(const SparseIndexType* cpuCol2BlockId, size_t numBlocks, bool useBlockId2Col);
 
         ///
         /// Returns the descriptor of the device that 'this' view resides on

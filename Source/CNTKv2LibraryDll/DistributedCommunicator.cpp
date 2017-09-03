@@ -14,7 +14,6 @@
 #include "GPUDataTransferer.h"
 #include <numeric>
 #include "Utils.h"
-#include "PerformanceProfiler.h"
 
 using namespace Microsoft::MSR::CNTK;
 
@@ -304,8 +303,6 @@ namespace CNTK
         if (numValues == 0)
             return;
 
-        auto profGradientPacking = Microsoft::MSR::CNTK::ProfilerTimeBegin();
-
         std::vector<NDArrayViewPtr> valuesToAggregate; // Corresponding to inputValues
         std::vector<NDArrayViewPtr> valuesAfterAggregate; // Corresponding to outputValues
         size_t packedFloatGradientsSizeInBytes = 0;
@@ -342,10 +339,6 @@ namespace CNTK
         PackToContinuousBuffer(m_aggregationBufferFloat.get(), packedFloatGradientsIndex, inputValues, outputValues, valuesToAggregate, valuesAfterAggregate);
         PackToContinuousBuffer(m_aggregationBufferDouble.get(), packedDoubleGradientsIndex, inputValues, outputValues, valuesToAggregate, valuesAfterAggregate);
 
-        Microsoft::MSR::CNTK::ProfilerTimeEnd(profGradientPacking, "Gradient aggregation packing");
-
-        auto profGradientCopy = Microsoft::MSR::CNTK::ProfilerTimeBegin();
-
         numValues = valuesToAggregate.size();
 
         Initialize(valuesToAggregate);
@@ -371,10 +364,6 @@ namespace CNTK
 
         // For all values residing on GPU initiate async transfer to CPU buffers if needed
         CopyDataFromGPUToCPU(valuesToAggregate);
-
-        Microsoft::MSR::CNTK::ProfilerTimeEnd(profGradientCopy, "Gradient copy");
-
-        auto profGradientAllReduce = Microsoft::MSR::CNTK::ProfilerTimeBegin();
 
         std::vector<MPI_Request> allReduceRequests;
         for (auto i = 0; i < numValues; ++i)
@@ -413,15 +402,10 @@ namespace CNTK
                 LogicError("MPICommunicator: Unknown DataType.");
         }
 
-        Microsoft::MSR::CNTK::ProfilerTimeEnd(profGradientAllReduce, "Gradient all reduce");
-
         if (m_nccl->IsSupported())
         {
-            auto profGradientSync = Microsoft::MSR::CNTK::ScopeProfile("Gradient NCCL sync");
             m_nccl->Sync();
         }
-
-        auto profGradientCopyBack = Microsoft::MSR::CNTK::ProfilerTimeBegin();
 
         // wait for async all reduce to complete. As soon as one of the requests is finished,
         // check if corresponding value is gpu bound and, if it is the case, initiate a cpu-to-gpu transfer.
@@ -450,10 +434,6 @@ namespace CNTK
             }
         }
 
-        Microsoft::MSR::CNTK::ProfilerTimeEnd(profGradientCopyBack, "Gradient copy back");
-
-        auto profGradientWaitCopyBack = Microsoft::MSR::CNTK::ProfilerTimeBegin();
-
         // TODO: Should not wait, simply publishing event on the compute stream should be sufficient
         for (auto i = 0; i < numValues; ++i)
         {
@@ -461,15 +441,9 @@ namespace CNTK
                 m_gpuDataTransferers[i]->WaitForCopyCPUToGPUAsync();
         }
 
-        Microsoft::MSR::CNTK::ProfilerTimeEnd(profGradientWaitCopyBack, "Gradient wait copy back");
-
-        auto profGradientUnpack = Microsoft::MSR::CNTK::ProfilerTimeBegin();
-
         // Unpack the continuous buffer
         UnpackFromContinuousBuffer(m_aggregationBufferFloat.get(), outputValues, packedFloatGradientsIndex);
         UnpackFromContinuousBuffer(m_aggregationBufferDouble.get(), outputValues, packedDoubleGradientsIndex);
-
-        Microsoft::MSR::CNTK::ProfilerTimeEnd(profGradientUnpack, "Gradient unpack");
     }
 
     void MPICommunicatorImpl::AllReduceSparseBlockColumn(
@@ -483,8 +457,7 @@ namespace CNTK
         // a handy struct to access sparse block column matrix internal data
         struct SBCInfo
         {
-            const float* nzFloat;
-            const double* nzDouble;
+            const void* nz;
             const SparseIndexType* blockId2Col;
             const SparseIndexType* col2BlockId;
             size_t numBlocks;
@@ -494,13 +467,12 @@ namespace CNTK
             SBCInfo(NDArrayViewPtr sbc)
             {
                 if (sbc->Device() == DeviceDescriptor::CPUDevice())
-                    LogicError("Unimplmented sparse block column aggregation on CPUDevice");
+                    LogicError("Unimplmented sparse block column aggregation on CPUDevice. Please cntk.cntk_py.use_sparse_gradient_aggregation_in_data_parallel_sgd(False) to avoid this error.");
 
                 if (sbc->GetDataType() == DataType::Float)
                 {
                     auto tuple = sbc->SparseBlockColumnDataBuffers<float>();
-                    nzFloat = std::get<0>(tuple);
-                    nzDouble = nullptr;
+                    nz = std::get<0>(tuple);
                     blockId2Col = std::get<1>(tuple);
                     col2BlockId = std::get<2>(tuple);
                     numBlocks = std::get<3>(tuple);
@@ -510,8 +482,7 @@ namespace CNTK
                 else if (sbc->GetDataType() == DataType::Double)
                 {
                     auto tuple = sbc->SparseBlockColumnDataBuffers<double>();
-                    nzFloat = nullptr;
-                    nzDouble = std::get<0>(tuple);
+                    nz = std::get<0>(tuple);
                     blockId2Col = std::get<1>(tuple);
                     col2BlockId = std::get<2>(tuple);
                     numBlocks = std::get<3>(tuple);
@@ -523,11 +494,14 @@ namespace CNTK
             }
         };
 
+        m_intermediateSBCIndexCPUBuffers.resize(sbcValues.size());
+        m_intermediateSBCValueCPUBuffers.resize(sbcValues.size());
+
         // First, AllReduce(Max) to get the aggregated non-zero columns
         bool aggregateOnCPU = !(m_nccl->IsSupported() || m_mpi->UseGpuGdr());
 
         std::vector<SBCInfo> sbcInfos;
-        for (size_t idx = 0; idx < sbcInfos.size(); idx++)
+        for (size_t idx = 0; idx < sbcValues.size(); idx++)
         {
             sbcInfos.emplace_back(SBCInfo(sbcValues[idx]));
             auto& sbcInfo = sbcInfos[idx];
@@ -543,17 +517,13 @@ namespace CNTK
             }
             else
             {
+                // aggregate on GPU, since we'll do inplace aggregation for col2BlockId, remember the original one in blockId2Col
                 pCol2BlockId = const_cast<SparseIndexType*>(sbcInfo.col2BlockId);
+                cudaMemcpy(const_cast<SparseIndexType*>(sbcInfo.blockId2Col), pCol2BlockId, sizeof(SparseIndexType) * sbcInfo.numCols, cudaMemcpyDeviceToDevice);
             }
 
-            AllReduceData<SparseIndexType>(
-                pCol2BlockId,
-                pCol2BlockId,
-                sbcInfo.numCols,
-                nullptr,
-                /*dataOnCPU*/ aggregateOnCPU,
-                MPI_MAX,
-                /* forceSync*/ true);
+            // all-reduce max to find out the columns that would have value after aggregation
+            AllReduceData<SparseIndexType>(pCol2BlockId, pCol2BlockId, sbcInfo.numCols, nullptr, aggregateOnCPU, MPI_MAX, true);
         }
 
         if (m_nccl->IsSupported())
@@ -572,11 +542,10 @@ namespace CNTK
             // if aggregation is done on CPU, the buffer already has valid data, otherwise, copy from gpu
             if (!aggregateOnCPU)
             {
-                aggregatedCol2BlockId = reinterpret_cast<SparseIndexType*>(m_intermediateSBCIndexCPUBuffers[idx].data.get());
                 cudaMemcpy(aggregatedCol2BlockId, sbcInfo.col2BlockId, sbcInfo.numCols * sizeof(SparseIndexType), cudaMemcpyDeviceToHost);
             }
 
-            // update col2blockId and count blocks
+            // update col2blockId and count new blocks
             size_t numBlocks = 0;
             for (size_t col = 0; col < sbcInfo.numCols; col++)
             {
@@ -588,14 +557,17 @@ namespace CNTK
                 }
             }
 
-            // adjust sbc with the new col2BlockId
-            sbc->AdjustSparseBlockColumn(aggregatedCol2BlockId, numBlocks);
+            // adjust sbc with the new col2BlockId. old nz would be copied to the new nz buffer according to the new Col2BlockId,
+            // and the rest of nz buffer would be filled with zero. BlockId2Col would be set accordingly too.
+            // after this, all nz buffers in workers are aligned and ready for aggregation
+            sbc->AdjustSparseBlockColumn(aggregatedCol2BlockId, numBlocks, /*useBlockId2Col*/ !aggregateOnCPU);
 
             // update the info as nzvalue may got reallocated
             sbcInfo = SBCInfo(sbc);
-            size_t requiredSize = sbcInfo.numRows * sbcInfo.numBlocks * ((sbc->GetDataType() == DataType::Float) ? sizeof(float) : sizeof(double));
+            size_t requiredElements = sbcInfo.numRows * numBlocks;
+            size_t requiredSize = requiredElements * DataTypeSize(sbc->GetDataType());
 
-            void* nzGPU = (sbc->GetDataType() == DataType::Float) ? (void*)sbcInfo.nzFloat : (void*)sbcInfo.nzDouble;
+            void* nzGPU = const_cast<void*>(sbcInfo.nz);
             void* nz = nzGPU;
             if (aggregateOnCPU)
             {
@@ -608,9 +580,9 @@ namespace CNTK
             }
 
             if (sbc->GetDataType() == DataType::Float)
-                AllReduceData<float>((float*)nz, (float*)nz, sbcInfo.numRows * sbcInfo.numBlocks, nullptr, aggregateOnCPU, MPI_SUM, true);
+                AllReduceData<float>((float*)nz, (float*)nz, requiredElements, nullptr, aggregateOnCPU, MPI_SUM, true);
             else
-                AllReduceData<double>((double*)nz, (double*)nz, sbcInfo.numRows * sbcInfo.numBlocks, nullptr, aggregateOnCPU, MPI_SUM, true);
+                AllReduceData<double>((double*)nz, (double*)nz, requiredElements, nullptr, aggregateOnCPU, MPI_SUM, true);
 
             if (aggregateOnCPU)
             {

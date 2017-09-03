@@ -3253,26 +3253,37 @@ template <class ElemType>
 __global__ void _adjustCol2BlockId(
     const int numRows,
     const int numCols,
-    const GPUSPARSE_INDEX_TYPE* newCol2BlockId,
     const GPUSPARSE_INDEX_TYPE* oldCol2BlockId,
     const ElemType* oldNZ,
-    GPUSPARSE_INDEX_TYPE* newBlockId2Col,
-    ElemType* newNZ)
+    const GPUSPARSE_INDEX_TYPE* newCol2BlockId,
+    ElemType* newNZ,
+    GPUSPARSE_INDEX_TYPE* newBlockId2Col)
 {
     CUDA_LONG id = blockDim.x * blockIdx.x + threadIdx.x;
     if (id >= numCols)
         return;
 
-    int oldBlockId = oldCol2BlockId[id];
     int newBlockId = newCol2BlockId[id];
-    if (oldBlockId != SparseIndex_NotAssigned)
+    if (newBlockId != SparseIndex_NotAssigned)
     {
         newBlockId2Col[newBlockId] = id;
-        const ElemType* oldValue = oldNZ + numRows * oldBlockId;
-        ElemType* newValue = newNZ + numRows * newBlockId;
-        for (int row = 0; row < numRows; row++)
+        int oldBlockId = oldCol2BlockId[id];
+        if (oldBlockId != SparseIndex_NotAssigned)
         {
-            newValue[row] = oldValue[row];
+            const ElemType* oldValue = oldNZ + numRows * oldBlockId;
+            ElemType* newValue = newNZ + numRows * newBlockId;
+            for (int row = 0; row < numRows; row++)
+            {
+                newValue[row] = oldValue[row];
+            }
+        }
+        else
+        {
+            ElemType* newValue = newNZ + numRows * newBlockId;
+            for (int row = 0; row < numRows; row++)
+            {
+                newValue[row] = 0;
+            }
         }
     }
 }
