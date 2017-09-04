@@ -64,9 +64,6 @@ namespace CNTK
             // convert sparse gradient to dense for accumulation
             if (m_convertSparseToDense && p->GetStorageFormat() != StorageFormat::Dense)
             {
-                if (convertedGradientValues == nullptr)
-                    LogicError("Unexpected sparse to dense conversion in aggregation");
-
                 NDArrayViewPtr pDense = MakeSharedObject<NDArrayView>(0, p->GetDataType(), p->Shape(), p->Device());
                 pDense->CopyFrom(*p);
                 p = pDense;
