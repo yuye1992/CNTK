@@ -46,12 +46,15 @@ def crop(crop_type='center', crop_size=0, side_ratio=0.0, area_ratio=0.0, aspect
           which means the crop will have size between 100 (sqrt(30,000*0.3333)) and
           155 (sqrt(30,000*0.8)).
         aspect_ratio (`float`, default 1.0): It specifies the aspect ratio (width/height
-          or height/width) of the crop window. Must be set within `(0,1]`. For example,
-          if due to size_ratio the crop size is 240x240, an aspect_ratio of 0.64 will
-          change the window size to non-square: 192x300 or 300x192, each having 50%
-          chance. Note the area of the crop window does not change. To enable aspect
-          ratio jitter, use tuple such as aspect_ratio=(0.64,1.0), which means
-          the crop will have size between 192x300 (or euqally likely 300x192) and 240x240.
+          or height/width) of the crop window. It's recommend to set it within `(0,1]`
+          and without upper limit. In implementation, it's equally probable to choose
+          height/width as its operated edge. In practice, values of 1.333(4/3) or 0.75(3/4)
+          should cause the same aspect deformation effect. For example, if due to
+          size_ratio the crop size is 240x240, an aspect_ratio of 0.64 will change the
+          window size to non-square: 192x300 or 300x192, each having 50% chance. Note the
+          area of the crop window does not change. To enable aspect ratio jitter, use
+          tuple such as aspect_ratio=(0.64,1.0), which means the crop will have size
+          between 192x300 (or euqally likely 300x192) and 240x240.
         jitter_type (str, default 'none'): crop scale jitter type, possible
           values are 'none' and 'uniratio'. 'uniratio' means uniform distributed jitter
           scale between the minimum and maximum ratio values.
