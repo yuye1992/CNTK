@@ -124,7 +124,7 @@ namespace CNTK
     bool DataParallelDistributedLearner::Update(std::unordered_map<Parameter, NDArrayViewPtr>& gradientValues, MinibatchInfo& info)
     {
         // sparse gradient may be converted to dense for aggregation
-        std::unordered_map<Parameter, NDArrayViewPtr> convertedGradientValues;
+        std::unordered_map<Parameter, NDArrayViewPtr> convertedGradientValues = gradientValues;
 
         if (m_sampleCount >= m_distributeAfterSamples && m_communicator->Workers().size() > 1)
         {
