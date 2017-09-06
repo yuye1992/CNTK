@@ -1697,18 +1697,27 @@ namespace CNTK
             auto operandPlaceholder = PlaceholderVariable();
             auto inputRank = static_cast<int>(operand.Shape().Rank());
             auto filterRank = static_cast<int>(convolutionMap.Shape().Rank());
+            auto padding = autoPadding;
+            auto expandedStrides = strides;
+
             if ((filterRank - inputRank) == 1)
                 --filterRank;
             else if (filterRank != inputRank)
                 LogicError("convolutionMap: 'Invalid shape, convolutionMap must have the same rank as the input or greater by 1.");
 
+            if (padding.size() == filterRank)
+                padding.push_back(false);
+
+            if (expandedStrides.Rank() == filterRank)
+                expandedStrides = expandedStrides.AppendShape({ 1 });
+
             auto weights = Reshape(convolutionMap, { 1 }, Axis(filterRank), Axis(filterRank));
             auto operandReshape = Reshape(operandPlaceholder, { 1 }, Axis(filterRank), Axis(filterRank));
             auto result = Internal::Convolution(weights,
                 operandReshape,
-                strides,
+                expandedStrides,
                 sharing,
-                autoPadding,
+                padding,
                 false,
                 { 0 },
                 maxTempMemSizeInSamples,
@@ -1742,6 +1751,8 @@ namespace CNTK
             auto operandPlaceholder = PlaceholderVariable();
             auto inputRank = static_cast<int>(operand.Shape().Rank());
             auto filterRank = static_cast<int>(convolutionMap.Shape().Rank());
+            auto padding = autoPadding;
+            auto expandedStrides = strides;
 
             if (!((filterRank == inputRank) || ((filterRank - inputRank) == 1)))
                 LogicError("convolutionMap: 'Invalid shape, convolutionMap must have the same rank as the input or greater by 1.");
@@ -1750,12 +1761,18 @@ namespace CNTK
             if ((filterRank - inputRank) == 1)
                 --filterRank;
 
+            if (padding.size() == filterRank)
+                padding.push_back(false);
+
+            if (expandedStrides.Rank() == filterRank)
+                expandedStrides = expandedStrides.AppendShape({ 1 });
+
             auto operandReshape = Reshape(operandPlaceholder, { 1 }, Axis(filterRank), Axis(filterRank));
             auto result = Internal::Convolution(weights,
                 operandReshape,
-                strides,
+                expandedStrides,
                 sharing,
-                autoPadding,
+                padding,
                 true,
                 outputShape,
                 maxTempMemSizeInSamples,
