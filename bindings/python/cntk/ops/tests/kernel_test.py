@@ -1,4 +1,5 @@
 # Copyright (c) Microsoft. All rights reserved.
+# Copyright (c) 2017, NVIDIA CORPORATION. All rights reserved.
 # Licensed under the MIT license. See LICENSE.md file in the project root
 # for full license information.
 # ==============================================================================
@@ -234,7 +235,7 @@ def test_op_avg_pooling(input_size, pooling_window, strides, result, device_id, 
                          dtype=sanitize_dtype_cntk(precision),
                          needs_gradient=True,
                          name='a')
-                
+
     backward = (1 / np.prod(pooling_window)) * np.ones_like(input_operand)
 
     from cntk import pooling
@@ -545,7 +546,7 @@ CONVOLUTION_TRANSPOSE_OUTPUT_DATA = [
      [[[[ 0, 3, 4, 11, 8, 10],
         [ 3, 12, 11, 28, 19, 26],
         [ 12, 27, 16, 35, 20, 25],
-        [ 27, 60, 35, 76, 43, 56], 
+        [ 27, 60, 35, 76, 43, 56],
         [ 24, 51, 28, 59, 32, 40]]]]) # result
 ]
 # this test handles convolution transpose, without specifying output shape
@@ -660,13 +661,13 @@ def test_spatial_convolution_transpose_with_output(input_size, conv_size, result
                     None, device_id=device_id, precision=precision)
 
 def test_conv_incorrect_shapes():
-    input = C.input_variable(())    
+    input = C.input_variable(())
     with pytest.raises(ValueError):
         h = C.layers.Convolution(filter_shape=(5,5), num_filters=8, strides=(1,1), pad=True)(input)
     with pytest.raises(ValueError):
         h = C.layers.MaxPooling(filter_shape=(2,2), strides=(2,2))(input)
 
-    input = C.input_variable(28)    
+    input = C.input_variable(28)
     with pytest.raises(ValueError):
         h = C.layers.Convolution(filter_shape=(5,5), num_filters=8, strides=(1,1), pad=True)(input)
     with pytest.raises(ValueError):
@@ -689,3 +690,163 @@ def test_conv_cudnn_batch_size_change(device_id):
         seq_lens = [[int(x*msl+1) for x in np.random.random((batch_size))] for msl in max_seq_len]
         output.grad({input1:[np.random.random((sl,) + input_shape).astype(np.float32) for sl in seq_lens[0]],
                      input2:[np.random.random((sl,) + input_shape).astype(np.float32) for sl in seq_lens[1]]})
+
+FREE_STATIC_AXES_CONVOLUTION_DATA = [
+    # 2D convolution with single free static axis.
+    ([5, 101, 151], # warmup_input_size: Defines the input size used for first run with free static axes. 3- and 4-element vector for 2D and 3D convolution, respectively. 
+     [200],         # free_dimension_increment: Increments to the input size for the second/actual/test run. Length defines the number of free static axes.
+     [5, 5],        # filter_size: kernel size for convolution. Length defines 2D or 3D convolution.
+     128            # num_output_channels
+     ),
+    # 2D convolution with two free static axes.
+    ([3, 51, 101], 
+     [100, 121], 
+     [3, 3], 
+     128
+     ),
+    # 3D convolution with three free static axes.
+    ([3, 51, 101, 71],
+     [100, 21, 31],
+     [3, 3, 3],
+     16
+     ),
+    # 3D convolution with two free static axes.
+    ([5, 51, 61, 91],
+     [20, 12],
+     [3, 3, 3],
+     8
+     ),
+    # 3D convolution with single free static axis.
+    ([2, 101, 121, 151],
+     [10],
+     [3, 3, 3],
+     8
+     )
+]
+# This test point exercises 2D and 3D convolution with single and multiple free static axes, and ensures that the result is the same as with fixed axes.
+@pytest.mark.parametrize("warmup_input_size, free_dimension_increment, filter_size, num_output_channels", FREE_STATIC_AXES_CONVOLUTION_DATA)
+def test_conv_free_static_axes(warmup_input_size, free_dimension_increment, filter_size, num_output_channels, device_id, precision):
+    dt = PRECISION_TO_TYPE[precision]
+    dev = cntk_device(device_id)
+
+    np.random.seed(0)
+
+    conv_size = tuple([num_output_channels, warmup_input_size[0]]+filter_size)
+    total_size = np.prod(conv_size)
+    y = np.arange(total_size, dtype=dt)
+    conv_map = constant(value=y.reshape(conv_size), device=dev)
+
+    reference_input_size = tuple(warmup_input_size[:-len(free_dimension_increment)] +
+                           [x+y for x,y in zip(warmup_input_size[-len(free_dimension_increment):], free_dimension_increment)])
+
+    a_ref = C.input_variable(shape=reference_input_size,
+                dtype=dt,
+                needs_gradient=False,
+                name='a_ref')
+    a_test = C.input_variable(shape=tuple(warmup_input_size[:-len(free_dimension_increment)] + [C.FreeDimension]*len(free_dimension_increment)),
+                dtype=dt,
+                needs_gradient=False,
+                name='a_test')
+
+    from cntk import convolution
+    conv_op_without_free_dim = convolution(conv_map, a_ref, auto_padding=[False] + [True]*len(filter_size))
+    conv_op_with_free_dim = convolution(conv_map, a_test, auto_padding=[False] + [True]*len(filter_size))
+
+    input_img_ref = np.ones(reference_input_size, dtype=dt)
+    output_ref = conv_op_without_free_dim.eval({a_ref: input_img_ref}, device=dev)
+
+    input_img_warmup = np.ones(warmup_input_size, dtype=dt)
+    _ = conv_op_with_free_dim.eval({a_test: input_img_warmup}, device=dev)
+        
+    output_test = conv_op_with_free_dim.eval({a_test: input_img_ref}, device=dev)
+
+    assert np.allclose(output_test, output_ref, atol = 1e-4)
+
+FREE_STATIC_AXES_WITH_DYNAMIC_AXIS_CONVOLUTION_DATA = [    
+    # 2D convolution with two free static axes and one batch (dynamic) axis.
+    ([3, 51, 71], # warmup_input_size: Defines the input size used for first run with free static axes. 3- and 4-element vector for 2D and 3D convolution, respectively.
+     [10, 12],    # free_dimension_increment: Increments to the input size for the second/actual/test run. Length defines the number of free static axes.
+     [3, 3],      # filter_size: kernel size for convolution. Length defines 2D or 3D convolution.
+     32,          # num_output_channels
+     [4, 33]      # Half-open range for random selection of of batch-sizes (for reference and warmup)
+     ),        
+]
+# This test point exercises convolution with multiple free static axes and batch (dynamic) axis), and ensures that the result is the same as with fixed axes.
+@pytest.mark.parametrize("warmup_input_size, free_dimension_increment, filter_size, num_output_channels, batch_size_range", FREE_STATIC_AXES_WITH_DYNAMIC_AXIS_CONVOLUTION_DATA)
+def test_conv_free_static_and_dynamic_axes(warmup_input_size, free_dimension_increment, filter_size, num_output_channels, batch_size_range, device_id, precision):
+    dt = PRECISION_TO_TYPE[precision]
+    dev = cntk_device(device_id)
+
+    np.random.seed(0)
+
+    conv_size = tuple([num_output_channels, warmup_input_size[0]]+filter_size)
+    total_size = np.prod(conv_size)
+    y = np.arange(total_size, dtype=dt)
+    conv_map = constant(value=y.reshape(conv_size), device=dev)
+
+    warmup_batchsize = np.random.randint(batch_size_range[0],batch_size_range[1])
+    ref_batchsize = np.random.randint(batch_size_range[0],batch_size_range[1])
+
+    reference_input_size = tuple(warmup_input_size[:-len(free_dimension_increment)] +
+                           [x+y for x,y in zip(warmup_input_size[-len(free_dimension_increment):], free_dimension_increment)])
+
+    a_ref = C.sequence.input_variable(shape=reference_input_size,
+                dtype=dt,
+                needs_gradient=False,
+                sequence_axis=C.Axis.new_unique_dynamic_axis('c'))
+    a_test = C.sequence.input_variable(shape=tuple(warmup_input_size[:-len(free_dimension_increment)] + [C.FreeDimension]*len(free_dimension_increment)),
+                dtype=dt,
+                needs_gradient=False,
+                sequence_axis=C.Axis.new_unique_dynamic_axis('c'))
+
+    from cntk import convolution
+    conv_op_without_free_dim = convolution(conv_map, a_ref, auto_padding=[False] + [True]*len(filter_size))
+    conv_op_with_free_dim = convolution(conv_map, a_test, auto_padding=[False] + [True]*len(filter_size))
+    
+    input_img_ref = np.random.random((ref_batchsize,) + reference_input_size).astype(dt)
+    output_ref = conv_op_without_free_dim.eval({a_ref: input_img_ref}, device=dev)
+
+    input_img_warmup = np.random.random((warmup_batchsize,) + tuple(warmup_input_size)).astype(dt)
+    _ = conv_op_with_free_dim.eval({a_test: input_img_warmup}, device=dev)
+        
+    output_test = conv_op_with_free_dim.eval({a_test: input_img_ref}, device=dev)
+
+    assert np.allclose(output_test, output_ref, atol = 1e-4)
+
+DILATED_CONVOLUTION_DATA = [
+    ([1, 1, 5, 5], # input_size
+     [1, 3, 3], # convolution size
+     [[[[624]]]]) # result
+]
+@pytest.mark.parametrize("input_size, conv_size, result", DILATED_CONVOLUTION_DATA)
+def test_convolution_dilated(input_size, conv_size, result, device_id, precision):
+    if device_id == -1:
+        pytest.skip('Test only runs on GPU')
+
+    dt = PRECISION_TO_TYPE[precision]
+    dev = cntk_device(device_id)
+
+    # fill input operand with a sequence 0,1,2,3,... til total size and then
+    # resize to input_size
+    total_size = np.prod(input_size)
+    x = np.arange(total_size, dtype=dt)
+    input_operand = x.reshape(input_size)
+
+    a = C.input_variable(shape=input_operand.shape[1:],
+                dtype=sanitize_dtype_cntk(precision),
+                needs_gradient=False,
+                name='a')
+
+    # do the same for convolution kernel
+    total_size = np.prod(conv_size)
+    y = np.arange(total_size, dtype=dt)
+    conv_map = constant(value=y.reshape(conv_size), device=dev)
+
+    from cntk.ops import convolution
+    input_op = convolution(conv_map, a, auto_padding=[False], dilation=2)
+
+    forward_input = {a: input_operand}
+    expected_forward = AA(result)
+
+    unittest_helper(input_op, forward_input, expected_forward,
+                    None, device_id=device_id, precision=precision)
