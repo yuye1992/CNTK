@@ -1690,22 +1690,27 @@ namespace CNTK
                 autoPadding,
                 false,
                 { 0 },
-                reductionRank,
                 maxTempMemSizeInSamples,
                 name);
         else
         {
             auto operandPlaceholder = PlaceholderVariable();
+            auto inputRank = static_cast<int>(operand.Shape().Rank());
             auto filterRank = static_cast<int>(convolutionMap.Shape().Rank());
-            auto operandReshape = Reshape(operandPlaceholder, { 1 }, Axis(-filterRank), Axis(-filterRank));
-            auto result = Internal::Convolution(convolutionMap,
+            if ((filterRank - inputRank) == 1)
+                --filterRank;
+            else if (filterRank != inputRank)
+                LogicError("convolutionMap: 'Invalid shape, convolutionMap must have the same rank as the input or greater by 1.");
+
+            auto weights = Reshape(convolutionMap, { 1 }, Axis(filterRank), Axis(filterRank));
+            auto operandReshape = Reshape(operandPlaceholder, { 1 }, Axis(filterRank), Axis(filterRank));
+            auto result = Internal::Convolution(weights,
                 operandReshape,
                 strides,
                 sharing,
                 autoPadding,
                 false,
                 { 0 },
-                reductionRank,
                 maxTempMemSizeInSamples,
                 name);
             return AsBlock(std::move(result), { { operandPlaceholder, operand } }, L"Convolution", name);
@@ -1730,22 +1735,29 @@ namespace CNTK
                 autoPadding,
                 true,
                 outputShape,
-                reductionRank,
                 maxTempMemSizeInSamples,
                 name);
         else
         {
             auto operandPlaceholder = PlaceholderVariable();
+            auto inputRank = static_cast<int>(operand.Shape().Rank());
             auto filterRank = static_cast<int>(convolutionMap.Shape().Rank());
-            auto operandReshape = Reshape(operandPlaceholder, { 1 }, Axis(-filterRank), Axis(-filterRank));
-            auto result = Internal::Convolution(convolutionMap,
+
+            if (!((filterRank == inputRank) || ((filterRank - inputRank) == 1)))
+                LogicError("convolutionMap: 'Invalid shape, convolutionMap must have the same rank as the input or greater by 1.");
+
+            auto weights = Reshape(convolutionMap, { 1 }, Axis(filterRank), Axis(filterRank));
+            if ((filterRank - inputRank) == 1)
+                --filterRank;
+
+            auto operandReshape = Reshape(operandPlaceholder, { 1 }, Axis(filterRank), Axis(filterRank));
+            auto result = Internal::Convolution(weights,
                 operandReshape,
                 strides,
                 sharing,
                 autoPadding,
                 true,
                 outputShape,
-                reductionRank,
                 maxTempMemSizeInSamples,
                 name);
             return AsBlock(std::move(result), { { operandPlaceholder, operand } }, L"ConvolutionTranspose", name);
