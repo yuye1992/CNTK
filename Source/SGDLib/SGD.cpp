@@ -2394,7 +2394,7 @@ void SGD<ElemType>::UpdateWeights(Matrix<ElemType>& functionValues, Matrix<ElemT
         {
             functionValues.MomentumSGDUpdate(gradientValues, smoothedGradientValues, 
                                              ElemType(learnRatePerSample), 
-                                             //TODO: By defualt, it is UnitGain momentum; do we need to enable V1 with non unit gain update? 
+                                             //By defualt, V1 uses UnitGain momentum. TODO: Do we need to enable V1 with non unit gain update?
                                              ElemType(momentum), ElemType(1.0) - ElemType(momentum));
         }
         else

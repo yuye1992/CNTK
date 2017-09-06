@@ -53,7 +53,7 @@ def _train(z, loss, eval_error,
 
     input_dim = 2
 
-    lr_schedule = learning_rate_schedule(0.5)
+    lr_schedule = C.learning_parameter_schedule(0.5)
     #now we want the learning be compatible with the way in the literature without the per sample benefit:
     learner = sgd(z.parameters, lr_schedule, ref_minibatch_size = 0)
     trainer = Trainer(z, (loss, eval_error), [learner])

@@ -342,7 +342,7 @@ def test_ext_lambdafunc(tmpdir):
     z = Function.load(filepath)
 
     momentum_time_constant = C.momentum_as_time_constant_schedule(1100)
-    lr_per_sample = C.learning_rate_schedule(0.007, ref_minibatch_size = 1)
+    lr_per_sample = C.learning_parameter_schedule(0.007, ref_minibatch_size = 1)
     trainer = C.Trainer(z, (z + 0, z + 0), [C.momentum_sgd(z.parameters,
                                                            lr_per_sample,
                                                            momentum_time_constant,
