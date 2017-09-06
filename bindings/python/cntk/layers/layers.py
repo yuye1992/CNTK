@@ -274,7 +274,6 @@ def _pad_to_shape(filter_shape, param, what):
 #    in     : ( (sample shape) +                 +  (reduction shape) + (spatial shape)   )
 #    kernel : (                +  (output shape) +  (reduction shape) + (rec field shape) )
 #    out    : ( (sample shape) +  (output shape) +                    + (spatial shape)   )
-# TODO: Add atrous (dilated) convolution once available.
 # TODO: sharing = false? I'd need that for speech feature extraction.
 # TODO: should we allow to pass fixed weights instead? Like for Embedding? E.g. audio filters
 # TODO: this is not a convolution but a correlation, and W's shape has input and output depth reverted.
@@ -400,7 +399,7 @@ def Convolution(filter_shape,     # shape of receptive field, e.g. (3,3)
     pad          = _pad_to_shape(filter_shape, pad, 'pad')
 
     if reduction_rank > 1:
-        raise NotImplementedError("Convolution: reduction_rank other than 0 or 1 currently not supported")
+        raise NotImplementedError("Convolution: reduction_rank must be 0 or 1")
     if transpose_weight:
         raise NotImplementedError("Convolution: transpose_weight option currently not supported")
     if not sharing:
@@ -409,15 +408,13 @@ def Convolution(filter_shape,     # shape of receptive field, e.g. (3,3)
     # So we emulate those dimensions on this level. TODO: Once this is suppored by the C++ code, remove the emulation here.
     emulating_output_depth = num_filters == ()
     emulating_input_depth  = reduction_rank == 0
-    # 1D convolution is not supported by cudnn, so we also add a fake dimension.
-    emulating_1D = False   # len(filter_shape) < 2 # TODO: 1D no longer needs emulation. Remove all related code once it passes Jenkins.
 
     actual_output_channels_shape = num_filters                if not emulating_output_depth else (1,)
-    actual_reduction_shape       = _INFERRED * reduction_rank if not emulating_input_depth  else _INFERRED  # TODO: C++ support for 1D
-    actual_filter_shape          = (1,) * emulating_1D + filter_shape
+    actual_reduction_shape       = _INFERRED
+    actual_filter_shape          = filter_shape
 
     # add the dimension to the options as well
-    num_emulated_axes = emulating_input_depth + emulating_1D
+    num_emulated_axes = emulating_input_depth
     strides = (1,)     * num_emulated_axes + strides
     sharing = (True,)  * num_emulated_axes + sharing
     pad     = (False,) * num_emulated_axes + pad
@@ -477,7 +474,7 @@ def Convolution(filter_shape,     # shape of receptive field, e.g. (3,3)
         # if no output dimension is desired, then strip it
         # also need to strip the fake singleton axes, since they are not reduced away
         # TODO: We still have those axes in the kernel. Solve this once the C++ implementation supports 1D directly.
-        num_axes_to_remove = sequential + emulating_1D + emulating_output_depth
+        num_axes_to_remove = sequential + emulating_output_depth
         if num_axes_to_remove > 0:
             # (out_depth, emulated axes, spatial_shape)
             r = reshape(r, (),    # e.g. (2000, 1, 480, 640) -> (2000, 480, 640)

@@ -1142,7 +1142,8 @@ namespace CNTK
         {
             auto operandPlaceholder = PlaceholderVariable();
             auto operandDelta = operandPlaceholder - ReduceMax(operandPlaceholder, axis);
-            auto result = ElementDivide(Exp(operandDelta), ReduceSum(Exp(operandDelta), axis));
+            auto operandExpDelta = Exp(operandDelta);
+            auto result = ElementDivide(operandExpDelta, ReduceSum(operandExpDelta, axis));
 
             return AsBlock(std::move(result), { { operandPlaceholder, operand } }, L"Softmax", name);
         }
@@ -1677,18 +1678,38 @@ namespace CNTK
         const NDShape& strides,
         const std::vector<bool>& sharing,
         const std::vector<bool>& autoPadding,
+        size_t reductionRank,
         size_t maxTempMemSizeInSamples,
         const std::wstring& name)
     {
-        return Internal::Convolution(convolutionMap,
-            operand,
-            strides,
-            sharing,
-            autoPadding,
-            false,
-            { 0 },
-            maxTempMemSizeInSamples,
-            name);
+        if (reductionRank == 1)
+            return Internal::Convolution(convolutionMap,
+                operand,
+                strides,
+                sharing,
+                autoPadding,
+                false,
+                { 0 },
+                reductionRank,
+                maxTempMemSizeInSamples,
+                name);
+        else
+        {
+            auto operandPlaceholder = PlaceholderVariable();
+            auto filterRank = static_cast<int>(convolutionMap.Shape().Rank());
+            auto operandReshape = Reshape(operandPlaceholder, { 1 }, Axis(-filterRank), Axis(-filterRank));
+            auto result = Internal::Convolution(convolutionMap,
+                operandReshape,
+                strides,
+                sharing,
+                autoPadding,
+                false,
+                { 0 },
+                reductionRank,
+                maxTempMemSizeInSamples,
+                name);
+            return AsBlock(std::move(result), { { operandPlaceholder, operand } }, L"Convolution", name);
+        }
     }
 
     FunctionPtr ConvolutionTranspose(const Variable& convolutionMap,
@@ -1697,18 +1718,38 @@ namespace CNTK
         const std::vector<bool>& sharing,
         const std::vector<bool>& autoPadding,
         const NDShape& outputShape,
+        size_t reductionRank,
         size_t maxTempMemSizeInSamples,
         const std::wstring& name)
     {
-        return Internal::Convolution(convolutionMap,
-            operand,
-            strides,
-            sharing,
-            autoPadding,
-            true,
-            outputShape,
-            maxTempMemSizeInSamples,
-            name);
+        if (reductionRank == 1)
+            return Internal::Convolution(convolutionMap,
+                operand,
+                strides,
+                sharing,
+                autoPadding,
+                true,
+                outputShape,
+                reductionRank,
+                maxTempMemSizeInSamples,
+                name);
+        else
+        {
+            auto operandPlaceholder = PlaceholderVariable();
+            auto filterRank = static_cast<int>(convolutionMap.Shape().Rank());
+            auto operandReshape = Reshape(operandPlaceholder, { 1 }, Axis(-filterRank), Axis(-filterRank));
+            auto result = Internal::Convolution(convolutionMap,
+                operandReshape,
+                strides,
+                sharing,
+                autoPadding,
+                true,
+                outputShape,
+                reductionRank,
+                maxTempMemSizeInSamples,
+                name);
+            return AsBlock(std::move(result), { { operandPlaceholder, operand } }, L"ConvolutionTranspose", name);
+        }
     }
 
     FunctionPtr ROIPooling(const Variable& operand, 
