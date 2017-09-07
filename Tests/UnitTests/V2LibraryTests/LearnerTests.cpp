@@ -144,31 +144,31 @@ void TestUniversalLearner(size_t numParameters, size_t numMinibatches, const Dev
 void TestTrainingParametersSchedule()
 {
     LearningRateSchedule schedule1(0.5, 1);
-    assert(schedule1.GetRefMinibatchSize() == 1);
+    assert(schedule1.GetMinibatchSize() == 1);
     assert(schedule1[0] == 0.5);
     assert(schedule1[1] == 0.5);
     assert(schedule1[100] == 0.5);
 
     LearningRateSchedule schedule2(std::vector<double>({ 0.5 }), LearningRateSchedule::FullDataSweep, 1);
-    assert(schedule2.GetRefMinibatchSize() == 1);
+    assert(schedule2.GetMinibatchSize() == 1);
     assert(schedule2[0] == 0.5);
     assert(schedule2[10] == 0.5);
     assert(schedule2[100] == 0.5);
 
     LearningRateSchedule schedule3(std::vector<double>{ 0.5, 0.3, 0.3 }, LearningRateSchedule::FullDataSweep, 1);
-    assert(schedule3.GetRefMinibatchSize() == 1);
+    assert(schedule3.GetMinibatchSize() == 1);
     assert(schedule3[0] == 0.5);
     assert(schedule3[1] == 0.3);
     assert(schedule3[100] == 0.3);
 
     LearningRateSchedule schedule4(vector<double>{ 0.5 }, 10 ); // without vector<> gcc complains that conversion here is ambiguousS
-    assert(schedule4.GetRefMinibatchSize() == LearningRateSchedule::UnspecifiedRefMinibatchSize);
+    assert(schedule4.GetMinibatchSize() == LearningRateSchedule::UnspecifiedMinibatchSize);
     assert(schedule4[0] == 0.5);
     assert(schedule4[10] == 0.5);
     assert(schedule4[100] == 0.5);
 
     LearningRateSchedule schedule5{ std::vector<double>{ 0.5, 0.3, 0.2 }, 10 };
-    assert(schedule5.GetRefMinibatchSize() == LearningRateSchedule::UnspecifiedRefMinibatchSize); //unspecified reference minibatch size is 0
+    assert(schedule5.GetMinibatchSize() == LearningRateSchedule::UnspecifiedMinibatchSize); //unspecified reference minibatch size is 0
     assert(schedule5[0] == 0.5);
     assert(schedule5[9] == 0.5);
     assert(schedule5[10] == 0.3);
@@ -177,20 +177,20 @@ void TestTrainingParametersSchedule()
     assert(schedule5[100] == 0.2);
 
     MomentumSchedule schedule6{ { make_pair(1, 0.5) } }; // without make_pair this is interpreted as a vector of doubles
-    assert(schedule6.GetRefMinibatchSize() == MomentumSchedule::UnspecifiedRefMinibatchSize);
+    assert(schedule6.GetMinibatchSize() == MomentumSchedule::UnspecifiedRefMinibatchSize);
     assert(schedule6[0] == 0.5);
     assert(schedule6[10] == 0.5);
     assert(schedule6[100] == 0.5);
 
     LearningRateSchedule schedule7{ std::vector<std::pair<size_t, double>>{ { 1, 0.5 }, { 1, 0.3 }, { 1, 0.2 } } };
-    assert(schedule7.GetRefMinibatchSize() == LearningRateSchedule::UnspecifiedRefMinibatchSize);
+    assert(schedule7.GetMinibatchSize() == LearningRateSchedule::UnspecifiedMinibatchSize);
     assert(schedule7[0] == 0.5);
     assert(schedule7[1] == 0.3);
     assert(schedule7[2] == 0.2);
     assert(schedule7[100] == 0.2);
 
     MomentumSchedule schedule8{ std::vector<std::pair<size_t, double>>{ { 1, 0.5 }, { 1, 0.3 }, { 1, 0.2 } }, 10 };
-    assert(schedule8.GetRefMinibatchSize() == MomentumSchedule::UnspecifiedRefMinibatchSize);
+    assert(schedule8.GetMinibatchSize() == MomentumSchedule::UnspecifiedMinibatchSize);
     assert(schedule8[0] == 0.5);
     assert(schedule8[9] == 0.5);
     assert(schedule8[10] == 0.3);
@@ -199,7 +199,7 @@ void TestTrainingParametersSchedule()
     assert(schedule8[100] == 0.2);
 
     LearningRateSchedule schedule9 = { std::vector<std::pair<size_t, double>>{ { 3, 0.5 }, { 2, 0.3 }, { 1, 0.2 } }, LearningRateSchedule::FullDataSweep, 1 };
-    assert(schedule9.GetRefMinibatchSize() == 1);
+    assert(schedule9.GetMinibatchSize() == 1);
     assert(schedule9[0] == 0.5);
     assert(schedule9[2] == 0.5);
     assert(schedule9[3] == 0.3);
@@ -208,7 +208,7 @@ void TestTrainingParametersSchedule()
     assert(schedule9[100] == 0.2);
 
     MomentumSchedule schedule10 = { std::vector<std::pair<size_t, double>>{ { 3, 0.5 }, { 2, 0.3 }, { 1, 0.2 } }, 10 };
-    assert(schedule10.GetRefMinibatchSize() == MomentumSchedule::UnspecifiedRefMinibatchSize);
+    assert(schedule10.GetMinibatchSize() == MomentumSchedule::UnspecifiedMinibatchSize);
     assert(schedule10[0] == 0.5);
     assert(schedule10[29] == 0.5);
     assert(schedule10[30] == 0.3);
@@ -217,7 +217,7 @@ void TestTrainingParametersSchedule()
     assert(schedule10[100] == 0.2);
 
     MomentumSchedule schedule11 = MomentumAsTimeConstantSchedule(std::vector<double>{ 0.0, 1.0, 2.0 }, 10 );
-    assert(schedule11.GetRefMinibatchSize() == 1);
+    assert(schedule11.GetMinibatchSize() == 1);
     assert(schedule11[0] == 0.0);
     assert(schedule11[9] == 0.0);
     assert(schedule11[10] == exp(-1.0 / 1.0));
@@ -226,7 +226,7 @@ void TestTrainingParametersSchedule()
     assert(schedule11[30] == exp(-1.0 / 2.0));
 
     MomentumSchedule schedule12 = schedule11;
-    assert(schedule12.GetRefMinibatchSize() == 1);
+    assert(schedule12.GetMinibatchSize() == 1);
     assert(schedule12[0] == 0.0);
     assert(schedule12[9] == 0.0);
     assert(schedule12[10] == exp(-1.0 / 1.0));
@@ -235,13 +235,13 @@ void TestTrainingParametersSchedule()
     assert(schedule12[30] == exp(-1.0 / 2.0));
 
     MomentumSchedule schedule13 = MomentumAsTimeConstantSchedule(1);
-    assert(schedule13.GetRefMinibatchSize() == 1);
+    assert(schedule13.GetMinibatchSize() == 1);
     assert(schedule13[0] == exp(-1.0 / 1.0));
     assert(schedule13[1] == exp(-1.0 / 1.0));
     assert(schedule13[100] == exp(-1.0 / 1.0));
 
     MomentumSchedule schedule14 = MomentumAsTimeConstantSchedule(std::vector<double>{ 1.0, 2.0, 3.0 } );
-    assert(schedule14.GetRefMinibatchSize() == 1);
+    assert(schedule14.GetMinibatchSize() == 1);
     assert(schedule14[0] == exp(-1.0 / 1.0));
     assert(schedule14[1] == exp(-1.0 / 2.0));
     assert(schedule14[2] == exp(-1.0 / 3.0));
@@ -252,7 +252,7 @@ void TestTrainingParametersSchedule()
     auto dict = schedule15.Serialize();
 
     TrainingParameterSchedule<double> schedule16 = TrainingParameterSchedule<double>::Deserialize(dict);
-    assert(schedule16.GetRefMinibatchSize() == 1);
+    assert(schedule16.GetMinibatchSize() == 1);
     assert(schedule16[0] == exp(-1.0 / 7.0));
     assert(schedule16[9999] == exp(-1.0 / 7.0));
     assert(schedule16[10000] == exp(-1.0 / 5.0));

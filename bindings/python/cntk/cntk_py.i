@@ -93,9 +93,9 @@
 %ignore CNTK::TrainingParameterSchedule(const std::vector<T>&, std::size_t);
 %ignore CNTK::TrainingParameterSchedule::operator=;
 %ignore CNTK::TrainingParameterSchedule::operator[];
-%attribute(CNTK::TrainingParameterSchedule<double>, std::size_t, ref_minibatch_size, GetRefMinibatchSize, SetRefMinibatchSize);
-%attribute(CNTK::TrainingParameterSchedule<std::size_t>, std::size_t, ref_minibatch_size, GetRefMinibatchSize, SetRefMinibatchSize);
-%attribute(CNTK::Learner, std::size_t, ref_minibatch_size, GetRefMinibatchSize, SetRefMinibatchSize);
+%attribute(CNTK::TrainingParameterSchedule<double>, std::size_t, minibatch_size, GetMinibatchSize, SetMinibatchSize);
+%attribute(CNTK::TrainingParameterSchedule<std::size_t>, std::size_t, minibatch_size, GetMinibatchSize, SetMinibatchSize);
+%attribute(CNTK::Learner, std::size_t, minibatch_size, GetMinibatchSize, SetMinibatchSize);
 // for internal test purpose
 %attribute(CNTK::Learner, CNTK::LearningRateSchedule, _learning_rate_schedule, GetLearningRateSchedule, SetLearningRateSchedule);
 
@@ -115,15 +115,15 @@
 
 %rename(l1_regularization_weight) CNTK::AdditionalLearningOptions::l1RegularizationWeight;
 %rename(l2_regularization_weight) CNTK::AdditionalLearningOptions::l2RegularizationWeight;
-%rename(unspecified_ref_minibatch_size) CNTK::TrainingParameterSchedule<double>::UnspecifiedRefMBSize;
-%rename(unspecified_ref_minibatch_size) CNTK::TrainingParameterSchedule<std::size_t>::UnspecifiedRefMBSize;
-%rename(REF_MB_SIZE) CNTK::Learner::RefMBSizeK;
+%rename(unspecified_minibatch_size) CNTK::TrainingParameterSchedule<double>::UnspecifiedMinibatchSize;
+%rename(unspecified_minibatch_size) CNTK::TrainingParameterSchedule<std::size_t>::UnspecifiedMinibatchSize;
+%rename(REF_MB_SIZE) CNTK::Learner::MinibatchSizeK;
 %rename(FUNCTION) CNTK::Learner::FunctionK;
 %rename(RATE) CNTK::Learner::RateK;
 %rename(LEARNING_RATE_SCHEDULE)  CNTK::Learner::LearningRateScheduleK;
 %rename(MOMENTUM_SCHEDULE) CNTK::Learner::MomentumScheduleK;
 %rename(MOMENTUM_VARIANCE_SCEDULE) CNTK::Learner::MomentumVarianceScheduleK;
-%rename(unspecified_ref_minibatch_size)  CNTK::Learner::UnspecifiedRefMBSize;
+%rename(unspecified_minibatch_size)  CNTK::Learner::UnspecifiedMinibatchSize;
 %rename(_options) CNTK::Learner::GetOptions;
 
 %rename(ndcg_at_1) CNTK::NDCGAt1;

@@ -32,14 +32,14 @@ using namespace std;
 
 namespace CNTK
 {
-    CNTK_API const std::wstring Learner::RefMBSizeK = L"RefMBSizeK";
+    CNTK_API const std::wstring Learner::MinibatchSizeK = L"MinibatchSizeK";
     CNTK_API const std::wstring Learner::FunctionK = L"FunctionK";
 
     CNTK_API const std::wstring Learner::RateK = L"RateK";
     CNTK_API const std::wstring Learner::LearningRateScheduleK = L"LearningRateScheduleK";
     CNTK_API const std::wstring Learner::MomentumScheduleK = L"MomentumScheduleK";
     CNTK_API const std::wstring Learner::MomentumVarianceScheduleK = L"MomentumVarianceScheduleK";
-    CNTK_API const size_t Learner::UnspecifiedRefMinibatchSize = TrainingParameterSchedule<double>::UnspecifiedRefMinibatchSize;
+    CNTK_API const size_t Learner::UnspecifiedMinibatchSize = TrainingParameterSchedule<double>::UnspecifiedMinibatchSize;
 
   
     // This method completely replaces the current schedule with the new schedule. However, since
@@ -448,7 +448,7 @@ namespace CNTK
             if (IsCompatibleMode())
                 stream << L" compactible model (minibatch average gradient)";
             else
-                stream << L" reference minibatch size: " << this->GetRefMinibatchSize();
+                stream << L" reference minibatch size: " << this->GetMinibatchSize();
             wstring prefix = stream.str();
 
             for (auto& writer : m_progressWriters)
@@ -500,7 +500,7 @@ namespace CNTK
             return currentMomentum;
         }
         //TODO: The unit gain term (1-beta) should stay as it is (currentMomentum) instead of using the following scaled term.
-        return std::pow(currentMomentum, (double) minibatchSize / (double) schedule.GetRefMinibatchSize());
+        return std::pow(currentMomentum, (double) minibatchSize / (double) schedule.GetMinibatchSize());
     }
 
     /*virtual*/ void LearnerMomentumSGD::Update(const Parameter& parameter, const NDArrayViewPtr& gradientValue, 

@@ -62,7 +62,7 @@ namespace CNTK
             }
             else 
             {
-                std::size_t ref_mbsize = m_learningRateSchedule.GetRefMinibatchSize();
+                std::size_t ref_mbsize = m_learningRateSchedule.GetMinibatchSize();
                 assert(ref_mbsize > 0);
                 return learningRate / ref_mbsize;
             }

@@ -79,10 +79,10 @@ class MySgdFast(UserLearner):
 
 ADDITIONAL_ARGUMENTS = [
     #(additional learning rate arguments (args), additional learner arguments (kwargs))
-    (C.learning_rate_schedule, [UnitType.minibatch], {'ref_minibatch_size': 0}), #for backward compatible test
-    (C.learning_rate_schedule, [], {'ref_minibatch_size': 0}), #for backward compatible test
-    (C.learning_parameter_schedule, [25], {'ref_minibatch_size': 25}),  # test new API
-    (C.learning_parameter_schedule, [], {'ref_minibatch_size': 0}),  # test new API
+    (C.learning_rate_schedule, [UnitType.minibatch], {'minibatch_size': 0}), #for backward compatible test
+    (C.learning_rate_schedule, [], {'minibatch_size': 0}), #for backward compatible test
+    (C.learning_parameter_schedule, [25], {'minibatch_size': 25}),  # test new API
+    (C.learning_parameter_schedule, [], {'minibatch_size': 0}),  # test new API
 ]
 
 def ffnet(optimizer,  num_minibatches_to_train, learning_rate_func, lr_args, learner_kwargs):

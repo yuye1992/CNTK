@@ -59,16 +59,16 @@ LEARNER_LAMBDAS = [
     lambda params: C.sgd(params, lr=learning_rate_schedule(1, UnitType.minibatch)),
     lambda params: C.momentum_sgd(params, lr=learning_rate_schedule(1, UnitType.minibatch), momentum=C.momentum_schedule(0.9))]
 
-@pytest.mark.parametrize("params, expectation, ref_minibatch_size", LR_SCHEDULE_PARAMS_LEGACY)
-def test_learning_rate_schedule(params, expectation, ref_minibatch_size):
+@pytest.mark.parametrize("params, expectation, minibatch_size", LR_SCHEDULE_PARAMS_LEGACY)
+def test_learning_rate_schedule(params, expectation, minibatch_size):
     l = learning_rate_schedule(*params)
-    assert l.ref_minibatch_size == ref_minibatch_size
+    assert l.minibatch_size == minibatch_size
     assert [l[i] for i in range(len(expectation))] == expectation
 
-@pytest.mark.parametrize("params, expectation, ref_minibatch_size", LR_SCHEDULE_PARAMS)
-def test_learning_parameter_schedule(params, expectation, ref_minibatch_size):
+@pytest.mark.parametrize("params, expectation, minibatch_size", LR_SCHEDULE_PARAMS)
+def test_learning_parameter_schedule(params, expectation, minibatch_size):
     l = learning_parameter_schedule(*params)
-    assert l.ref_minibatch_size == ref_minibatch_size
+    assert l.minibatch_size == minibatch_size
     assert [l[i] for i in range(len(expectation))] == expectation
 
 
@@ -80,16 +80,16 @@ def test_momentum_schedule():
     m = 2500
     ms = C.momentum_as_time_constant_schedule([m])
     #all the timeconstant schedule is for per sample
-    assert ms.ref_minibatch_size == 1
+    assert ms.minibatch_size == 1
     assert ms[0] ==  np.exp(-1.0 / np.asarray(m))
 
     ms = C.momentum_as_time_constant_schedule(m)
-    assert ms.ref_minibatch_size == 1
+    assert ms.minibatch_size == 1
     assert ms[0] ==  np.exp(-1.0 / np.asarray(m))
 
     mlist = [980, 520]
     msl = C.momentum_as_time_constant_schedule(mlist)
-    assert ms.ref_minibatch_size == 1
+    assert ms.minibatch_size == 1
     expected = np.exp(-1.0 / np.asarray(mlist))
     assert all(mi == ei for mi,ei in zip(msl,expected))
 
@@ -107,59 +107,59 @@ def test_learner_init():
     #test new API: learning_parameter_schedule
 
     #explictly specify reference minibatch size and learning rate is in number:
-    learner = sgd(res.parameters, lr=0.1, ref_minibatch_size = 25)
+    learner = sgd(res.parameters, lr=0.1, minibatch_size = 25)
     assert learner.is_compatible_mode() == False
-    assert learner.ref_minibatch_size == 25 #the learner's reference minibatch
+    assert learner.minibatch_size == 25 #the learner's reference minibatch
     #with direct learner learning rate number specification, the learning rate schedule get the reference minibatch size from the learner parameters:
-    assert learner._learning_rate_schedule.ref_minibatch_size == 25
+    assert learner._learning_rate_schedule.minibatch_size == 25
     assert learner.learning_rate() == 0.1
 
     #no explictly specification of reference minibatch size and learning rate is in number:
     learner = sgd(res.parameters, lr=learning_parameter_schedule(0.1))
     assert learner.is_compatible_mode() == True
-    assert learner.ref_minibatch_size == 0 #the learner's reference minibatch
+    assert learner.minibatch_size == 0 #the learner's reference minibatch
     #with direct learner learning rate number specification, the learning rate schedule get the reference minibatch size from the learner parameters:
-    assert learner._learning_rate_schedule.ref_minibatch_size == 0
+    assert learner._learning_rate_schedule.minibatch_size == 0
     assert learner.learning_rate() == 0.1
 
 
-    learner = sgd(res.parameters, lr=learning_parameter_schedule(0.1, 20), ref_minibatch_size = 25)
+    learner = sgd(res.parameters, lr=learning_parameter_schedule(0.1, 20), minibatch_size = 25)
     assert learner.is_compatible_mode() == False
-    assert learner.ref_minibatch_size == 25 #the learner's reference minibatch
+    assert learner.minibatch_size == 25 #the learner's reference minibatch
     #with direct learner learning rate number specification, the learning rate schedule get the reference minibatch size from the learner parameters:
-    assert learner._learning_rate_schedule.ref_minibatch_size == 20
+    assert learner._learning_rate_schedule.minibatch_size == 20
     assert learner.learning_rate() == 0.1
 
 
     learner = sgd(res.parameters, lr=learning_parameter_schedule(0.1, 20))
     assert learner.is_compatible_mode() == True
-    assert learner.ref_minibatch_size == 0 #the learner's reference minibatch
+    assert learner.minibatch_size == 0 #the learner's reference minibatch
     #with direct learner learning rate number specification, the learning rate schedule get the reference minibatch size from the learner parameters:
-    assert learner._learning_rate_schedule.ref_minibatch_size == 20
+    assert learner._learning_rate_schedule.minibatch_size == 20
     assert learner.learning_rate() == 0.1
 
     #no explictly specification of reference minibatch size and learning rate is in number:
     learner = sgd(res.parameters, lr=learning_parameter_schedule(0.1))
     assert learner.is_compatible_mode() == True
-    assert learner.ref_minibatch_size == 0 #the learner's reference minibatch
+    assert learner.minibatch_size == 0 #the learner's reference minibatch
     #with direct learner learning rate number specification, the learning rate schedule get the reference minibatch size from the learner parameters:
-    assert learner._learning_rate_schedule.ref_minibatch_size == 0
+    assert learner._learning_rate_schedule.minibatch_size == 0
     assert learner.learning_rate() == 0.1
 
 
     #test backward compability
-    #if unit is not specified, it will depend on the learner to specify the ref_minibatch_size which by default is 0
+    #if unit is not specified, it will depend on the learner to specify the minibatch_size which by default is 0
     learner = sgd(res.parameters, lr=learning_rate_schedule(0.1))
     assert learner.is_compatible_mode() == True #the deprecated learning_rate_schedule was default to minibatch
-    assert learner.ref_minibatch_size == 0 #the default is per sample learning
+    assert learner.minibatch_size == 0 #the default is per sample learning
     assert learner.learning_rate() == 0.1
 
     #for backcompatibility test
     # this will be deprecated in future version
     learner = sgd(res.parameters, lr=learning_rate_schedule(0.1, UnitType.sample))
-    assert learner._learning_rate_schedule.ref_minibatch_size == 1 #the deprecated per sample schedule should not use compatible mode
+    assert learner._learning_rate_schedule.minibatch_size == 1 #the deprecated per sample schedule should not use compatible mode
     assert learner.learning_rate() == 0.1
-    assert learner.ref_minibatch_size == 0 #the learner's reference minibatch size is still 0; during the computation, it will override by the learning rate schedule's specification
+    assert learner.minibatch_size == 0 #the learner's reference minibatch size is still 0; during the computation, it will override by the learning rate schedule's specification
 
     #for backcompatibility test
     # this will be deprecated in future version
@@ -168,8 +168,8 @@ def test_learner_init():
     learner = sgd(res.parameters, lr=learning_rate_schedule(0.1, UnitType.minibatch))
     assert learner.is_compatible_mode() == True
     assert learner.learning_rate() == 0.1
-    assert learner.ref_minibatch_size == 0
-    assert learner._learning_rate_schedule.ref_minibatch_size == 0
+    assert learner.minibatch_size == 0
+    assert learner._learning_rate_schedule.minibatch_size == 0
 
 
     #for backcompatibility test, in reset learning rate, the learner won't receive the reference minibatch size from the schedule
@@ -178,9 +178,9 @@ def test_learner_init():
     learner = sgd(res.parameters, lr=0.1)
     learner.reset_learning_rate(learning_rate_schedule([1,2,3], UnitType.minibatch))
     assert learner.learning_rate() == 1.0
-    learner.ref_minibatch_size = 0 #reset to be per minibatch
-    assert learner.ref_minibatch_size == 0
-    assert learner._learning_rate_schedule.ref_minibatch_size == 0
+    learner.minibatch_size = 0 #reset to be per minibatch
+    assert learner.minibatch_size == 0
+    assert learner._learning_rate_schedule.minibatch_size == 0
     assert learner.is_compatible_mode() == True
 
     learner_parameter = learner.parameters
@@ -191,8 +191,9 @@ def test_learner_init():
     unit_gain_value = C.default_unit_gain_value()
     assert unit_gain_value
 
+    #back compatible API test
     momentum_time_constant = C.momentum_as_time_constant_schedule(1100)
-    lr_per_sample = learning_rate_schedule(0.1, UnitType.sample)
+    lr_per_sample = learning_parameter_schedule(0.1, minibatch_size = 1)
     C.momentum_sgd(res.parameters, lr_per_sample, momentum_time_constant)
     C.momentum_sgd(res.parameters, lr_per_sample, momentum_time_constant, unit_gain_value)
     C.momentum_sgd(res.parameters, lr_per_sample, momentum_time_constant, unit_gain=unit_gain_value)
@@ -201,25 +202,25 @@ def test_learner_init():
     unit_gain_value = C.default_unit_gain_value()
     assert not unit_gain_value
 
-    lr_per_sample = learning_rate_schedule([0.1, 0.2], UnitType.sample)
+    lr_per_sample = learning_parameter_schedule([0.1, 0.2], minibatch_size = 1)
     C.nesterov(res.parameters, lr=lr_per_sample, momentum=momentum_time_constant)
     C.nesterov(res.parameters, lr_per_sample, momentum_time_constant, unit_gain_value)
     C.nesterov(res.parameters, lr=lr_per_sample, momentum=momentum_time_constant, unit_gain=unit_gain_value)
 
-    lr_per_sample = learning_rate_schedule([0.1]*3 +[0.2]*2 +[0.3], UnitType.sample)
+    lr_per_sample = learning_parameter_schedule([0.1]*3 +[0.2]*2 +[0.3], minibatch_size=1)
     C.adagrad(res.parameters, lr=lr_per_sample, need_ave_multiplier=True)
 
     C.set_default_unit_gain_value(True)
     unit_gain_value = C.default_unit_gain_value()
     assert unit_gain_value
 
-    lr_per_sample = learning_rate_schedule([(3,0.1), (2, 0.2), (1, 0.3)], UnitType.sample)
+    lr_per_sample = learning_parameter_schedule([(3,0.1), (2, 0.2), (1, 0.3)], minibatch_size=1)
     C.fsadagrad(res.parameters, lr=lr_per_sample, momentum=momentum_time_constant)
     C.fsadagrad(res.parameters, lr_per_sample, momentum_time_constant, unit_gain_value)
     C.fsadagrad(res.parameters, lr=lr_per_sample, momentum=momentum_time_constant, unit_gain=unit_gain_value)
 
     gamma, inc, dec, max, min = [0.5, 1.2, 0.7, 10, 1e-8]
-    lr_per_sample = learning_rate_schedule([0.1, 0.2], UnitType.sample, 100)
+    lr_per_sample = learning_parameter_schedule([0.1, 0.2], minibatch_size = 1, epoch_size = 100)
     C.rmsprop(res.parameters, lr_per_sample, gamma, inc, dec, max, min, True)
 
     C.set_default_use_mean_gradient_value(False)
@@ -234,7 +235,7 @@ def test_learner_init():
 
     C.adadelta(res.parameters, lr_per_sample)
 
-def test_learner_update():
+def test_learner_update_legacy():
     i = C.input_variable(shape=(1,), needs_gradient=True, name='a')
     w_init = 1
     w = parameter(shape=(1,), init=w_init)
@@ -247,6 +248,23 @@ def test_learner_update():
     assert w.value < w_init
 
     learner.reset_learning_rate(learning_rate_schedule([0.3]*50 + [0.4]*50, UnitType.sample, 1));
+    assert learner.learning_rate() == 0.3
+    x = learner.update({w: np.asarray([[2.]], dtype=np.float32)}, 100)
+    assert learner.learning_rate() == 0.4
+
+def test_learner_update():
+    i = C.input_variable(shape=(1,), needs_gradient=True, name='a')
+    w_init = 1
+    w = parameter(shape=(1,), init=w_init)
+    res = i * w
+
+    learner = sgd(res.parameters, lr=C.learning_parameter_schedule([0.1]*50 + [0.2]*50, minibatch_size = 1, epoch_size=1))
+    assert learner.learning_rate() == 0.1
+    x = learner.update({w: np.asarray([[2.]], dtype=np.float32)}, 100)
+    assert learner.learning_rate() == 0.2
+    assert w.value < w_init
+
+    learner.reset_learning_rate(learning_parameter_schedule([0.3]*50 + [0.4]*50, minibatch_size = 1, epoch_size=1));
     assert learner.learning_rate() == 0.3
     x = learner.update({w: np.asarray([[2.]], dtype=np.float32)}, 100)
     assert learner.learning_rate() == 0.4

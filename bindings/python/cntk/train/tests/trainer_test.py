@@ -229,7 +229,7 @@ def test_model_not_criterion_subset():
 
     ce = 0.5 * sequence.reduce_sum(ce_model2) + 0.5 * ce_model1
 
-    lr_schedule = C.learning_parameter_schedule(0.003, ref_minibatch_size =1)
+    lr_schedule = C.learning_parameter_schedule(0.003, minibatch_size =1)
     trainer_multitask = C.Trainer(model1, (ce, pe_model1), C.sgd(ce.parameters, lr=lr_schedule))
 
     x_data = np.asarray([[2., 1.], [1., 2.]], np.float32)
@@ -252,7 +252,7 @@ def test_model_one_output_of_multi_output_function():
     combined_model = as_block(C.combine([proj, proj_plus_bias]), [(x_placeholder, x)], 'dense_op')
 
     labels = C.input_variable((proj_dim,))
-    lr_schedule = C.learning_parameter_schedule(0.003,  ref_minibatch_size =1)
+    lr_schedule = C.learning_parameter_schedule(0.003,  minibatch_size =1)
     ce = cross_entropy_with_softmax(combined_model.outputs[0], labels)
     pe = classification_error(combined_model.outputs[0], labels)
     trainer_multitask = C.Trainer(combined_model.outputs[0], (ce, pe), C.sgd(ce.parameters, lr=lr_schedule))
@@ -274,7 +274,7 @@ def test_trainer_with_some_params_not_learned():
     ce = cross_entropy_with_softmax(z, labels)
     pe = classification_error(z, labels)
 
-    lr_per_sample = C.learning_parameter_schedule(0.1, ref_minibatch_size =1)
+    lr_per_sample = C.learning_parameter_schedule(0.1, minibatch_size =1)
     trainer = C.Trainer(z, (ce, pe), C.sgd([W], lr_per_sample))
 
     x_value = [[1, 1],[2, 2]]
@@ -309,7 +309,7 @@ def test_scalar_input():
     scalar = C.input_variable((1,), dtype=np.float32, name='tscalar')
     op = scalar + parameter(init=np.asarray([1]), dtype=np.float32)
 
-    lr_per_sample = C.learning_parameter_schedule(0.1,  ref_minibatch_size =1)
+    lr_per_sample = C.learning_parameter_schedule(0.1,  minibatch_size =1)
     trainer = C.Trainer(op, (op, None), C.sgd(op.parameters, lr_per_sample))
     trainer.train_minibatch({scalar: np.zeros((2,1), dtype=np.float32)})
 
@@ -318,7 +318,7 @@ def test_empty_minibatch():
     scalar = C.input_variable((1,), dtype=np.float32, name='tscalar')
     op = scalar + parameter(init=np.asarray([1]), dtype=np.float32)
 
-    lr_per_sample = C.learning_parameter_schedule(0.1,  ref_minibatch_size =1)
+    lr_per_sample = C.learning_parameter_schedule(0.1,  minibatch_size =1)
     trainer = C.Trainer(op, (op, None), C.sgd(op.parameters, lr_per_sample))
     trainer.train_minibatch({})
 
@@ -330,7 +330,7 @@ def test_scalar_loss_function():
     l = C.input_variable((2,))
     proj = C.layers.Dense(2)(x)
     loss = C.reduce_sum(C.cross_entropy_with_softmax(proj, l), axis=C.Axis.all_axes()) * 1.0
-    lr_per_sample = C.learning_parameter_schedule(0.1,  ref_minibatch_size =1)
+    lr_per_sample = C.learning_parameter_schedule(0.1,  minibatch_size =1)
     trainer = C.Trainer(None, (loss, None), C.sgd(loss.parameters, lr_per_sample))
     result = trainer.train_minibatch({x : np.asarray([[.1], [-.1]], dtype=np.float32), l : np.asarray([[0, 1], [1, 0]], dtype=np.float32)})
     assert result
