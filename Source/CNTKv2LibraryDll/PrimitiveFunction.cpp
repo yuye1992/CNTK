@@ -1100,6 +1100,33 @@ namespace CNTK
                             outputShape = NDShape({ numNegativeSamples + 1 });
                             break;
                         }
+                        case PrimitiveOpType::Crop:
+                        {
+                            // Width and height are cropped, while remaining dimensions are unchanged.
+                            assert(m_inputs.size() == 2 || m_inputs.size() == 4);
+                            outputShape = m_inputs[1].Shape();
+                            const NDShape& input0Shape = m_inputs[0].Shape();
+                            if (input0Shape.Rank() != outputShape.Rank())
+                            {
+                                RuntimeError("Function '%S': cropped input '%S' and reference input '%S' have different ranks.",
+                                    AsString().c_str(),
+                                    m_inputs[0].AsString().c_str(),
+                                    m_inputs[1].AsString().c_str()
+                                );
+                            }
+                            if (input0Shape.Rank() < 2)
+                            {
+                                RuntimeError("Function '%S': cropped input '%S' must have rank at least 2.",
+                                    AsString().c_str(),
+                                    m_inputs[0].AsString().c_str()
+                                );
+                            }
+                            for (int i = 2; i < input0Shape.Rank(); ++i)
+                            {
+                                outputShape[i] = input0Shape[i];
+                            }
+                            break;
+                        }
                         default:
                             LogicError("Specified Primitive Function op %S is not supported", PrimitiveOpTypeName(m_op).c_str());
                             break;
@@ -1427,7 +1454,9 @@ namespace CNTK
         else
             computeOutputShapeFunc = &Microsoft::MSR::CNTK::ConvolveGeometry::ComputeInputShape;
 
-        auto outputShape = AsNDShape(computeOutputShapeFunc(AsTensorShape(operandShape), AsTensorShape(kernelShape), AsTensorShape(outputMapCount), AsTensorShape(strides), sharing, autoPad, AsTensorShape(lowerPad), AsTensorShape(upperPad), AsTensorShape(dilation), ceilOutputDim));
+        auto outputShape = AsNDShape(computeOutputShapeFunc(AsTensorShape(operandShape), AsTensorShape(kernelShape), AsTensorShape(outputMapCount),
+            AsTensorShape(strides), sharing, autoPad, AsTensorShape(lowerPad), AsTensorShape(upperPad), AsTensorShape(dilation), ceilOutputDim,
+            operandShape.HasFreeDimension(), false));
 
         // Any input dimensions that are free/inferred pass through as free/inferred
         for (size_t i = 0; i < operandShape.Rank(); ++i)

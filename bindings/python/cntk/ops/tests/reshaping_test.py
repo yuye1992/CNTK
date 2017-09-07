@@ -526,24 +526,25 @@ def test_gather_op(device_id, precision):
 def test_convert_dynamic_axis():
     #test fix batch size
     batch_size = 4
-    a = C.constant(shape=(batch_size, 2, 3), value=1)
+    a = C.parameter(shape=(batch_size, 2, 3), init=1)
     dynamic_a = C.to_batch(a)
     assert len(dynamic_a.dynamic_axes) == 1
     assert dynamic_a.shape == (2, 3)
 
     x = C.input_variable((2, 3))
-    y = x + dynamic_a
+    y = x * dynamic_a
+
+    #test grad
+    data = np.arange(batch_size * 2 * 3).reshape(batch_size, 2, 3).astype('f')
+    assert np.array_equal(y.grad({x:data}, [a]), data)
 
     const_a = C.unpack_batch(y)
     assert len(const_a.dynamic_axes) == 0
     assert const_a.shape == (C.FreeDimension, 2, 3)
 
     f = C.assign(a, const_a)
-    z = x + 1
-    data = np.arange(24).reshape(4, 2, 3).astype('f')
     f.eval({x:data})
-    expected = z.eval({x:data})
-    assert np.array_equal(a.value, expected)
+    assert np.array_equal(a.value, data)
 
     #test reshape with batch axis
     x = C.input_variable((2,3))
@@ -612,3 +613,47 @@ def test_pad():
     expect_grad2 = np.asarray([[4., 6., 4.], [4., 6., 4.]])
     assert np.array_equal(grad2, expect_grad2)
 
+def test_crop():
+    # Small network.
+    node_input = C.input_variable((1, 5, 5))
+    node_referent = C.input_variable((1, 5, 5))
+    node_output = C.layers.Sequential([
+        C.layers.Convolution2D(filter_shape = (3, 3),
+                               num_filters = 1,
+                               init = 1,
+                               strides = (2, 2),
+                               pad = True,
+                               bias = False),
+        C.layers.MaxPooling(filter_shape = (3, 3),
+                            strides = (2, 2),
+                            pad = True),
+        C.layers.ConvolutionTranspose(filter_shape = (4, 4),
+                                      num_filters = 1,
+                                      strides = (4, 4),
+                                      init = 1,
+                                      bias = False)])(node_input)
+
+    # Input data.
+    input_map = {
+        node_input: -np.arange(25).reshape(1, 1, 5, 5).astype(np.float32),
+        node_referent: np.zeros([1, 1, 5, 5]).astype(np.float32)
+    }
+
+    # Expected cropped output.
+    expected = [-12, -12, -12, -24, -24] * 3 + [-63, -63, -63, -81, -81] * 2
+    expected = np.asarray(expected, dtype = np.float32).reshape(1, 1, 5, 5)
+
+    # Test crop with explicitly specified offsets.
+    cropped = C.crop_manual(node_output, node_referent, 1, 1).eval(input_map)
+    assert np.array_equal(cropped, expected)
+
+    # Test crop with automatically computed offsets where inputs
+    # have common ancestor.
+    cropped = C.crop_automatic(node_output, node_input).eval(input_map)
+    assert np.array_equal(cropped, expected)
+
+    # Test crop with automatically computed offsets where inputs do not
+    # have common ancestor.
+    cropped = C.crop_automatic_with_ancestors(
+        node_output, node_referent, node_input, node_referent).eval(input_map)
+    assert np.array_equal(cropped, expected)
