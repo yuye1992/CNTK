@@ -287,6 +287,9 @@ namespace CNTK
         CNTK_API void EnableSynchronousGPUKernelExecution();
         CNTK_API bool IsSynchronousGPUKernelExecutionEnabled();
 
+        CNTK_API void UseSparseGradientAggregationInDataParallelSGD(bool enable);
+        CNTK_API bool ShouldUseSparseGradientAggregationInDataParallelSGD();
+
         CNTK_API unsigned long GetRandomSeed();
         CNTK_API void SetFixedRandomSeed(unsigned long value);
         CNTK_API bool IsRandomSeedFixed();
@@ -373,6 +376,13 @@ namespace CNTK
             ///     WriteValue("mb_avg_loss", lossValue, minibatchIdx);
             ///
             CNTK_API void WriteValue(const std::wstring& name, float value, uint64_t step);
+
+#ifndef CNTK_UWP // doesn't support UWP due to compatibablity of opencv libs
+            ///
+            /// Record an image for a CNTK NDArrayViewPtr at a particular step.
+            ///
+            CNTK_API void WriteImage(const std::wstring& name, NDArrayViewPtr NDPtr, uint64_t step);
+#endif
 
             ///
             /// Flushes any outstanding records to disk. Returns true on success, false otherwise.

@@ -32,6 +32,10 @@ We have added HTML versions of the tutorials and manuals with the Python documen
 ## Operations
 ### Noise contrastive estimation node 
 ### Aggregation on sparse gradient for embedded layer
+#### This change saves costly conversion from sparse to dense before gradient aggregation when embedding vocabulary size is huge.
+#### It is currently enabled for GPU build when training on GPU with non-quantized data parallel SGD. For other distributed learners and CPU build, it is disabled by default.
+#### It can be manually turned off in python by calling `cntk.cntk_py.use_sparse_gradient_aggregation_in_data_parallel_sgd(False)`
+#### Note that for a rare case of running distributed training with CPU device on a GPU build, you need to manually turn it off to avoid unimplemented exception
 ### Gradient as an operator (stretch goal) 
 ### Reduced rank for convolution in C++ to enable convolution on 1D data 
 ### Dilated convolution 
@@ -45,7 +49,7 @@ Now call `cntk.debug.force_deterministic()` will make max and average pooling de
 
 ## Keras and Tensorboard 
 ### Example on Keras and SKLearn multi-GPU support on CNTK 
-### Image feature support with Tensorboard for CNTK 
+### Added Tensorboard image support for CNTK. Now CNTK users can use tensorboard to display images. More details and examples can be found [here](http://docs.microsoft.com/en-us/cognitive-toolkit/Using-TensorBoard-for-Visualization).
 
 ## Others 
 ### Continue work on [Deep Learning Explained](https://www.edx.org/course/deep-learning-explained-microsoft-dat236x) course on edX. 
