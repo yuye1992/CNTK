@@ -1792,7 +1792,7 @@ namespace CNTK
         const std::vector<bool>& sharing,
         const std::vector<bool>& autoPadding,
         const NDShape& dilation,
-		size_t reductionRank,
+        size_t reductionRank,
         size_t maxTempMemSizeInSamples,
         const std::wstring& name)
     {
@@ -1836,7 +1836,7 @@ namespace CNTK
                 expandedStrides,
                 sharing,
                 padding,
-				dilation,
+                dilation,
                 false,
                 { 0 },
                 maxTempMemSizeInSamples,
@@ -1852,7 +1852,7 @@ namespace CNTK
         const std::vector<bool>& autoPadding,
         const NDShape& outputShape,
         const NDShape& dilation,
-		size_t reductionRank,
+        size_t reductionRank,
         size_t maxTempMemSizeInSamples,
         const std::wstring& name)
     {
@@ -1897,7 +1897,7 @@ namespace CNTK
                 expandedStrides,
                 sharing,
                 padding,
-				dilation,
+                dilation,
                 true,
                 outputShape,
                 maxTempMemSizeInSamples,

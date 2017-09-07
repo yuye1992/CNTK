@@ -4161,7 +4161,7 @@ namespace CNTK
                                      const std::vector<bool>& sharing = { true },
                                      const std::vector<bool>& autoPadding = { true },
                                      const NDShape& dilation = { 1 },
-									 size_t reductionRank = 1,
+                                     size_t reductionRank = 1,
                                      size_t maxTempMemSizeInSamples = 0,
                                      const std::wstring& name = L"");
 
@@ -4175,7 +4175,7 @@ namespace CNTK
                                               const std::vector<bool>& autoPadding = { true },
                                               const NDShape& outputShape = { 0 },
                                               const NDShape& dilation = { 1 },
-											  size_t reductionRank = 1,
+                                              size_t reductionRank = 1,
                                               size_t maxTempMemSizeInSamples = 0,
                                               const std::wstring& name = L"");
 
