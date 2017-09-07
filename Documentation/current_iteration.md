@@ -1,5 +1,8 @@
 # Aug-Sept 2017 Notes
 
+## Breaking change
+### This iteration require cuDNN 6.0 in order to support dilated convolution and deterministic pooling. Please update your cuDNN.
+
 ## Documentation
 
 ### Add HTML version of tutorials and manuals so that they can be searchable
@@ -32,6 +35,7 @@
 ### Aggregation on sparse gradient for embedded layer
 ### Gradient as an operator (stretch goal) 
 ### Reduced rank for convolution in C++ to enable convolution on 1D data 
+Now convolution and convolution_transpose support data without channel or depth dimension by setting reductionRank to 0 instead of 1.
 ### Dilated convolution 
 Add support to dilation convolution on the GPU, exposed by BrainScript, C++ and Python API. Dilation convolution effectively increase the kernel size, without actually requiring a big kernel. To use dilation convoluton you need at least cuDNN 6.0. 
 ### Deterministic Pooling

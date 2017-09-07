@@ -1796,6 +1796,9 @@ namespace CNTK
         size_t maxTempMemSizeInSamples,
         const std::wstring& name)
     {
+        if ((reductionRank != 0) && (reductionRank != 1))
+            LogicError("reductionRank: must be 1 or 0.");
+
         if (reductionRank == 1)
             return Internal::Convolution(convolutionMap,
                 operand,
@@ -1818,7 +1821,7 @@ namespace CNTK
             if ((filterRank - inputRank) == 1)
                 --filterRank;
             else if (filterRank != inputRank)
-                LogicError("convolutionMap: 'Invalid shape, convolutionMap must have the same rank as the input or greater by 1.");
+                LogicError("convolutionMap: Invalid shape, convolutionMap must have the same rank as the input or greater by 1.");
 
             if (padding.size() == filterRank)
                 padding.push_back(false);
@@ -1853,6 +1856,9 @@ namespace CNTK
         size_t maxTempMemSizeInSamples,
         const std::wstring& name)
     {
+        if ((reductionRank != 0) && (reductionRank != 1))
+            LogicError("reductionRank: must be 1 or 0.");
+
         if (reductionRank == 1)
             return Internal::Convolution(convolutionMap,
                 operand,
@@ -1873,7 +1879,7 @@ namespace CNTK
             auto expandedStrides = strides;
 
             if (!((filterRank == inputRank) || ((filterRank - inputRank) == 1)))
-                LogicError("convolutionMap: 'Invalid shape, convolutionMap must have the same rank as the input or greater by 1.");
+                LogicError("convolutionMap: Invalid shape, convolutionMap must have the same rank as the input or greater by 1.");
 
             auto weights = Reshape(convolutionMap, { 1 }, Axis(filterRank), Axis(filterRank));
             if ((filterRank - inputRank) == 1)
