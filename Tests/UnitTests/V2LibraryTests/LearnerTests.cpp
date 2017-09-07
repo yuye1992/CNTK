@@ -177,7 +177,7 @@ void TestTrainingParametersSchedule()
     assert(schedule5[100] == 0.2);
 
     MomentumSchedule schedule6{ { make_pair(1, 0.5) } }; // without make_pair this is interpreted as a vector of doubles
-    assert(schedule6.GetMinibatchSize() == MomentumSchedule::UnspecifiedRefMinibatchSize);
+    assert(schedule6.GetMinibatchSize() == MomentumSchedule::UnspecifiedMinibatchSize);
     assert(schedule6[0] == 0.5);
     assert(schedule6[10] == 0.5);
     assert(schedule6[100] == 0.5);
