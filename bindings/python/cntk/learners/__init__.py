@@ -585,7 +585,7 @@ def sgd(parameters, lr,
     additional_options.gradient_clipping_threshold_per_sample = gradient_clipping_threshold_per_sample
     additional_options.gradient_clipping_with_truncation = gradient_clipping_with_truncation
     if minibatch_size is not None:
-        additional_options.dict_options[cntk_py.Learner.REF_MB_SIZE] = cntk_py.SizeTWrapper(minibatch_size) #need this to make proper typed DictionaryValue
+        additional_options.dict_options[cntk_py.Learner.MINIBATCH_SIZE] = cntk_py.SizeTWrapper(minibatch_size) #need this to make proper typed DictionaryValue
 
     return cntk_py.sgd_learner(parameters, lr, additional_options)
 
@@ -647,7 +647,7 @@ def momentum_sgd(parameters, lr, momentum, unit_gain=default_unit_gain_value(),
     additional_options.gradient_clipping_threshold_per_sample = gradient_clipping_threshold_per_sample
     additional_options.gradient_clipping_with_truncation = gradient_clipping_with_truncation
     if minibatch_size is not None:
-        additional_options.dict_options[cntk_py.Learner.REF_MB_SIZE] = cntk_py.SizeTWrapper(minibatch_size) #need this to make proper typed DictionaryValue
+        additional_options.dict_options[cntk_py.Learner.MINIBATCH_SIZE] = cntk_py.SizeTWrapper(minibatch_size) #need this to make proper typed DictionaryValue
 
     return cntk_py.momentum_sgd_learner(parameters, lr, momentum, unit_gain,
                                         additional_options)
@@ -721,7 +721,7 @@ def nesterov(parameters, lr, momentum, unit_gain=default_unit_gain_value(),
     additional_options.gradient_clipping_threshold_per_sample = gradient_clipping_threshold_per_sample
     additional_options.gradient_clipping_with_truncation = gradient_clipping_with_truncation
     if minibatch_size is not None:
-        additional_options.dict_options[cntk_py.Learner.REF_MB_SIZE] = cntk_py.SizeTWrapper(minibatch_size) #need this to make proper typed DictionaryValue
+        additional_options.dict_options[cntk_py.Learner.MINIBATCH_SIZE] = cntk_py.SizeTWrapper(minibatch_size) #need this to make proper typed DictionaryValue
 
     return cntk_py.nesterov_learner(parameters, lr, momentum, unit_gain,
                                     additional_options)
@@ -786,7 +786,7 @@ def adadelta(parameters, lr=learning_rate_schedule(1, UnitType.sample), rho=0.95
     additional_options.gradient_clipping_with_truncation = gradient_clipping_with_truncation
     minibatch_size = _infer_ref_minibatch_size_from_legacy_use_mean_gradient(minibatch_size, use_mean_gradient)
     if minibatch_size is not None:
-        additional_options.dict_options[cntk_py.Learner.REF_MB_SIZE] = cntk_py.SizeTWrapper(minibatch_size) #need this to make proper typed DictionaryValue
+        additional_options.dict_options[cntk_py.Learner.MINIBATCH_SIZE] = cntk_py.SizeTWrapper(minibatch_size) #need this to make proper typed DictionaryValue
 
     return cntk_py.ada_delta_learner(parameters, lr, rho, epsilon,
                                     additional_options)
@@ -852,7 +852,7 @@ def adagrad(parameters, lr, need_ave_multiplier=True,
     additional_options.gradient_clipping_with_truncation = gradient_clipping_with_truncation
     minibatch_size = _infer_ref_minibatch_size_from_legacy_use_mean_gradient(minibatch_size, use_mean_gradient)
     if minibatch_size is not None:
-        additional_options.dict_options[cntk_py.Learner.REF_MB_SIZE] = cntk_py.SizeTWrapper(minibatch_size) #need this to make proper typed DictionaryValue
+        additional_options.dict_options[cntk_py.Learner.MINIBATCH_SIZE] = cntk_py.SizeTWrapper(minibatch_size) #need this to make proper typed DictionaryValue
 
     return cntk_py.ada_grad_learner(parameters, lr, need_ave_multiplier,
                                     additional_options)
@@ -923,7 +923,7 @@ def fsadagrad(parameters, lr, momentum, unit_gain=default_unit_gain_value(),
     additional_options.gradient_clipping_with_truncation = gradient_clipping_with_truncation
     minibatch_size = _infer_ref_minibatch_size_from_legacy_use_mean_gradient(minibatch_size, use_mean_gradient)
     if minibatch_size is not None:
-        additional_options.dict_options[cntk_py.Learner.REF_MB_SIZE] = cntk_py.SizeTWrapper(minibatch_size) #need this to make proper typed DictionaryValue
+        additional_options.dict_options[cntk_py.Learner.MINIBATCH_SIZE] = cntk_py.SizeTWrapper(minibatch_size) #need this to make proper typed DictionaryValue
 
     return cntk_py.fsada_grad_learner(parameters, lr, momentum, unit_gain,
                                       variance_momentum, additional_options)
@@ -1002,7 +1002,7 @@ def adam(parameters, lr, momentum, unit_gain=default_unit_gain_value(),
     additional_options.gradient_clipping_threshold_per_sample = gradient_clipping_threshold_per_sample
     additional_options.gradient_clipping_with_truncation = gradient_clipping_with_truncation
     if minibatch_size is not None:
-        additional_options.dict_options[cntk_py.Learner.REF_MB_SIZE] = cntk_py.SizeTWrapper(minibatch_size) #need this to make proper typed DictionaryValue
+        additional_options.dict_options[cntk_py.Learner.MINIBATCH_SIZE] = cntk_py.SizeTWrapper(minibatch_size) #need this to make proper typed DictionaryValue
 
     return cntk_py.adam_learner(parameters, lr, momentum, unit_gain,
                                 variance_momentum, epsilon, adamax, additional_options)
@@ -1069,7 +1069,7 @@ def rmsprop(parameters, lr,
     additional_options.gradient_clipping_with_truncation = gradient_clipping_with_truncation
     minibatch_size = _infer_ref_minibatch_size_from_legacy_use_mean_gradient(minibatch_size, use_mean_gradient)
     if minibatch_size is not None:
-        additional_options.dict_options[cntk_py.Learner.REF_MB_SIZE] = cntk_py.SizeTWrapper(minibatch_size) #need this to make proper typed DictionaryValue
+        additional_options.dict_options[cntk_py.Learner.MINIBATCH_SIZE] = cntk_py.SizeTWrapper(minibatch_size) #need this to make proper typed DictionaryValue
 
     return cntk_py.rmsprop_learner(parameters, lr, gamma, inc, dec, max, min,
                                    need_ave_multiplier, additional_options)

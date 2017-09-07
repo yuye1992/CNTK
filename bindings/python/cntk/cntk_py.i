@@ -117,12 +117,7 @@
 %rename(l2_regularization_weight) CNTK::AdditionalLearningOptions::l2RegularizationWeight;
 %rename(unspecified_minibatch_size) CNTK::TrainingParameterSchedule<double>::UnspecifiedMinibatchSize;
 %rename(unspecified_minibatch_size) CNTK::TrainingParameterSchedule<std::size_t>::UnspecifiedMinibatchSize;
-%rename(REF_MB_SIZE) CNTK::Learner::MinibatchSizeK;
-%rename(FUNCTION) CNTK::Learner::FunctionK;
-%rename(RATE) CNTK::Learner::RateK;
-%rename(LEARNING_RATE_SCHEDULE)  CNTK::Learner::LearningRateScheduleK;
-%rename(MOMENTUM_SCHEDULE) CNTK::Learner::MomentumScheduleK;
-%rename(MOMENTUM_VARIANCE_SCEDULE) CNTK::Learner::MomentumVarianceScheduleK;
+%rename(MINIBATCH_SIZE) CNTK::Learner::MinibatchSizeKey;
 %rename(unspecified_minibatch_size)  CNTK::Learner::UnspecifiedMinibatchSize;
 %rename(_options) CNTK::Learner::GetOptions;
 

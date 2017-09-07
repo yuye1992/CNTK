@@ -32,13 +32,7 @@ using namespace std;
 
 namespace CNTK
 {
-    CNTK_API const std::wstring Learner::MinibatchSizeK = L"MinibatchSizeK";
-    CNTK_API const std::wstring Learner::FunctionK = L"FunctionK";
-
-    CNTK_API const std::wstring Learner::RateK = L"RateK";
-    CNTK_API const std::wstring Learner::LearningRateScheduleK = L"LearningRateScheduleK";
-    CNTK_API const std::wstring Learner::MomentumScheduleK = L"MomentumScheduleK";
-    CNTK_API const std::wstring Learner::MomentumVarianceScheduleK = L"MomentumVarianceScheduleK";
+    CNTK_API const std::wstring Learner::MinibatchSizeKey = L"MinibatchSizeKey";
     CNTK_API const size_t Learner::UnspecifiedMinibatchSize = TrainingParameterSchedule<double>::UnspecifiedMinibatchSize;
 
   

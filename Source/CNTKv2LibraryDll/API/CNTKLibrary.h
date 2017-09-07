@@ -4627,12 +4627,7 @@ namespace CNTK
     class Learner
     {
     public:
-        CNTK_API static const std::wstring MinibatchSizeK;
-        CNTK_API static const std::wstring FunctionK;
-        CNTK_API static const std::wstring RateK;
-        CNTK_API static const std::wstring LearningRateScheduleK;
-        CNTK_API static const std::wstring MomentumScheduleK;
-        CNTK_API static const std::wstring MomentumVarianceScheduleK;
+        CNTK_API static const std::wstring MinibatchSizeKey;
         CNTK_API static const size_t UnspecifiedMinibatchSize;
 
     public:
@@ -4714,8 +4709,8 @@ namespace CNTK
         ///Note the underlying TrainingParameterSchedule's reference minibatch size setting can over this reference minibatch size
         ///setting and be specialized to its own reference minibatch size. However, this is only suggested for advanced
         ///users.
-        CNTK_API void SetMinibatchSize(std::size_t minibatchSize) { GetOptions().Add(MinibatchSizeK, minibatchSize); }
-        CNTK_API std::size_t GetMinibatchSize() const { return GetOptions().GetOrElse(MinibatchSizeK, UnspecifiedMinibatchSize); }
+        CNTK_API void SetMinibatchSize(std::size_t minibatchSize) { GetOptions().Add(MinibatchSizeKey, minibatchSize); }
+        CNTK_API std::size_t GetMinibatchSize() const { return GetOptions().GetOrElse(MinibatchSizeKey, UnspecifiedMinibatchSize); }
 
         CNTK_API void SetLearningRateSchedule(const LearningRateSchedule& learningRateSchedule) { m_learningRateSchedule = learningRateSchedule; }
         CNTK_API const LearningRateSchedule& GetLearningRateSchedule() const { return m_learningRateSchedule; }
