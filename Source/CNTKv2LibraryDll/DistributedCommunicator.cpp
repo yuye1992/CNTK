@@ -452,7 +452,7 @@ namespace CNTK
         if (m_mpi->NumNodesInUse() == 1) // No need to aggregate anything.
             return;
 #ifdef CPUONLY
-        LogicError("Unimplmented sparse block column aggregation on CPUDevice");
+        LogicError("Sparse block column aggregation on CPUDevice not implemented");
 #else
         // a handy struct to access sparse block column matrix internal data
         struct SBCInfo
@@ -464,7 +464,7 @@ namespace CNTK
             size_t numRows;
             size_t numCols;
 
-            SBCInfo(NDArrayViewPtr sbc)
+            SBCInfo(const NDArrayViewPtr& sbc)
             {
                 if (sbc->Device() == DeviceDescriptor::CPUDevice())
                     LogicError("Unimplmented sparse block column aggregation on CPUDevice. Please cntk.cntk_py.use_sparse_gradient_aggregation_in_data_parallel_sgd(False) to avoid this error.");

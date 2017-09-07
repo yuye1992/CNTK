@@ -1421,6 +1421,11 @@ void Matrix<ElemType>::SetMatrixFromCSCFormat(const CPUSPARSE_INDEX_TYPE* h_CSCC
         { m_GPUSparseMatrix->SetMatrixFromCSCFormat(h_CSCCol, h_Row, h_Val, nz, numRows, numCols, false, -1, transferer); });
 }
 
+///
+/// adjusts the sparse block column matrix with the new Col2BlockId
+/// For each column, if new Col2BlockId contains valid index, a corresponding block exists at the index
+/// if old col2BlockId[i] contains value at that column, it would be copied over; otherwise the block would be filled with zeros
+///
 template <class ElemType>
 void Matrix<ElemType>::AdjustSparseBlockColumn(const GPUSPARSE_INDEX_TYPE* cpuCol2BlockId, size_t numBlocks, bool useBlockId2Col)
 {

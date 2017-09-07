@@ -134,6 +134,9 @@ namespace CNTK
 
             if (info.IsEmpty())
                 PrepaireZeroGradients(gradientValues, info);
+
+            // sorts gradient buffers according to parameter uid, and perform sparse to dense conversion
+            // if !UseSparseGradientAggregationInDataParallelSGD()
             ConvertToOrdered(gradientValues, m_gradientBuffer, &convertedGradientValues);
 
             std::vector<NDArrayViewPtr> valuesToAggregate;

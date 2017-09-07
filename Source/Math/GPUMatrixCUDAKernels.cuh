@@ -3249,6 +3249,11 @@ __global__ void _columnwiseScaleAndWeightedAdd4CSC(
     }
 }
 
+///
+/// adjusts the sparse block column matrix with the new Col2BlockId
+/// For each column, if new Col2BlockId contains valid index, a corresponding block exists at the index
+/// if old col2BlockId[i] contains value at that column, it would be copied over; otherwise the block would be filled with zeros
+///
 template <class ElemType>
 __global__ void _adjustCol2BlockId(
     const int numRows,

@@ -47,6 +47,8 @@ def data_parallel_sgd_on_sparse(outdir, gpu):
         C.try_set_default_device(C.gpu(0))
     else:
         # CPU sparse aggregation is not implemented, so turn it off
+        # note we only need to explicitly do this when running with CPU device on a GPU build
+        # For CPU build it's disabled by default
         C.cntk_py.use_sparse_gradient_aggregation_in_data_parallel_sgd(False)
 
     trainer = SimpleTrainer()

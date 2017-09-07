@@ -531,6 +531,11 @@ void GPUSparseMatrix<ElemType>::SetValue(const GPUMatrix<ElemType>& denseMatrix,
     }
 }
 
+///
+/// adjusts the sparse block column matrix with the new Col2BlockId
+/// For each column, if new Col2BlockId contains valid index, a corresponding block exists at the index
+/// if old col2BlockId[i] contains value at that column, it would be copied over; otherwise the block would be filled with zeros
+///
 template <class ElemType>
 void GPUSparseMatrix<ElemType>::AdjustCol2BlockId(const GPUSPARSE_INDEX_TYPE* cpuCol2BlockId, size_t numBlocks, bool useBlockId2Col)
 {
@@ -549,7 +554,7 @@ void GPUSparseMatrix<ElemType>::AdjustCol2BlockId(const GPUSPARSE_INDEX_TYPE* cp
     CUDA_CALL(cudaMemset(newBlockId2Col, SparseIndex_NotAssigned, numCols * sizeof(GPUSPARSE_INDEX_TYPE)));
     CUDA_CALL(cudaMemcpy(newCol2BlockId, cpuCol2BlockId, numCols * sizeof(GPUSPARSE_INDEX_TYPE), cudaMemcpyHostToDevice));
 
-    int blocksPerGrid = (int)ceil(1.0 * numCols / GridDim::maxThreadsPerBlock);
+    int blocksPerGrid = CeilDiv(numCols, GridDim::maxThreadsPerBlock);
  
     // when useBlockId2Col==true, the original col2BlockId is copied to blockId2Col to avoid getting overwritten 
     // during the inplace aggregation of col2BlockId prior to this
