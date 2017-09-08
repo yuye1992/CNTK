@@ -813,7 +813,7 @@ void ValueCopyToWithUnboundDimension(DeviceDescriptor device)
     val->CopyVariableValueTo(sampleVariable, output);
     CheckCopyToOutput(input, output);
 
-    // Prepare value with batch length > 1, but each batch has only 1 sequence.
+    // Prepare value with batch length >= 1, but each batch has only 1 sequence.
     sampleShape = CreateShape(3, 10);
     batchCount = distribution(generator);
     expectedSeqLens.clear();
@@ -844,13 +844,22 @@ void ValueCopyToWithUnboundDimension(DeviceDescriptor device)
     val->CopyVariableValueTo(sampleVariable, output);
     CheckCopyToOutput(input, output);
 
-    // Test exception for variable without dynamic axis.
+    // Test exception for variable without dynamic axis
+    sampleShape = CreateShape(3, 10);
+    // make sure the batch length > 1.
+    batchCount = distribution(generator) + 1;
+    expectedSeqLens.clear();
+    for (size_t i = 0; i < batchCount; i++)
+        expectedSeqLens.push_back(1);
+    input = GenerateSequences<float>(expectedSeqLens, sampleShape);
+    val = Value::Create(sampleShape, input, device);
+
     sampleVariable = CreateVariable<float>({ sampleShape[0], sampleShape[1], NDShape::InferredDimension }, 0);
     VerifyException([&val, &sampleVariable, &output]() {
         val->CopyVariableValueTo(sampleVariable, output);
     }, "The expected exception has not been caught: The dimension size of the Value must be 1, because this axis is not specified as a dynamic axis of the Variable.");
 
-    // Prepare value with batch length > 1 and sequence length > 1.
+    // Prepare value with batch length >= 1 and sequence length >= 1.
     sampleShape = CreateShape(2, 10);
     batchCount = distribution(generator);
     expectedSeqLens = GenerateSequenceLengths(batchCount, 15);
@@ -878,12 +887,34 @@ void ValueCopyToWithUnboundDimension(DeviceDescriptor device)
     CheckCopyToOutput(input, output);
 
     // Test exception if the variable having only 1 dynamic axis.
+    sampleShape = CreateShape(2, 10);
+    // Ensure that batch length > 1.
+    batchCount = distribution(generator) + 1;
+    // The length of sequences returned by GenerateSequenceLengths is > 1.
+    expectedSeqLens = GenerateSequenceLengths(batchCount, 15);
+    input = GenerateSequences<float>(expectedSeqLens, sampleShape);
+    val = Value::Create(sampleShape, input, device);
     sampleVariable = CreateVariable<float>({ sampleShape[0], NDShape::InferredDimension }, 1);
     VerifyException([&val, &sampleVariable, &output]() {
         val->CopyVariableValueTo(sampleVariable, output);
     }, "The expected exception has not been caught: The dimension size of the Value must be 1, because this axis is not specified as a dynamic axis of the Variable.");
 
     // Test exception if the variable having only 0 dynamic axis.
+    sampleVariable = CreateVariable<float>({ sampleShape[0], NDShape::InferredDimension }, 0);
+    VerifyException([&val, &sampleVariable, &output]() {
+        val->CopyVariableValueTo(sampleVariable, output);
+    }, "The expected exception has not been caught: The dimension size of the Value must be 1, because this axis is not specified as a dynamic axis of the Variable.");
+
+    // Test exception if the variable having only 0 dynamic axis, batch length > 1 but sequence length == 1.
+    sampleShape = CreateShape(2, 10);
+    // Ensure that batch length > 1.
+    batchCount = distribution(generator) + 1;
+    expectedSeqLens.clear();
+    for (size_t i = 0; i < batchCount; i++)
+        expectedSeqLens.push_back(1);
+    input = GenerateSequences<float>(expectedSeqLens, sampleShape);
+    val = Value::Create(sampleShape, input, device);
+
     sampleVariable = CreateVariable<float>({ sampleShape[0], NDShape::InferredDimension }, 0);
     VerifyException([&val, &sampleVariable, &output]() {
         val->CopyVariableValueTo(sampleVariable, output);
