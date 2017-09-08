@@ -589,7 +589,7 @@ SPATIAL_CONVOLUTION_TRANSPOSE_DATA = [
         [ 6, 23, 29, 23],
         [ 12, 32, 37, 24]]]]) # result
 ]
-# this test handles convolution transpose, without specifying output shape
+# this test handles convolution transpose, without specifying output shape and with reduction_rank=0
 @pytest.mark.parametrize("input_size, conv_size, result", SPATIAL_CONVOLUTION_TRANSPOSE_DATA)
 def test_spatial_convolution_transpose(input_size, conv_size, result, device_id, precision):
     dt = PRECISION_TO_TYPE[precision]
@@ -629,7 +629,7 @@ SPATIAL_CONVOLUTION_TRANSPOSE_OUTPUT_DATA = [
         [ 27, 60, 35, 76, 43, 56], 
         [ 24, 51, 28, 59, 32, 40]]]]) # result
 ]
-# this test handles convolution transpose, without specifying output shape
+# this test handles convolution transpose, without specifying output shape and with reduction_rank=0
 @pytest.mark.parametrize("input_size, conv_size, result", SPATIAL_CONVOLUTION_TRANSPOSE_OUTPUT_DATA)
 def test_spatial_convolution_transpose_with_output(input_size, conv_size, result, device_id, precision):
     dt = PRECISION_TO_TYPE[precision]

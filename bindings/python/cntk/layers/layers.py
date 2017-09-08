@@ -660,7 +660,7 @@ def ConvolutionTranspose(filter_shape,        # shape of receptive field, e.g. (
                          bias=default_override_or(True),
                          init_bias=default_override_or(0),
                          output_shape=None,
-                         reduction_rank=1, # (must be 1 currently)
+                         reduction_rank=1, # (0 means input has no depth dimension, e.g. audio signal or B&W image)
                          dilation = 1,
                          max_temp_mem_size_in_samples=0,
                          name=''):
@@ -719,8 +719,8 @@ def ConvolutionTranspose(filter_shape,        # shape of receptive field, e.g. (
      init_bias (scalar or NumPy array or :mod:`cntk.initializer`): initial value of weights `b`
      output_shape (`int` or tuple of `int`\ s): output shape. When strides > 2, the output shape is non-deterministic. User can specify the wanted output shape. Note the
       specified shape must satisify the condition that if a convolution is perform from the output with the same setting, the result must have same shape as the input.
-     reduction_rank (`int`, default 1): must be 1 for now.
       that is stored with tensor shape (H,W) instead of (1,H,W)
+     reduction_rank (`int`, defaults to 1): set to 0 if input items are scalars (input has no depth axis), e.g. an audio signal or a black-and-white image.
      dilation (tuple, optional): the dilation value along each axis, default 1 mean no dilation.
      max_temp_mem_size_in_samples (`int`, default 0): set to a positive number to define the maximum workspace memory for convolution.
      name (str, optional): the name of the Function instance in the network
@@ -728,49 +728,58 @@ def ConvolutionTranspose(filter_shape,        # shape of receptive field, e.g. (
     Returns:
         :class:`~cntk.ops.functions.Function` that accepts one argument and applies the convolution operation to it
     '''
-    activation = get_default_override(ConvolutionTranspose, activation=activation)
-    init       = get_default_override(ConvolutionTranspose, init=init)
-    pad        = get_default_override(ConvolutionTranspose, pad=pad)
-    bias       = get_default_override(ConvolutionTranspose, bias=bias)
-    init_bias  = get_default_override(ConvolutionTranspose, init_bias=init_bias)
+    activation   = get_default_override(ConvolutionTranspose, activation=activation)
+    init         = get_default_override(ConvolutionTranspose, init=init)
+    pad          = get_default_override(ConvolutionTranspose, pad=pad)
+    bias         = get_default_override(ConvolutionTranspose, bias=bias)
+    init_bias    = get_default_override(ConvolutionTranspose, init_bias=init_bias)
     output_shape = get_default_override(ConvolutionTranspose, output_shape=output_shape)
 
     # tuplify all tuple inputs that can also be given as scalars if rank 1
     filter_shape = _as_tuple(filter_shape)
     num_filters  = _as_tuple(num_filters)
-    filter_rank  = len(filter_shape)
     strides      = _pad_to_shape(filter_shape, strides, 'strides')
     sharing      = _pad_to_shape(filter_shape, sharing, 'sharing')
     pad          = _pad_to_shape(filter_shape, pad, 'pad')
     dilation     = _pad_to_shape(filter_shape, dilation, 'dilation')
 
-    if reduction_rank != 1:
-        NotImplementedError("ConvolutionTranspose: reduction_rank other than 1 currently not supported")
+    if reduction_rank > 1:
+        raise NotImplementedError("ConvolutionTranspose: reduction_rank must be 0 or 1")
     if not sharing:
         NotImplementedError("ConvolutionTranspose: sharing option currently must be True")
-    output_channels_shape = _as_tuple(num_filters)
-    kernel_shape = _INFERRED * reduction_rank + filter_shape # kernel := filter plus reductionDims
-    if output_shape is None:
-        kernel_shape = output_channels_shape + filter_shape
-    param_shape = _INFERRED * reduction_rank + kernel_shape
 
-    output_full_shape = output_shape
-    if output_shape is not None:
-        output_full_shape = output_channels_shape + output_shape
+    emulating_input_depth  = reduction_rank == 0
+
+    # add the dimension to the options as well
+    num_emulated_axes = emulating_input_depth
+    strides = (1,)     * num_emulated_axes + strides
+    sharing = (True,)  * num_emulated_axes + sharing
+    pad     = (False,) * num_emulated_axes + pad
+
+    output_channels_shape = _as_tuple(num_filters)
+    kernel_shape = _INFERRED + output_channels_shape + filter_shape # [I × O × m1 × m2 ×… × mn] 
 
     filter_rank = len(filter_shape)
     init_kernel = _initializer_for(init, Record(filter_rank=filter_rank, output_rank=-1))
-    W = Parameter(param_shape, init=init_kernel, name='W')
+    W = Parameter(kernel_shape, init=init_kernel, name='W')
     b = Parameter(output_channels_shape + (1,) * len(filter_shape), init=init_bias, name='b') if bias else None
 
     # expression
     @BlockFunction('ConvolutionTranspose', name)
     def convolve_transposed(x):
+        # insert additional axes for various purposes
+        num_inserted_axes = num_emulated_axes
+        if num_inserted_axes != 0:
+            # x: (in_depth, spatial_shape)
+            x = reshape(x, (1,) * num_inserted_axes,    # e.g. (2000, 480, 640) -> (2000, 1, 480, 640)
+                        begin_axis=-filter_rank if filter_rank != 0 else C.Axis.new_leading_axis(),
+                        end_axis  =-filter_rank if filter_rank != 0 else None)
+
         r = convolution_transpose(W, x,
                                   strides=strides,
                                   sharing=sharing,
-                                  auto_padding=(False,) * reduction_rank + pad, # convolution_transpose() currently has no reduction_rank parameter, so we must pass an explicit False for the reduction axis
-                                  output_shape=output_full_shape,
+                                  auto_padding=pad,
+                                  output_shape=output_shape,
                                   dilation=dilation,
                                   max_temp_mem_size_in_samples=max_temp_mem_size_in_samples)
         if bias:
@@ -790,6 +799,7 @@ def ConvolutionTranspose1D(filter_shape,        # a scalar, e.g., 3
                            bias=default_override_or(True),
                            init_bias=default_override_or(0),
                            output_shape=None,
+                           reduction_rank=1, # (0 means input has no depth dimension, e.g. audio signal or B&W image)
                            dilation=1,
                            name=''):
     '''
@@ -807,7 +817,7 @@ def ConvolutionTranspose1D(filter_shape,        # a scalar, e.g., 3
     output_shape = get_default_override(ConvolutionTranspose1D, output_shape=output_shape)
     if len(_as_tuple(filter_shape)) != 1:
          raise ValueError('ConvolutionTranspose1D: filter_shape must be a scalar')
-    return ConvolutionTranspose(filter_shape, num_filters, activation, init, pad, strides, True, bias, init_bias, output_shape, dilation=dilation, name=name)
+    return ConvolutionTranspose(filter_shape, num_filters, activation, init, pad, strides, True, bias, init_bias, output_shape, reduction_rank=reduction_rank, dilation=dilation, name=name)
 
 # ConvolutionTranspose2D -- create a 2D convolution transpose layer with optional non-linearity
 def ConvolutionTranspose2D(filter_shape,        # a 2D tuple, e.g., (3,3)
@@ -819,6 +829,7 @@ def ConvolutionTranspose2D(filter_shape,        # a 2D tuple, e.g., (3,3)
                            bias=default_override_or(True),
                            init_bias=default_override_or(0),
                            output_shape=None,
+                           reduction_rank=1, # (0 means input has no depth dimension, e.g. audio signal or B&W image)
                            dilation=1,
                            name=''):
     '''
@@ -837,7 +848,7 @@ def ConvolutionTranspose2D(filter_shape,        # a 2D tuple, e.g., (3,3)
     if len(_as_tuple(filter_shape)) > 2:
          raise ValueError('ConvolutionTranspose2D: filter_shape must be a scalar or a 2D tuple, e.g. 3 or (3,3)')
     filter_shape = _pad_to_shape((0,0), filter_shape, 'filter_shape')
-    return ConvolutionTranspose(filter_shape, num_filters, activation, init, pad, strides, True, bias, init_bias, output_shape, dilation=dilation, name=name)
+    return ConvolutionTranspose(filter_shape, num_filters, activation, init, pad, strides, True, bias, init_bias, output_shape, reduction_rank=reduction_rank, dilation=dilation, name=name)
 
 # ConvolutionTranspose3D -- create a 3D convolution transpose layer with optional non-linearity
 def ConvolutionTranspose3D(filter_shape,        # a 3D tuple, e.g., (3,3,3)
@@ -849,6 +860,7 @@ def ConvolutionTranspose3D(filter_shape,        # a 3D tuple, e.g., (3,3,3)
                            bias=default_override_or(True),
                            init_bias=default_override_or(0),
                            output_shape=None,
+                           reduction_rank=1, # (0 means input has no depth dimension, e.g. audio signal or B&W image)
                            dilation=1,
                            name=''):
     '''
@@ -867,7 +879,7 @@ def ConvolutionTranspose3D(filter_shape,        # a 3D tuple, e.g., (3,3,3)
     if len(_as_tuple(filter_shape)) > 3:
          raise ValueError('ConvolutionTranspose3D: filter_shape must be a scalar or a 3D tuple, e.g. 3 or (3,3,3)')
     filter_shape = _pad_to_shape((0,0,0), filter_shape, 'filter_shape')
-    return ConvolutionTranspose(filter_shape, num_filters, activation, init, pad, strides, True, bias, init_bias, output_shape, dilation=dilation, name=name)
+    return ConvolutionTranspose(filter_shape, num_filters, activation, init, pad, strides, True, bias, init_bias, output_shape, reduction_rank=reduction_rank, dilation=dilation, name=name)
 
 # TODO: add sequential mode like Convolution()
 from cntk.cntk_py import PoolingType_Max, PoolingType_Average, NDShape
